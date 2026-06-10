@@ -1,11 +1,24 @@
 # Rewiring Plan: dcmjs 1.0 on the dicom-parser tokenizer
 
-Status: EXECUTED through R8 step 6 (2026-06-10). Commits ee33089 (step 1, intake),
-d8e4fc3 (step 2, gates), bcdfb49 (step 3, lazy bridge), 2703b90 (step 5, writer
-fusion), fd526c3 (step 6, flip + scoped R6). Version 1.0.0-beta.0, unpublished.
-Remaining 1.x work: full R6 streaming re-platform of AsyncDicomReader onto the
-tokenizer, packaging/subpath split + types, README/API docs, and the open 1.0
-API decisions at the bottom of this file.
+Status as of 2026-06-10 — executed through R8 step 6, version 1.0.0-beta.0 (NOT published).
+
+| Section | Status | Commit |
+| --- | --- | --- |
+| R0 parser intake | DONE | ee33089 |
+| R1 tag-key unification | DONE | bcdfb49 |
+| R2 lazy bridge | DONE (default core since fd526c3) | bcdfb49 |
+| R3 naturalize over lazy | PARTIAL — works unchanged, gated; lazy keyword facade + VM-driven shapes not built | bcdfb49 |
+| R4 writer fusion | DONE (passthrough, backpatch, deflate-on-write) | 2703b90 |
+| R5 character sets | DONE (per-dataset + per-item contexts; ISO_IR 192 rewrite kept) | bcdfb49 |
+| R6 streaming | PARTIAL — scoped fixes only; full re-platform deferred to 1.x | fd526c3 |
+| R7 deletions | PARTIAL — see R7 section; eager core kept as escape hatch for beta | fd526c3 |
+| R8 gates | All standing gates green (see R8) | — |
+
+Remaining for 1.0 final / 1.x: full R6 streaming re-platform of AsyncDicomReader
+onto the tokenizer; delete the eager read loop once beta soak is over; packaging
+subpath split + TypeScript surface; README/API docs; the four open API decisions
+at the bottom of this file.
+
 Generated 2026-06-09 from the cross-repo analysis
 (see `dicom-merge-analysis-report.html` in the dicom-parser worktree for the full dossier).
 
@@ -16,12 +29,21 @@ Generated 2026-06-09 from the cross-repo analysis
 - dcmjs 1.0 is a breaking release. No `dicom-parser` npm shim, no 0.x compat layer.
 - The legacy eager reader (`DicomMessage._read` and the stream-driven read path) is
   **deleted** once the equivalence suite passes — not kept behind a flag.
+  (EXECUTION DIVERGENCE: the eager core was kept as the `DCMJS_CORE=eager`
+  escape hatch for the beta, and `_read`/`_readTag` are still required
+  internally by AsyncDicomReader until the R6 re-platform. Final deletion is
+  on the 1.x backlog in R8.)
 - Internal tag identity is numeric (`(group << 16 | element) >>> 0`, dcmjs `Tag.value`).
   String keys survive only at public API boundaries.
 
 ---
 
 ## R0. Parser-package intake — changes made *inside* the vendored tokenizer
+
+> STATUS: DONE (ee33089). All four items landed plus later hardening: UV/SV/OV
+> 4-byte framing, eager-aligned unknown-VR fallback, explicit FFFE delimiter
+> framing, and deflate streams no longer re-walk the preamble (bcdfb49).
+> Parser suite: 245 tests, offline.
 
 The tokenizer arrives verbatim except for the following. These are safe because the
 parser is now our package with no external consumers; all of them happen during the
@@ -66,6 +88,9 @@ parser; it lives in the data layer (R5).
 
 ## R1. Tag-key unification
 
+> STATUS: DONE (bcdfb49). tagValue numeric internally; public dict keys remain
+> clean uppercase strings; conversions live at the wrapLazy boundary.
+
 Three incompatible formats exist today. Conversions happen exactly once, at the seams:
 
 | Format | Example | Where it lives today | In 1.0 |
@@ -89,6 +114,14 @@ the per-element `punctuateTag` regex and the dictionary Proxy get-trap from hot 
 ---
 
 ## R2. The lazy bridge — `DicomMessage.readFile` on parser output
+
+> STATUS: DONE (bcdfb49); DEFAULT core since fd526c3 (DCMJS_CORE=eager is the
+> escape hatch). Implemented in src/lazy/LazyDicomReader.js. Gates: 150/150
+> equivalence cells; full suite identical on both cores. Documented intentional
+> divergences: value-level errors surface at first access (under
+> ignoreErrors:true they warn + yield undefined instead of truncating the
+> dict); tokenizer-rejected streams take a whole-file eager fallback;
+> charset-scope approximations for non-conformant element ordering.
 
 This is the central rewiring. `readFile` becomes:
 
@@ -203,6 +236,12 @@ function materialize(el, ctx) {
 
 ## R3. `naturalizeDataset` over lazy entries
 
+> STATUS: PARTIAL. Naturalize works unchanged over lazy entries (gated by the
+> full suite on the lazy core, incl. data.test.js + charset suites). NOT built:
+> the phase-2 lazy keyword facade, VM-driven value shapes, private-tag-preserving
+> denaturalize, and the DicomDataset class for _meta/_vrMap — all tied to the
+> open 1.0 API decisions below.
+
 `naturalizeDataset` reads exactly `data.vr`, `data.Value`, `data.BulkDataURI`,
 `data.InlineBinary` per entry (`DicomMetaDictionary.js:137-149`). The lazy entry
 satisfies that contract via its getters, so **naturalize works unchanged on day one** —
@@ -227,6 +266,15 @@ one element instead of all. Ship eager-naturalize first; the facade is additive.
 ---
 
 ## R4. Writer fusion — passthrough + backpatch
+
+> STATUS: DONE (2703b90). Backpatch writer (SR writes 1.76x, large values
+> 3.23x, byte-identical output proven over 22 adversarial datasets incl. BE);
+> passthrough with zero-copy windows for >=64KB spans, SQ structural-edit
+> detection, non-default writeOptions disable passthrough; deflate-on-write
+> (also fixed the pre-existing uncompressed-deflate bug). Caveat: the charset
+> passthrough gate is conservative — ISO_IR 100 sources always re-encode; a
+> per-element ASCII fast path is possible 1.x work. In-place mutation of
+> materialized values remains undetectable by design (documented).
 
 `DicomDict.write` (`DicomDict.js:25-52`) keeps its shape (preamble, DICM, meta with
 group length, then body via `DicomMessage.write`). Two changes inside:
@@ -258,6 +306,12 @@ for every fixture (a guarantee 0.x never had).
 
 ## R5. Character sets
 
+> STATUS: DONE (bcdfb49). Decoder resolved once per dataset at wrap time;
+> per-sequence-item override contexts (exceeds eager's single-charset support);
+> ISO_IR 192 normalize-on-read quirk kept (decision still open below). Known
+> approximation: charset applies per-dataset/per-item, not per stream position
+> — diverges only on non-conformant ordering (documented in code).
+
 Today the decoder is swapped mid-stream when the read loop passes tag `00080005`
 (`DicomMessage.js:77-105` → `stream.setDecoder`), and consumed only by
 `readEncodedString` (`BufferStream.js:308-318`).
@@ -282,6 +336,13 @@ In the lazy model there is no read-time loop, so:
 
 ## R6. Streaming (deferred phase)
 
+> STATUS: PARTIAL (fd526c3). Landed: readUint16Array off-by-one fix, shared
+> default TextDecoder/TextEncoder singletons, SplitDataView cached last-hit
+> chunk index for sequential streaming reads. NOT done: re-platforming
+> AsyncDicomReader onto the tokenizer (it still runs its own header/element
+> logic over SplitDataView and still calls DicomMessage._read for the meta
+> group) — deliberate 1.x work, as planned below.
+
 `AsyncDicomReader` duplicates header/element logic and reads through
 `SplitDataView.findView` per primitive. Re-platforming it onto the parser is the hardest
 rewiring because the parser assumes one contiguous buffer while the async reader works
@@ -297,6 +358,17 @@ fast path and stays confined to `packages/streaming`.
 
 ## R7. Deletions (after the equivalence gate passes)
 
+> STATUS: PARTIAL (fd526c3). DONE: deprecated DicomMessage.read/readTag statics
+> removed; src/dicomweb.js deleted; _generateNameMap is a lazy one-shot static
+> getter; private-dictionary registration is a thin lazy lambda; loglevel root
+> no longer touched at import (named child logger 'dcmjs'); readUint16Array
+> off-by-one fixed; TextDecoder/Encoder singletons. NOT done (deliberate):
+> DicomMessage._read/_readTag and the eager element classes are KEPT — the
+> eager core remains the DCMJS_CORE=eager escape hatch for the beta soak and
+> AsyncDicomReader still depends on _read for its meta group; delete after R6
+> re-platform + beta confidence. The circular-dependency setters in index.js
+> also remain until the package split makes them unnecessary.
+
 - `DicomMessage._read`, `_readTag`, `read`, `readTag` — the entire eager loop.
 - `SequenceOfItems.readBytes` scan-rewind reader (`ValueRepresentation.js:1108-1201`).
 - `BinaryRepresentation.readBytes` frame logic (replaced by parser toolkit).
@@ -311,18 +383,39 @@ fast path and stays confined to `packages/streaming`.
 
 ## R8. Order of operations and gates
 
-1. R0 parser intake + ported byte-level suites + corpus (gate: 262 tests green offline).
-2. Benchmark + bundle-size CI gates stood up (gate: parser parse ≥ published
-   dicom-parser@1.8.12 on the corpus; importing the parser pulls zero dictionary bytes).
-3. R1 + R2 lazy bridge behind `DicomMessage.readFile` (gate: old-core vs new-core
-   equivalence — naturalized JSON + rawValues — across both repos' corpora, the dclunie
-   charset suite, malformed fixtures).
-4. R3 naturalize decisions + R5 charset context (gate: data.test.js, charset suites).
-5. R4 writer fusion (gate: lossless-read-write suite + new byte-identity rewrites).
-6. R7 deletions; flip version to 1.0.0-beta.
-7. R6 streaming re-platform (can land in 1.x).
+- [x] 1. R0 parser intake + ported byte-level suites + corpus — DONE ee33089
+      (gate met: 245 parser tests green offline).
+- [x] 2. Benchmark + bundle-size gates — DONE d8e4fc3 (`bench:parser` vs
+      published dicom-parser@1.8.21: geomean ~0.85, vendored faster on every
+      file; `gate:parser-bundle`: 29 modules all in-package, ~88 kB, zero
+      side effects). Note: reference is 1.8.21 — 1.8.12 was never published.
+- [x] 3. R1 + R2 lazy bridge — DONE bcdfb49 (gates met: 150/150 equivalence
+      cells over all local fixtures incl. deflate + encapsulated; full suite
+      identical on both cores; review-driven hardening included).
+- [x] 4. R3 naturalize + R5 charset gates — MET via the forced-lazy full-suite
+      run (data.test.js + charset suites green on the lazy core). The R3 API
+      redesigns themselves remain open 1.0 decisions (see below).
+- [x] 5. R4 writer fusion — DONE 2703b90 (gates met: lossless-read-write suite
+      both cores; byte-identity rewrite suite over the corpus; writer-hardening
+      review findings fixed).
+- [x] 6. R7 deletions + 1.0.0-beta.0 — DONE fd526c3 (partial by design: eager
+      core kept as DCMJS_CORE=eager escape hatch until R6 re-platform + beta
+      soak; see R7 status note). NOT published.
+- [ ] 7. R6 streaming re-platform — NOT DONE (1.x; scoped fixes landed in
+      fd526c3: readUint16Array fix, codec singletons, cached-chunk fast path).
 
-Open 1.0 API decisions (need owner sign-off, flagged inline above):
+Post-plan 1.x backlog (not in the original numbered steps):
+- [ ] Delete the eager read loop (_read/_readTag + eager element classes) once
+      AsyncDicomReader is re-platformed and the beta has soaked.
+- [ ] Packaging: subpath exports / workspace-package split (data, dictionary,
+      streaming, features), `sideEffects: false`, types entry — deferred since
+      nothing is being published yet.
+- [ ] TypeScript surface (seed exists at packages/parser/index.d.ts).
+- [ ] README/API docs for the 1.0 read-write pipeline.
+- [ ] Per-element ASCII fast path to widen the charset passthrough gate
+      (ISO_IR 100 sources currently always re-encode).
+
+Open 1.0 API decisions — ALL STILL OPEN as of 2026-06-10 (need owner sign-off, flagged inline above):
 scalar collapse → VM-driven? · keep ISO_IR 192 normalize-on-read? · binary values as
 views by default? · numeric vs string dict keys at the public boundary (plan assumes
 string keys stay, numeric stays internal).

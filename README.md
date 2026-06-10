@@ -7,11 +7,31 @@
 
 [![CI](https://github.com/dcmjs-org/dcmjs/actions/workflows/publish-package.yml/badge.svg)](https://github.com/dcmjs-org/dcmjs/actions?query=workflow:publish-package)
 
-**Note: this code is a work-in-progress**
+**Note: master is the 1.0.0-beta line — a major architecture release (not yet published to npm).**
 
 This is a community effort so please help improve support for a wide range of DICOM data and use cases.
 
 See [live examples here](https://master--dcmjs2.netlify.app/)
+
+# What changed in 1.0
+
+dcmjs 1.0 absorbs the dicom-parser tokenizer as its read core and is now a pnpm monorepo:
+
+- **Lazy reading by default.** `DicomMessage.readFile` records element offsets and
+  materializes values on first access. Set `DCMJS_CORE=eager` (or
+  `readFile(buffer, { core: "eager" })`) to restore the 0.x reader during the beta.
+- **Byte-faithful writing.** Untouched elements are written back as verbatim source
+  bytes; a no-edit read-write round trip reproduces the body byte for byte. Deflate
+  transfer syntax is now actually written deflated (a long-standing 0.x bug).
+- **Monorepo.** The vendored tokenizer lives in `packages/parser` (private), the
+  documentation site in `packages/docs`, and the main `dcmjs` package at the root.
+- **Removed:** the deprecated `DicomMessage.read`/`readTag` statics and the legacy
+  `DICOMWEB` class (use [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client)).
+
+Full details: the documentation site under `packages/docs` (run
+`pnpm --filter @dcmjs/docs start`), the migration guide at
+`packages/docs/docs/migration/from-0x.md`, and the engineering log at
+`docs/REWIRING-PLAN.md`.
 
 # Goals
 
@@ -81,11 +101,19 @@ pnpm test
 Other common tasks:
 
 ```bash
-pnpm run build:examples   # Rollup build + copy bundles into examples/js
-pnpm run lint             # ESLint (writes fixes)
-pnpm run format           # Prettier (writes)
-pnpm run format:check     # Prettier (check only)
+pnpm run build:examples         # Rollup build + copy bundles into examples/js
+pnpm run lint                   # ESLint (writes fixes)
+pnpm run format                 # Prettier (writes)
+pnpm run format:check           # Prettier (check only)
+pnpm run bench:parser           # parse non-regression gate vs published dicom-parser
+pnpm run gate:parser-bundle     # parser package self-containment gate
+pnpm --filter @dcmjs/docs start # documentation site dev server (packages/docs)
+pnpm --filter @dcmjs/docs build # documentation site production build
 ```
+
+This repository is a pnpm workspace: the main `dcmjs` package lives at the root,
+the vendored read tokenizer at `packages/parser` (private, with its own jest
+suite), and the Docusaurus documentation site at `packages/docs`.
 
 **Yarn is no longer supported** for working in this repo: there is no `yarn.lock`, and installs, builds, and CI are aligned with `pnpm-lock.yaml` only. Use pnpm so dependency resolution matches lockfile and automation.
 
@@ -132,7 +160,8 @@ The dcmjs library includes DICOM data dictionaries that map DICOM tags to their 
 
 - **`src/dictionary.fast.js`** - Pre-compiled fast dictionary (used at runtime)
 - **`generate/dictionary.mjs`** - Source dictionary generator
-- **`src/privateDictionary.js`** - Private tag definitions
+- **`src/dictionary.private.data.js`** - Private tag definitions
+- Since 1.0, `DicomMetaDictionary.nameMap` is built lazily on first access instead of at import time
 
 ### Updating the Dictionary
 
@@ -192,23 +221,23 @@ Read all about unit testing best practices [here](https://www.testim.io/blog/uni
 
 # Status
 
-Currently dcmjs is an early-stage development experiment, but already has valuable functionality.
+dcmjs is production-tested (OHIF, Cornerstone adapters, ~15k weekly npm downloads) and is currently in its 1.0 beta cycle.
 
 ## Implemented
 
+- Lazy, offset-based Part 10 reading (default since 1.0) with an equivalence-gated eager fallback
+- Byte-faithful Part 10 writing with passthrough of untouched elements, length backpatching, and deflate-on-write
 - Bidirectional conversion to and from part 10 binary DICOM and DICOM standard JSON encoding (as in [DICOMweb](http://dicomweb.org))
-- Bidirectional convertion to and from DICOM standard JSON and a programmer-friendly high-level version (high-level form is called the "naturalized" form in the code).
+- Bidirectional conversion to and from DICOM standard JSON and a programmer-friendly high-level version (the "naturalized" form)
+- Creation of derived DICOM objects such as Segmentations and Structured Reports
+- Packed data dictionary with lazy initialization, character set support, anonymization, streaming reader
 
-## In development
+## In development (1.x backlog)
 
-- Creation of (correct) enhanced multiframe DICOM objects from legacy image objects
-- Creation of (correct) derived DICOM objects such as Segmentations and Structured Reports
-
-## TODO
-
-- Create a test suite of input and output DICOM objects
-- Test interoperability with other DICOM implementations
-- Add documentation
+- Re-platforming the streaming `AsyncDicomReader` onto the offset tokenizer
+- Removing the legacy eager read path after the beta soak
+- Public subpath packaging (raw parser tier, dictionary) and a TypeScript surface
+- See `docs/REWIRING-PLAN.md` (R8 checklist) and the docs site roadmap page for the full list
 
 # History
 
@@ -239,4 +268,4 @@ The developers gratefully acknowledge their research support:
 
 ## Logging
 
-This library uses [loglevel](https://github.com/pimterry/loglevel) for logging. By default, the log level is set to "warn". You can change the log level by setting the `LOG_LEVEL` environment variable or by using the `setLevel` method in your code.
+This library uses [loglevel](https://github.com/pimterry/loglevel) for logging through a named child logger (`loglevel.getLogger("dcmjs")`). Since 1.0, importing dcmjs no longer calls `setLevel` on the global loglevel root logger, so host application logging configuration is left untouched. The dcmjs logger defaults to "warn"; change it with the `LOG_LEVEL` environment variable or `loglevel.getLogger("dcmjs").setLevel(...)` in your code.

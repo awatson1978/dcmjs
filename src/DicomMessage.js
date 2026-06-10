@@ -22,44 +22,17 @@ export const singleVRs = ["SQ", "OF", "OW", "OB", "UN", "LT"];
 
 export class DicomMessage {
     /**
-     * Default read core for readFile: 'eager' (the historical in-place
-     * reader) or 'lazy' (offsets-only tokenizer + on-access
-     * materialization). Overridable per call via options.core and globally
-     * via the DCMJS_CORE environment variable.
+     * Default read core for readFile: 'lazy' (offsets-only tokenizer +
+     * on-access materialization, the 1.0 default) or 'eager' (the
+     * historical in-place reader, kept as the escape hatch). Overridable
+     * per call via options.core and globally via the DCMJS_CORE
+     * environment variable (DCMJS_CORE=eager restores the old behavior).
      */
     static defaultCore =
         (typeof process !== "undefined" &&
             process.env &&
             process.env.DCMJS_CORE) ||
-        "eager";
-
-    static read(
-        bufferStream,
-        syntax,
-        ignoreErrors,
-        untilTag = null,
-        includeUntilTagValue = false
-    ) {
-        log.warn("DicomMessage.read to be deprecated after dcmjs 0.24.x");
-        return this._read(bufferStream, syntax, {
-            ignoreErrors: ignoreErrors,
-            untilTag: untilTag,
-            includeUntilTagValue: includeUntilTagValue
-        });
-    }
-
-    static readTag(
-        bufferStream,
-        syntax,
-        untilTag = null,
-        includeUntilTagValue = false
-    ) {
-        log.warn("DicomMessage.readTag to be deprecated after dcmjs 0.24.x");
-        return this._readTag(bufferStream, syntax, {
-            untilTag: untilTag,
-            includeUntilTagValue: includeUntilTagValue
-        });
-    }
+        "lazy";
 
     static _read(
         bufferStream,

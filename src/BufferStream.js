@@ -11,6 +11,17 @@ import { toInt } from "./utilities/toInt";
  */
 const RAW_ZERO_COPY_THRESHOLD = 64 * 1024;
 
+/**
+ * Shared default encoder/decoder singletons. Streams are created per
+ * sequence item / fragment / element, so constructing a TextEncoder or
+ * TextDecoder per stream is measurable overhead. Both are stateless here
+ * (decode/encode are always called without {stream: true}), so sharing is
+ * safe. setDecoder still installs a per-stream decoder on the instance
+ * when SpecificCharacterSet changes - it never mutates these defaults.
+ */
+const DEFAULT_ENCODER = new TextEncoder();
+const DEFAULT_LATIN1_DECODER = new TextDecoder("latin1");
+
 export class BufferStream {
     offset = 0;
     startOffset = 0;
@@ -26,7 +37,7 @@ export class BufferStream {
     /** A flag to set to indicate to clear buffers as they get consumed */
     clearBuffers = false;
 
-    encoder = new TextEncoder("utf-8");
+    encoder = DEFAULT_ENCODER;
 
     constructor(options = null) {
         this.isLittleEndian = options?.littleEndian || this.isLittleEndian;
@@ -293,10 +304,9 @@ export class BufferStream {
     }
 
     readUint16Array(length) {
-        var sixlen = length / 2,
-            arr = new Uint16Array(sixlen),
-            i = 0;
-        while (i++ < sixlen) {
+        const count = length / 2;
+        const arr = new Uint16Array(count);
+        for (let i = 0; i < count; i++) {
             arr[i] = this.view.getUint16(this.offset, this.isLittleEndian);
             this.offset += 2;
         }
@@ -546,7 +556,7 @@ export class ReadBufferStream extends BufferStream {
     ) {
         super({ ...options, littleEndian });
         this.noCopy = options.noCopy;
-        this.decoder = new TextDecoder("latin1");
+        this.decoder = DEFAULT_LATIN1_DECODER;
 
         if (buffer instanceof BufferStream) {
             this.view.from(buffer.view, options);

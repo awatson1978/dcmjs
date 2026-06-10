@@ -57,6 +57,17 @@ export default class SplitDataView {
     /** The last byte index not already consumed */
     consumeOffset = -1;
 
+    /**
+     * Chunk index returned by the last findStart hit. Sequential reads
+     * almost always land in the same chunk as the previous read (or the
+     * next one), so findStart checks this hint before falling back to the
+     * O(numBuffers) linear scan. The hint is fully re-validated against
+     * offsets/lengths on every use (chunk ranges are disjoint, so a
+     * validated hit is always THE chunk), and reset whenever the chunk
+     * list mutates destructively (truncateTo, consume, from).
+     */
+    lastFoundIndex = 0;
+
     constructor(options = { defaultSize: 256 * 1024 }) {
         this.defaultSize = options.defaultSize || this.defaultSize;
     }
@@ -65,6 +76,7 @@ export default class SplitDataView {
      * Consumes the already written or read data, up to the given offset.
      */
     consume(offset) {
+        this.lastFoundIndex = 0;
         this.consumeOffset = Math.max(offset, this.consumeOffset);
         if (!this.consumed || !this.offsets.length) {
             return;
@@ -212,6 +224,7 @@ export default class SplitDataView {
      * small-write/window alternation stranded a whole growth chunk).
      */
     truncateTo(end) {
+        this.lastFoundIndex = 0;
         while (
             this.offsets.length &&
             this.offsets[this.offsets.length - 1] >= end
@@ -271,6 +284,7 @@ export default class SplitDataView {
 
     /** Copies one view contents into this one as a mirror */
     from(view, _options) {
+        this.lastFoundIndex = 0;
         const indexBase = this.buffers.length;
         this.size = view.size;
         this.byteLength = view.byteLength;
@@ -336,11 +350,33 @@ export default class SplitDataView {
     }
 
     findStart(start = 0) {
+        const { offsets, lengths } = this;
+        // Fast path: sequential reads nearly always hit the chunk of the
+        // previous read, or the one immediately after it.
+        const hint = this.lastFoundIndex;
+        if (hint < offsets.length) {
+            if (
+                start >= offsets[hint] &&
+                start < offsets[hint] + lengths[hint]
+            ) {
+                return hint;
+            }
+            const next = hint + 1;
+            if (
+                next < offsets.length &&
+                start >= offsets[next] &&
+                start < offsets[next] + lengths[next]
+            ) {
+                this.lastFoundIndex = next;
+                return next;
+            }
+        }
         for (let index = 0; index < this.buffers.length; index++) {
             if (
-                start >= this.offsets[index] &&
-                start < this.offsets[index] + this.lengths[index]
+                start >= offsets[index] &&
+                start < offsets[index] + lengths[index]
             ) {
+                this.lastFoundIndex = index;
                 return index;
             }
         }

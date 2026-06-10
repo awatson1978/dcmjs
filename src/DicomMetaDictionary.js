@@ -331,26 +331,47 @@ export class DicomMetaDictionary {
         return now.toISOString().replace(/[:\-TZ]/g, "");
     }
 
+    /**
+     * Lazily-built name -> entry map (R7): building it materializes ~5000
+     * entry objects, so it is deferred from import time to the first
+     * nameMap access. All existing access patterns
+     * (DicomMetaDictionary.nameMap[name], `name in nameMap`, the
+     * denaturalizeDataset default argument) go through this getter.
+     */
+    static _nameMap = null;
+
+    static get nameMap() {
+        if (DicomMetaDictionary._nameMap === null) {
+            DicomMetaDictionary._nameMap =
+                DicomMetaDictionary._generateNameMap();
+        }
+        return DicomMetaDictionary._nameMap;
+    }
+
+    static set nameMap(value) {
+        DicomMetaDictionary._nameMap = value;
+    }
+
     static _generateNameMap() {
-        DicomMetaDictionary.nameMap = {};
+        const nameMap = {};
         const entries = getAllStandardTagEntries();
         for (let i = 0; i < entries.length; i++) {
             const e = entries[i];
-            const dict = {
+            nameMap[e.name] = {
                 tag: e.tag,
                 vr: e.vr,
                 vm: e.vm,
                 name: e.name,
                 version: "DICOM"
             };
-            DicomMetaDictionary.nameMap[e.name] = dict;
         }
         Object.keys(DicomMetaDictionary.dictionary).forEach(tag => {
             const dict = DicomMetaDictionary.dictionary[tag];
             if (dict && dict.version !== "PrivateTag") {
-                DicomMetaDictionary.nameMap[dict.name] = dict;
+                nameMap[dict.name] = dict;
             }
         });
+        return nameMap;
     }
 
     static _generateCustomNameMap(dictionary) {
@@ -441,5 +462,5 @@ ValueRepresentation.setDicomMetaDictionary(DicomMetaDictionary);
 
 DicomMetaDictionary.dictionary = dictionary;
 
-DicomMetaDictionary._generateNameMap();
+// nameMap is built lazily on first access (see the static getter above).
 DicomMetaDictionary._generateUIDMap();

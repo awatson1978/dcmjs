@@ -190,14 +190,14 @@ describe("lazy read core bridge", () => {
 
         test("default readFile uses the configured default core", () => {
             // the DCMJS_CORE env var intentionally overrides the default
-            // (that is how the forced-lazy full-suite gate runs); without
-            // it the default must remain the eager core, byte-identical to
-            // the historical readFile.
+            // (that is how the forced-eager full-suite gate runs); without
+            // it the 1.0 default is the lazy core, with 'eager' kept as
+            // the escape hatch.
             const envCore =
                 (typeof process !== "undefined" &&
                     process.env &&
                     process.env.DCMJS_CORE) ||
-                "eager";
+                "lazy";
             expect(DicomMessage.defaultCore).toBe(envCore);
 
             const dict = DicomMessage.readFile(readFixture(fixture));

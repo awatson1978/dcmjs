@@ -1,16 +1,25 @@
 import fs from "fs";
 import path from "path";
-import { parseDicom } from "@dcmjs/parser";
+import {
+    parseDicom,
+    ByteStream,
+    DataSet,
+    littleEndianByteArrayParser,
+    readDicomElementExplicit
+} from "@dcmjs/parser";
 import dcmjs from "../src/index.js";
+import { isCleanForPassthrough } from "../src/lazy/LazyDicomReader.js";
 import { log } from "../src/log.js";
 import { compareSection } from "./helper/equivalence.js";
 
-const { DicomMessage, DicomDict } = dcmjs.data;
+const { DicomMessage, DicomDict, DicomMetaDictionary } = dcmjs.data;
 
 /**
  * Regression tests for the lazy-core hardening fixes (H2, M1-M4), including
- * the divergence-pinning tests for the documented error-timing differences
- * (see the docblock in src/lazy/LazyDicomReader.js).
+ * the divergence-pinning tests for the documented error-timing differences,
+ * and for the writer seam (W2: _sourceSpan, _dirty soundness,
+ * isCleanForPassthrough, _lazyWriteContext - see the docblock in
+ * src/lazy/LazyDicomReader.js).
  */
 
 const FIXTURE_DIR = path.join(
@@ -482,5 +491,473 @@ describe("M4: implicit-VR dictionary framing (vrCallback)", () => {
             "Value"
         );
         expect(typeof descriptor.get).toBe("function");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// W2 - writer seam: _sourceSpan
+// ---------------------------------------------------------------------------
+describe("W2: _sourceSpan", () => {
+    const ELE_FIXTURE = "CT1_UNC.explicit_little_endian.dcm";
+    const SQ_FIXTURE =
+        "encapsulated/multi-frame/CT0012.explicit_little_endian.dcm";
+    const ENCAP_BOT_FIXTURE =
+        "encapsulated/single-frame/CT1_UNC.fragmented_bot_jpeg_ls.80.dcm";
+
+    /** Re-parses a span slice as a standalone explicit-LE element. */
+    function reparseStandalone(spanBytes) {
+        const stream = new ByteStream(littleEndianByteArrayParser, spanBytes);
+        return readDicomElementExplicit(stream, []);
+    }
+
+    function sliceSpan(span) {
+        expect(span).toBeDefined();
+        expect(span.buffer).toBeInstanceOf(Uint8Array);
+        return span.buffer.subarray(span.startOffset, span.endOffset);
+    }
+
+    test("plain element: span matches the parser element and re-parses standalone to the same value", () => {
+        const buffer = readFixture(ELE_FIXTURE);
+        const origEl = parseDicom(new Uint8Array(buffer.slice(0))).elements
+            .x00080060;
+        const lazy = readLazy(buffer);
+        const entry = lazy.dict["00080060"];
+
+        // non-enumerable: invisible to iteration/serialization
+        expect(Object.keys(entry).sort()).toEqual(["Value", "_rawValue", "vr"]);
+
+        const span = entry._sourceSpan;
+        expect(span.startOffset).toBe(origEl.startOffset);
+        expect(span.endOffset).toBe(origEl.endOffset);
+
+        const slice = sliceSpan(span);
+        const reEl = reparseStandalone(slice);
+        expect(reEl.tag).toBe("x00080060");
+        expect(reEl.vr).toBe("CS");
+        expect(reEl.endOffset).toBe(slice.length); // span covers exactly the element
+        const ds = new DataSet(littleEndianByteArrayParser, slice, {
+            x00080060: reEl
+        });
+        expect(ds.string("x00080060")).toBe(entry.Value.join("\\"));
+    });
+
+    test("SQ element: span includes the delimiters and re-parses to the same items and values", () => {
+        const buffer = readFixture(SQ_FIXTURE);
+        const origEl = parseDicom(new Uint8Array(buffer.slice(0))).elements
+            .x00089121;
+        expect(origEl.hadUndefinedLength).toBe(true);
+
+        const lazy = readLazy(buffer);
+        const entry = lazy.dict["00089121"];
+        const span = entry._sourceSpan;
+        expect(span.startOffset).toBe(origEl.startOffset);
+        expect(span.endOffset).toBe(origEl.endOffset);
+
+        const slice = sliceSpan(span);
+        const reEl = reparseStandalone(slice);
+        expect(reEl.tag).toBe("x00089121");
+        expect(reEl.vr).toBe("SQ");
+        // undefined-length SQ: endOffset === slice end proves the item and
+        // sequence delimiters are inside the span
+        expect(reEl.endOffset).toBe(slice.length);
+        expect(reEl.items).toHaveLength(origEl.items.length);
+
+        // same values: the re-parsed standalone item resolves the same
+        // strings the lazy entry materializes
+        const lazyItems = entry.Value;
+        expect(lazyItems).toHaveLength(reEl.items.length);
+        const reItemDs = reEl.items[0].dataSet;
+        expect(reItemDs.string("x0020000d")).toBe(
+            lazyItems[0]["0020000D"].Value.join("\\")
+        );
+        // the nested defined-length SQ re-parses with its items too
+        expect(reItemDs.elements.x00081115.items).toHaveLength(
+            origEl.items[0].dataSet.elements.x00081115.items.length
+        );
+    });
+
+    test("unencapsulated pixel data: span value bytes equal the materialized value", () => {
+        const buffer = readFixture(SQ_FIXTURE);
+        const lazy = readLazy(buffer);
+        const entry = lazy.dict["7FE00010"];
+
+        const slice = sliceSpan(entry._sourceSpan);
+        const reEl = reparseStandalone(slice);
+        expect(reEl.tag).toBe("x7fe00010");
+        expect(reEl.endOffset).toBe(slice.length);
+
+        const valueBytes = new Uint8Array(entry.Value[0]);
+        const sliceBytes = slice.subarray(
+            reEl.dataOffset,
+            reEl.dataOffset + reEl.length
+        );
+        expect(valueBytes.length).toBe(sliceBytes.length);
+        expect(
+            Buffer.compare(Buffer.from(valueBytes), Buffer.from(sliceBytes))
+        ).toBe(0);
+    });
+
+    test("encapsulated pixel data: span covers the whole run incl. BOT and sequence delimiter", () => {
+        const buffer = readFixture(ENCAP_BOT_FIXTURE);
+        const origEl = parseDicom(new Uint8Array(buffer.slice(0))).elements
+            .x7fe00010;
+        expect(origEl.encapsulatedPixelData).toBe(true);
+        expect(origEl.basicOffsetTable.length).toBeGreaterThan(0);
+        expect(origEl.fragments.length).toBeGreaterThan(1);
+
+        const lazy = readLazy(buffer);
+        const entry = lazy.dict["7FE00010"];
+        const span = entry._sourceSpan;
+        expect(span.startOffset).toBe(origEl.startOffset);
+        expect(span.endOffset).toBe(origEl.endOffset);
+
+        const slice = sliceSpan(span);
+        const reEl = reparseStandalone(slice);
+        expect(reEl.tag).toBe("x7fe00010");
+        expect(reEl.encapsulatedPixelData).toBe(true);
+        // BOT item, every fragment item and the sequence delimiter are all
+        // inside the span
+        expect(reEl.endOffset).toBe(slice.length);
+        expect(reEl.basicOffsetTable).toEqual(origEl.basicOffsetTable);
+        expect(reEl.fragments).toHaveLength(origEl.fragments.length);
+
+        // same values: the single-BOT-entry frame assembled from the
+        // standalone slice equals the lazily materialized frame
+        const merged = new Uint8Array(
+            reEl.fragments.reduce((size, f) => size + f.length, 0)
+        );
+        let position = 0;
+        for (const f of reEl.fragments) {
+            merged.set(
+                slice.subarray(f.position, f.position + f.length),
+                position
+            );
+            position += f.length;
+        }
+        const frame = new Uint8Array(entry.Value[0]);
+        expect(frame.length).toBe(merged.length);
+        expect(Buffer.compare(Buffer.from(frame), Buffer.from(merged))).toBe(0);
+    });
+
+    test("meta entries carry spans over the original input buffer", () => {
+        const buffer = readFixture(ELE_FIXTURE);
+        const lazy = readLazy(buffer);
+        const entry = lazy.meta["00020010"];
+
+        const slice = sliceSpan(entry._sourceSpan);
+        const reEl = reparseStandalone(slice);
+        expect(reEl.tag).toBe("x00020010");
+        expect(reEl.endOffset).toBe(slice.length);
+        const ds = new DataSet(littleEndianByteArrayParser, slice, {
+            x00020010: reEl
+        });
+        expect(ds.string("x00020010")).toBe(entry.Value[0]);
+    });
+
+    test("the rewritten SpecificCharacterSet entry carries no span (its source bytes no longer represent it)", () => {
+        const buffer = readFixture(ELE_FIXTURE); // stores ISO_IR 100
+        const lazy = readLazy(buffer);
+        const entry = lazy.dict["00080005"];
+        expect(String(entry.Value[0])).toBe("ISO_IR 192"); // eager quirk, kept
+        expect(entry._sourceSpan).toBeUndefined();
+        expect(isCleanForPassthrough(entry)).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// W2 - writer seam: _dirty soundness
+// ---------------------------------------------------------------------------
+describe("W2: _dirty soundness", () => {
+    const ELE_FIXTURE = "CT1_UNC.explicit_little_endian.dcm";
+
+    test("the _rawValue setter dirties the entry", () => {
+        const lazy = readLazy(readFixture(ELE_FIXTURE));
+        const entry = lazy.dict["00080060"];
+        expect(entry._dirty).toBe(false);
+        expect(isCleanForPassthrough(entry)).toBe(true);
+
+        entry._rawValue = ["XX"];
+        expect(entry._dirty).toBe(true);
+        expect(entry._rawValue).toEqual(["XX"]);
+        expect(isCleanForPassthrough(entry)).toBe(false);
+    });
+
+    test("the Value setter dirties the entry, including through the PN value-accessor proxy", () => {
+        const lazy = readLazy(readFixture(ELE_FIXTURE));
+
+        const entry = lazy.dict["00080060"];
+        entry.Value = ["MR"];
+        expect(entry._dirty).toBe(true);
+        expect(isCleanForPassthrough(entry)).toBe(false);
+
+        const pn = lazy.dict["00100010"]; // PN: wrapped by addTagAccessors
+        expect(pn._dirty).toBe(false);
+        pn.Value = [{ Alphabetic: "Doe^John" }];
+        expect(pn._dirty).toBe(true);
+        expect(isCleanForPassthrough(pn)).toBe(false);
+    });
+
+    test("absence of _dirty means dirty: eager, upsertTag and denaturalized entries never pass through", () => {
+        const buffer = readFixture(ELE_FIXTURE);
+
+        // eager-core entries carry no _dirty at all
+        const eager = readEager(buffer);
+        expect(eager.dict["00080060"]._dirty).toBeUndefined();
+        expect(isCleanForPassthrough(eager.dict["00080060"])).toBe(false);
+
+        // upsertTag on a NEW tag builds an eager-shaped entry (no _dirty)
+        const lazy = readLazy(buffer);
+        expect(lazy.dict["00104000"]).toBeUndefined(); // precondition
+        lazy.upsertTag("00104000", "LT", ["comment"]);
+        expect(lazy.dict["00104000"]._dirty).toBeUndefined();
+        expect(isCleanForPassthrough(lazy.dict["00104000"])).toBe(false);
+
+        // upsertTag on an EXISTING lazy entry assigns Value -> _dirty
+        expect(lazy.dict["00080060"]._dirty).toBe(false);
+        lazy.upsertTag("00080060", "CS", ["MR"]);
+        expect(lazy.dict["00080060"]._dirty).toBe(true);
+        expect(isCleanForPassthrough(lazy.dict["00080060"])).toBe(false);
+
+        // denaturalized entries carry no _dirty either
+        const natural = DicomMetaDictionary.naturalizeDataset(
+            readEager(buffer).dict
+        );
+        const denaturalized = DicomMetaDictionary.denaturalizeDataset(natural);
+        const someTag = Object.keys(denaturalized)[0];
+        expect(denaturalized[someTag]._dirty).toBeUndefined();
+        expect(isCleanForPassthrough(denaturalized[someTag])).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// W2 - writer seam: isCleanForPassthrough over sequences
+// ---------------------------------------------------------------------------
+describe("W2: isCleanForPassthrough", () => {
+    const SQ_FIXTURE =
+        "encapsulated/multi-frame/CT0012.explicit_little_endian.dcm";
+    const ENCAP_BOT_FIXTURE =
+        "encapsulated/single-frame/CT1_UNC.fragmented_bot_jpeg_ls.80.dcm";
+
+    test("untouched lazy entries are clean; materialization alone keeps them clean", () => {
+        const lazy = readLazy(readFixture(SQ_FIXTURE));
+
+        const plain = lazy.dict["00080060"];
+        const sq = lazy.dict["00089121"];
+        const pixel = lazy.dict["7FE00010"];
+        expect(isCleanForPassthrough(plain)).toBe(true);
+        expect(isCleanForPassthrough(sq)).toBe(true); // unmaterialized SQ
+        expect(isCleanForPassthrough(pixel)).toBe(true);
+
+        void plain.Value;
+        void sq.Value; // materializes the items
+        void pixel.Value;
+        expect(isCleanForPassthrough(plain)).toBe(true);
+        expect(isCleanForPassthrough(sq)).toBe(true);
+        expect(isCleanForPassthrough(pixel)).toBe(true);
+
+        // non-entries are never clean
+        expect(isCleanForPassthrough(undefined)).toBe(false);
+        expect(isCleanForPassthrough(null)).toBe(false);
+    });
+
+    test("assigning a nested item entry flips the enclosing SQ (the SQ's own _dirty stays false)", () => {
+        const lazy = readLazy(readFixture(SQ_FIXTURE));
+        const sq = lazy.dict["00089121"];
+        const items = sq.Value;
+
+        const itemDict = items[0];
+        itemDict["0020000D"].Value = ["9.9.9"];
+
+        expect(sq._dirty).toBe(false); // the SQ itself was never assigned
+        expect(sq._nestedDirtCount).toBe(1);
+        expect(isCleanForPassthrough(sq)).toBe(false);
+        // siblings stay clean
+        expect(isCleanForPassthrough(lazy.dict["00080060"])).toBe(true);
+    });
+
+    test("an assignment deep inside nested sequences flips every enclosing SQ", () => {
+        const lazy = readLazy(readFixture(SQ_FIXTURE));
+        const outer = lazy.dict["00089121"];
+        const inner = outer.Value[0]["00081115"]; // SQ inside the item
+        expect(inner.vr).toBe("SQ");
+        expect(isCleanForPassthrough(outer)).toBe(true);
+        expect(isCleanForPassthrough(inner)).toBe(true);
+
+        inner.Value[0]["0020000E"].Value = ["9.9.9"]; // depth 2 assignment
+
+        expect(isCleanForPassthrough(inner)).toBe(false);
+        expect(isCleanForPassthrough(outer)).toBe(false);
+        expect(inner._dirty).toBe(false);
+        expect(outer._dirty).toBe(false);
+        expect(inner._nestedDirtCount).toBe(1);
+        expect(outer._nestedDirtCount).toBe(1);
+    });
+
+    test("assigning the nested SQ entry itself also flips the outer SQ", () => {
+        const lazy = readLazy(readFixture(SQ_FIXTURE));
+        const outer = lazy.dict["00089121"];
+        const inner = outer.Value[0]["00081115"];
+
+        inner.Value = [];
+
+        expect(inner._dirty).toBe(true);
+        expect(isCleanForPassthrough(inner)).toBe(false);
+        expect(outer._dirty).toBe(false);
+        expect(isCleanForPassthrough(outer)).toBe(false);
+    });
+
+    test("an in-item SpecificCharacterSet denies SQ passthrough even when untouched", () => {
+        const dicomDict = new DicomDict({});
+        dicomDict.dict = {
+            "00081110": {
+                vr: "SQ",
+                Value: [
+                    {
+                        "00080005": { vr: "CS", Value: ["ISO_IR 192"] },
+                        "00081150": { vr: "UI", Value: ["1.2.3"] }
+                    }
+                ]
+            },
+            "00100020": { vr: "LO", Value: ["P1"] }
+        };
+        const lazy = readLazy(dicomDict.write());
+
+        const sq = lazy.dict["00081110"];
+        // never materialized, _dirty false - but materializing would REWRITE
+        // the in-item charset value to ["ISO_IR 192"], so the source bytes
+        // are not what the eager writer would emit
+        expect(sq._dirty).toBe(false);
+        expect(isCleanForPassthrough(sq)).toBe(false);
+        expect(isCleanForPassthrough(lazy.dict["00100020"])).toBe(true);
+    });
+
+    test("entries materialized through the eager-window fallback are denied (untracked nested entries)", () => {
+        // Patch the BOT entry of a BOT fixture so it lands on no fragment
+        // boundary: materializeEncapsulatedPixelData then delegates to the
+        // eager window read, whose outputs the dirt tracking cannot see.
+        const buffer = readFixture(ENCAP_BOT_FIXTURE);
+        const bytes = new Uint8Array(buffer);
+        const pixelEl = parseDicom(new Uint8Array(buffer.slice(0))).elements
+            .x7fe00010;
+        expect(pixelEl.basicOffsetTable.length).toBeGreaterThan(0);
+        // BOT values live right after the first item header (8 bytes)
+        new DataView(bytes.buffer).setUint32(pixelEl.dataOffset + 8, 2, true);
+
+        const lazy = readLazy(bytes.buffer, { ignoreErrors: true });
+        const entry = lazy.dict["7FE00010"];
+        expect(isCleanForPassthrough(entry)).toBe(true); // not yet materialized
+
+        void entry.Value; // routes through the eager-window fallback
+
+        expect(entry._dirty).toBe(false);
+        expect(entry._untrackedNested).toBe(true);
+        expect(isCleanForPassthrough(entry)).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// W2 - writer seam: _lazyWriteContext
+// ---------------------------------------------------------------------------
+describe("W2: _lazyWriteContext", () => {
+    const ELE_FIXTURE = "CT1_UNC.explicit_little_endian.dcm";
+    const ENCAP_BOT_FIXTURE =
+        "encapsulated/single-frame/CT1_UNC.fragmented_bot_jpeg_ls.80.dcm";
+
+    function buildFileWithCharset(charsets) {
+        const dicomDict = new DicomDict({});
+        dicomDict.dict = {
+            "00080060": { vr: "CS", Value: ["OT"] },
+            "00100020": { vr: "LO", Value: ["P1"] }
+        };
+        if (charsets) {
+            dicomDict.dict["00080005"] = { vr: "CS", Value: charsets };
+        }
+        return dicomDict.write();
+    }
+
+    test("shape: non-enumerable, source byte array and the file's stored transfer syntax", () => {
+        const buffer = readFixture(ELE_FIXTURE);
+        const lazy = readLazy(buffer);
+
+        expect(Object.keys(lazy).sort()).toEqual(["dict", "meta"]);
+        const writeCtx = lazy._lazyWriteContext;
+        expect(writeCtx).toBeDefined();
+        expect(writeCtx.sourceByteArray).toBeInstanceOf(Uint8Array);
+        expect(writeCtx.sourceByteArray.length).toBe(buffer.byteLength);
+        expect(writeCtx.sourceSyntax).toBe("1.2.840.10008.1.2.1");
+        // body spans index into the context's source byte array
+        expect(lazy.dict["00080060"]._sourceSpan.buffer).toBe(
+            writeCtx.sourceByteArray
+        );
+    });
+
+    test("sourceSyntax keeps the file's own (encapsulated) transfer syntax UID", () => {
+        const lazy = readLazy(readFixture(ENCAP_BOT_FIXTURE));
+        expect(lazy._lazyWriteContext.sourceSyntax).toBe(
+            lazy.meta["00020010"].Value[0]
+        );
+        expect(lazy._lazyWriteContext.sourceSyntax).toBe(
+            "1.2.840.10008.1.2.4.80"
+        );
+    });
+
+    test("charsetPassthroughSafe: true for absent / ISO_IR 6 / ISO_IR 192, false for latin and multi-valued charsets", () => {
+        expect(
+            readLazy(buildFileWithCharset(null))._lazyWriteContext
+                .charsetPassthroughSafe
+        ).toBe(true);
+        expect(
+            readLazy(buildFileWithCharset(["ISO_IR 192"]))._lazyWriteContext
+                .charsetPassthroughSafe
+        ).toBe(true);
+        expect(
+            readLazy(buildFileWithCharset(["ISO_IR 6"]))._lazyWriteContext
+                .charsetPassthroughSafe
+        ).toBe(true);
+        expect(
+            readLazy(buildFileWithCharset(["ISO_IR 100"]))._lazyWriteContext
+                .charsetPassthroughSafe
+        ).toBe(false);
+        expect(
+            readLazy(buildFileWithCharset(["\\ISO 2022 IR 87"]), {
+                ignoreErrors: true
+            })._lazyWriteContext.charsetPassthroughSafe
+        ).toBe(false);
+    });
+
+    test("the real latin-1 fixture is flagged unsafe", () => {
+        // CT1 stores SpecificCharacterSet "ISO_IR 100"
+        const lazy = readLazy(readFixture(ELE_FIXTURE));
+        expect(lazy._lazyWriteContext.charsetPassthroughSafe).toBe(false);
+    });
+
+    test("dicts from the whole-file eager fallback carry no _lazyWriteContext", () => {
+        // shrink the meta group length VALUE by exactly one trailing meta
+        // element so the tokenizer/eager meta boundaries disagree and the
+        // lazy core delegates the whole file (same shape as the M1 tests)
+        const buffer = readFixture(ELE_FIXTURE);
+        const patched = new Uint8Array(buffer);
+        const elements = parseDicom(new Uint8Array(buffer.slice(0))).elements;
+        const groupLength = elements.x00020000;
+        const last = Object.values(elements)
+            .filter(
+                el => el.tagValue >>> 16 === 0x0002 && el.tag !== "x00020000"
+            )
+            .reduce((a, b) => (b.startOffset > a.startOffset ? b : a));
+        const view = new DataView(patched.buffer);
+        view.setUint32(
+            groupLength.dataOffset,
+            view.getUint32(groupLength.dataOffset, true) -
+                (last.endOffset - last.startOffset),
+            true
+        );
+
+        const lazy = readLazy(patched.buffer);
+        expect(lazy.dict["00080060"]).toBeDefined();
+        // fallback entries are eager data properties, not lazy getters
+        expect(
+            Object.getOwnPropertyDescriptor(lazy.dict["00080060"], "Value").get
+        ).toBeUndefined();
+        expect(lazy._lazyWriteContext).toBeUndefined();
     });
 });

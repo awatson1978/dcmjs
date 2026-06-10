@@ -46,6 +46,66 @@ import { log } from "../log.js";
  *    ignoreErrors:true: eager truncates (previous point); lazy warns and
  *    decodes the item with the default character set, exactly like eager
  *    handles a bad TOP-LEVEL SpecificCharacterSet under ignoreErrors.
+ *
+ * WRITER SEAM (REWIRING-PLAN R4 groundwork)
+ *
+ * Every lazy entry carries non-enumerable writer-facing state:
+ *  - `_sourceSpan` { startOffset, endOffset, buffer }: the parser element's
+ *    byte span over its source byteArray (`buffer`), INCLUDING the element
+ *    header and - for undefined-length SQ elements and encapsulated pixel
+ *    data - all item/sequence delimiters, the basic offset table and the
+ *    fragments. `buffer.subarray(startOffset, endOffset)` is the element's
+ *    exact on-disk encoding. Body entries reference the dataset source
+ *    buffer (for the deflated transfer syntax: the header + INFLATED
+ *    body buffer the inflater returned);
+ *    meta (group 0002) entries reference the original input buffer - meta
+ *    is always re-encoded by the writer, the span is informational.
+ *    Entries with no faithful span (untilTag stubs, the rewritten
+ *    SpecificCharacterSet entry, eager-fallback entries) carry none.
+ *  - `_dirty`: false until Value or _rawValue is ASSIGNED, then true.
+ *    THE ABSENCE OF `_dirty` MEANS DIRTY: entries built by the eager core,
+ *    by DicomDict.upsertTag, or by denaturalize have no `_dirty` property
+ *    and the writer must re-encode them (`isCleanForPassthrough` returns
+ *    false for them).
+ *  - `_nestedDirtCount`: assignment counter for SQ subtrees. Item entries
+ *    are created in child contexts holding a reference to their parent SQ
+ *    entry; any nested Value/_rawValue assignment bumps the counter on
+ *    every enclosing SQ entry up the chain.
+ *
+ * IMPORTANT - DIRTINESS IS ASSIGNMENT-BASED ONLY, with ONE structural
+ * exception for SQ entries. In-place mutation of a materialized value is
+ * UNDETECTABLE by the setters: `entry.Value.push(x)`, `entry.Value[0] = x`,
+ * or mutating the bytes of a returned binary buffer leaves `_dirty` false
+ * and the entry looks clean to the passthrough writer, which would then
+ * emit the ORIGINAL bytes. Every edit should go through an assignment
+ * (`entry.Value = [...]`, `item["00081150"].Value = [...]`) or through
+ * DicomDict.upsertTag.
+ *
+ * The exception (writer hardening): item dicts returned by a materialized
+ * SQ entry are plain objects, so adding or deleting a KEY in one (and
+ * pushing/splicing the item array itself) bypasses every setter. Because
+ * such structural edits would otherwise be silently dropped,
+ * isCleanForPassthrough re-verifies a MATERIALIZED SQ entry's structure
+ * against the parsed element at write time (item count, per-item key sets,
+ * per-item entry ownership, recursively into materialized nested SQs - see
+ * sqStructureDiverged) and re-encodes on any mismatch. Never-materialized
+ * SQ entries cannot have been structurally edited and stay clean by
+ * construction. Still UNDETECTABLE: in-place mutation of a LEAF entry's
+ * materialized value (`item["00081150"].Value[0] = x`) and swapping two
+ * items with identical key sets within the same SQ.
+ *
+ * The DicomDict returned by the lazy path (not the eager fallback) carries
+ * a non-enumerable `_lazyWriteContext`
+ * { sourceByteArray, sourceSyntax, charsetPassthroughSafe }:
+ *  - sourceByteArray: the buffer body `_sourceSpan`s index into;
+ *  - sourceSyntax: the file's TransferSyntaxUID exactly as stored
+ *    (NOT normalized - the deflated syntax keeps its own UID even though
+ *    sourceByteArray holds the inflated, no longer deflated, body);
+ *  - charsetPassthroughSafe: true iff the file's original top-level
+ *    SpecificCharacterSet is absent, empty, ISO_IR 6 / ISO 2022 IR 6 or
+ *    ISO_IR 192 / UTF-8 - i.e. the eager writer's UTF-8 re-encode of
+ *    string values is byte-identical to the source bytes for conformant
+ *    content, so string-bearing elements may pass through.
  */
 
 /** 'x00080005' (parser key) -> '00080005' (dcmjs clean dict key) */
@@ -59,24 +119,231 @@ const ITEM_DELIMITER_KEY = "xfffee00d";
 
 /**
  * Inflater callback for parseDicom (deflate transfer syntax,
- * 1.2.840.10008.1.2.1.99). Needed for two reasons:
- *  - the parser's built-in node branch requires a Buffer (it calls
- *    byteArray.copy), but readFileLazy normalizes input to a plain
- *    Uint8Array;
- *  - the vendored parser starts the dataset ByteStream at position 0 of
- *    whatever the inflater returns (not at `position` like upstream
- *    dicom-parser), so returning header + inflated body would re-parse the
- *    preamble/meta as garbage body elements.
- * Return ONLY the inflated body: dataset element offsets then index into
- * this body-only buffer, while meta element offsets keep indexing the
- * original (compressed) buffer - the materialization context carries both.
+ * 1.2.840.10008.1.2.1.99). Needed because the parser's built-in node
+ * branch requires a Buffer (it calls byteArray.copy), but readFileLazy
+ * normalizes input to a plain Uint8Array.
+ *
+ * Contract (same as the published dicom-parser): return the original
+ * header bytes [0, position) followed by the inflated data set - the
+ * parser continues the dataset ByteStream at `position` of the returned
+ * buffer. Dataset element offsets then index into this header+inflated
+ * buffer (whose header prefix is byte-identical to the original input),
+ * while meta element offsets index the original (compressed) buffer - the
+ * materialization context carries both.
  */
 function pakoInflater(byteArray, position) {
-    return pako.inflateRaw(byteArray.subarray(position));
+    const inflated = pako.inflateRaw(byteArray.subarray(position));
+    const fullByteArray = new Uint8Array(position + inflated.length);
+    fullByteArray.set(byteArray.subarray(0, position), 0);
+    fullByteArray.set(inflated, position);
+    return fullByteArray;
 }
 
 function isMetaElement(el) {
     return el.tagValue >>> 16 === META_GROUP;
+}
+
+/**
+ * Bumps the nested-assignment counter on every SQ entry enclosing the
+ * entry whose setter fired. `parentEntry` is the SQ entry of the item the
+ * assigned entry lives in (null for top-level entries); `_parentEntry`
+ * chains item entries to THEIR enclosing SQ, so deep assignments dirty the
+ * whole ancestor chain.
+ */
+function bumpNestedDirt(parentEntry) {
+    for (let entry = parentEntry; entry; entry = entry._parentEntry) {
+        entry._nestedDirtCount += 1;
+    }
+}
+
+/**
+ * True when any (transitively) nested sequence item carries its own
+ * SpecificCharacterSet (0008,0005) element. Materializing such an item
+ * REWRITES the stored charset value to ["ISO_IR 192"] (the eager quirk,
+ * kept), so the eager writer's output for the enclosing SQ differs from
+ * the source bytes by construction - the SQ must not pass through.
+ */
+function sequenceItemsContainCharset(el) {
+    if (!el.items) {
+        return false;
+    }
+    for (const item of el.items) {
+        const elements = item.dataSet && item.dataSet.elements;
+        if (!elements) {
+            continue;
+        }
+        if (elements.x00080005) {
+            return true;
+        }
+        for (const key in elements) {
+            if (sequenceItemsContainCharset(elements[key])) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/**
+ * Writer-seam predicate (REWIRING-PLAN R4): true ONLY when the writer may
+ * emit `entry._sourceSpan` bytes verbatim instead of re-encoding, i.e. for
+ * a LAZY entry that
+ *  - was never assigned (`_dirty === false`; THE ABSENCE OF `_dirty` MEANS
+ *    DIRTY, so eager/upsertTag/denaturalized entries always re-encode),
+ *  - has a faithful `_sourceSpan` (untilTag stubs and the rewritten
+ *    SpecificCharacterSet entry do not),
+ *  - did not materialize through the eager-window fallback (whose nested
+ *    item entries are untracked eager entries),
+ *  - for SQ entries: had NO nested item entry assigned (any depth, via the
+ *    shared `_nestedDirtCount` chain), contains no in-item
+ *    SpecificCharacterSet (whose value materialization rewrites), and - if
+ *    its Value HAS materialized - the item dicts still mirror the parsed
+ *    items structurally (`_sqStructureDiverged`, which catches setterless
+ *    key adds/deletes and item pushes/splices).
+ *
+ * Pure check: it never materializes the entry (`_sqStructureDiverged` only
+ * inspects already-cached state). An entry whose materialization FAILED
+ * under ignoreErrors stays clean - its source bytes are the only faithful
+ * representation it has.
+ *
+ * In-place mutation of materialized LEAF values is undetectable here - see
+ * the module docblock.
+ */
+export function isCleanForPassthrough(entry) {
+    if (!entry || typeof entry !== "object") {
+        return false;
+    }
+    if (entry._dirty !== false) {
+        // covers _dirty === true AND _dirty absent (non-lazy entries)
+        return false;
+    }
+    if (!entry._sourceSpan) {
+        return false;
+    }
+    if (entry._untrackedNested) {
+        return false;
+    }
+    if (entry._nestedDirtCount !== 0) {
+        return false;
+    }
+    if (entry.vr === "SQ" && entry._sqHasItemCharset) {
+        return false;
+    }
+    if (entry.vr === "SQ" && entry._sqStructureDiverged) {
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Structural verification for a MATERIALIZED SQ entry (writer hardening):
+ * true when the cached item dicts no longer mirror the tokenizer's parsed
+ * items, i.e. a setterless structural edit happened and the source bytes
+ * no longer represent the value. Checked per item, in order:
+ *  - the materialized item count must equal the parsed non-empty item
+ *    count (wrapSequenceItem skips empty items) - catches item array
+ *    push/splice;
+ *  - each item dict's key set must exactly match the parsed item's element
+ *    keys - catches `item["00080050"] = {...}` adds and
+ *    `delete item["0020000E"]` deletes;
+ *  - each item dict value must still be the lazy entry built for THIS SQ
+ *    (`_dirty` marker present and `_parentEntry === sqEntry`) - catches
+ *    whole-entry replacement by a foreign object or an entry transplanted
+ *    from another sequence;
+ *  - nested SQ entries that materialized are verified recursively (their
+ *    own `_sqStructureDiverged`).
+ *
+ * Never materializes anything: only called with already-cached values.
+ */
+function sqStructureDiverged(el, values, sqEntry) {
+    if (!Array.isArray(values)) {
+        return true;
+    }
+    const items = el.items || [];
+    const parsedKeyLists = [];
+    for (const item of items) {
+        const elements = (item.dataSet && item.dataSet.elements) || {};
+        const keys = Object.keys(elements).filter(
+            key => key !== ITEM_DELIMITER_KEY
+        );
+        if (keys.length > 0) {
+            parsedKeyLists.push(keys);
+        }
+    }
+    if (values.length !== parsedKeyLists.length) {
+        return true;
+    }
+    for (let i = 0; i < values.length; i++) {
+        const itemDict = values[i];
+        const keys = parsedKeyLists[i];
+        if (!itemDict || typeof itemDict !== "object") {
+            return true;
+        }
+        if (Object.keys(itemDict).length !== keys.length) {
+            return true;
+        }
+        for (const parserKey of keys) {
+            const cleanTag = parserKeyToClean(parserKey);
+            if (!Object.prototype.hasOwnProperty.call(itemDict, cleanTag)) {
+                return true;
+            }
+            const child = itemDict[cleanTag];
+            // replaced/foreign objects lack the `_dirty` marker (absence
+            // means dirty) or belong to a different enclosing SQ
+            if (
+                !child ||
+                child._dirty !== false ||
+                child._parentEntry !== sqEntry
+            ) {
+                return true;
+            }
+            if (child.vr === "SQ" && child._sqStructureDiverged) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/**
+ * Charsets whose conformant content re-encodes to identical bytes under
+ * the eager writer's UTF-8 normalization: the default repertoire (absent /
+ * empty), ASCII (ISO_IR 6, single-valued ISO 2022 IR 6) and UTF-8 itself
+ * (ISO_IR 192). Keys are normalized like resolveCharacterSet normalizes
+ * ('_' and ' ' to '-', lowercased).
+ */
+const PASSTHROUGH_SAFE_CHARSETS = new Set([
+    "",
+    "iso-ir-6",
+    "iso-2022-ir-6",
+    "iso-ir-192",
+    "utf-8",
+    "utf8"
+]);
+
+/**
+ * Computes `_lazyWriteContext.charsetPassthroughSafe` from the top-level
+ * SpecificCharacterSet parser element and the resolveCharacterSet result
+ * (null when the element exists but was never resolved - the
+ * untilTag-stub corner - which is conservatively unsafe).
+ */
+function isCharsetPassthroughSafe(csEl, cs) {
+    if (!csEl) {
+        return true;
+    }
+    if (!cs || !cs.originalValues) {
+        return false;
+    }
+    const values = cs.originalValues;
+    if (values.length === 0) {
+        return true;
+    }
+    if (values.length > 1) {
+        // code extensions / multiple charsets: never byte-stable
+        return false;
+    }
+    const coding = String(values[0]).replace(/[_ ]/g, "-").toLowerCase();
+    return PASSTHROUGH_SAFE_CHARSETS.has(coding);
 }
 
 /**
@@ -174,8 +441,16 @@ function isParsedUnknownVr(vrInstance) {
  * delegates the rare shapes the structural paths below do not cover (see
  * call sites) to the exact eager code, so results are byte-equivalent by
  * construction - including eager's error behavior for malformed framing.
+ *
+ * Values produced here may contain nested item dicts of EAGER entries,
+ * whose assignments the dirt tracking cannot see - the owning lazy entry
+ * (when there is one) is flagged `_untrackedNested` so
+ * isCleanForPassthrough denies it.
  */
-function materializeWithEagerReadTag(ctx, el, isMeta) {
+function materializeWithEagerReadTag(ctx, el, isMeta, entry) {
+    if (entry) {
+        entry._untrackedNested = true;
+    }
     const syntax = isMeta ? EXPLICIT_LITTLE_ENDIAN : ctx.syntax;
     const littleEndian = isMeta ? true : ctx.littleEndian;
     const arrayBuffer = isMeta ? ctx.metaArrayBuffer : ctx.arrayBuffer;
@@ -255,12 +530,12 @@ function retainRaw(ctx, vr, producedValue) {
  *    DicomMessage._readTag (src/DicomMessage.js:342-402): the same vr.read
  *    call, the same binary VM splitting, the same value shaping.
  */
-function materializeElement(ctx, el, vrInstance, isMeta) {
+function materializeElement(ctx, el, vrInstance, isMeta, entry) {
     // identity check: a ParsedUnknownValue with dictionary VR "SQ" is a
     // per-call instance, not the shared SQ singleton, and must keep eager's
     // ParsedUnknownValue.read path (window read below / fallback).
     if (vrInstance === ValueRepresentation.createByTypeString("SQ")) {
-        return materializeSequence(ctx, el, vrInstance, isMeta);
+        return materializeSequence(ctx, el, vrInstance, isMeta, entry);
     }
     if (el.hadUndefinedLength) {
         if (el.encapsulatedPixelData && !isParsedUnknownVr(vrInstance)) {
@@ -268,7 +543,8 @@ function materializeElement(ctx, el, vrInstance, isMeta) {
                 ctx,
                 el,
                 vrInstance,
-                isMeta
+                isMeta,
+                entry
             );
         }
         // UN parsed as implicit SQ by the tokenizer, ParsedUnknownValue with
@@ -276,7 +552,7 @@ function materializeElement(ctx, el, vrInstance, isMeta) {
         // through BinaryRepresentation's encapsulated branch (treating the
         // first item as a BOT), which throws on most real-world sequences -
         // delegate to the eager code for byte-identical values AND errors.
-        return materializeWithEagerReadTag(ctx, el, isMeta);
+        return materializeWithEagerReadTag(ctx, el, isMeta, entry);
     }
 
     const syntax = isMeta ? EXPLICIT_LITTLE_ENDIAN : ctx.syntax;
@@ -337,7 +613,7 @@ function materializeElement(ctx, el, vrInstance, isMeta) {
  *    applies it to the whole item - indistinguishable for conformant
  *    datasets where 0008,0005 precedes all encoded strings.
  */
-function materializeSequence(ctx, el, vrInstance, isMeta) {
+function materializeSequence(ctx, el, vrInstance, isMeta, entry) {
     if (!el.items) {
         if (el.length === 0) {
             // eager: SequenceOfItems.readBytes returns [] for zero length
@@ -350,12 +626,12 @@ function materializeSequence(ctx, el, vrInstance, isMeta) {
         // The tokenizer treated the element as opaque (e.g. defined-length
         // private SQ in implicit syntax, or a dictionary/peek mismatch):
         // re-read the span with the eager code.
-        return materializeWithEagerReadTag(ctx, el, isMeta);
+        return materializeWithEagerReadTag(ctx, el, isMeta, entry);
     }
 
     const values = [];
     for (const item of el.items) {
-        const itemDict = wrapSequenceItem(ctx, item);
+        const itemDict = wrapSequenceItem(ctx, item, entry);
         if (itemDict !== null) {
             values.push(itemDict);
         }
@@ -366,8 +642,12 @@ function materializeSequence(ctx, el, vrInstance, isMeta) {
 /**
  * Wraps one tokenizer sequence item ({ dataSet }) into a lazy item dict, or
  * null for empty items (which eager never emits).
+ *
+ * @param parentEntry the lazy entry of the enclosing SQ element; the child
+ *     context carries it so nested Value/_rawValue assignments bump the
+ *     dirt counter of every enclosing SQ entry (writer seam, R4).
  */
-function wrapSequenceItem(ctx, item) {
+function wrapSequenceItem(ctx, item, parentEntry) {
     const elements = (item.dataSet && item.dataSet.elements) || {};
     const keys = Object.keys(elements).filter(
         key => key !== ITEM_DELIMITER_KEY
@@ -383,7 +663,8 @@ function wrapSequenceItem(ctx, item) {
         ...ctx,
         decoder: null,
         forceStoreRaw: false,
-        noCopy: false
+        noCopy: false,
+        parentEntry: parentEntry || null
     };
     // Per-item charset resolution honors ignoreErrors (eager's nested _read
     // always runs with ignoreErrors:false and lets the outer read TRUNCATE
@@ -412,13 +693,16 @@ function wrapSequenceItem(ctx, item) {
         const cleanTag = parserKeyToClean(el.tag);
         let entry;
         if (cleanTag === TagHex.SpecificCharacterSet && cs) {
+            // seeded with the REWRITTEN ["ISO_IR 192"] value: its source
+            // bytes no longer represent it, so it carries no _sourceSpan
             entry = createLazyEntry(
                 childCtx,
                 el,
                 cs.vrInstance,
                 false,
                 cleanTag,
-                cs.seedState
+                cs.seedState,
+                true
             );
         } else {
             const vrInstance = resolveVrInstance(el, childCtx, false);
@@ -451,7 +735,7 @@ function wrapSequenceItem(ctx, item) {
  * post-SplitDataView getBuffer, the bytes are still copies - only the
  * wrapper type changes.
  */
-function materializeEncapsulatedPixelData(ctx, el, vrInstance, isMeta) {
+function materializeEncapsulatedPixelData(ctx, el, vrInstance, isMeta, entry) {
     if (ctx.encapsulatedScanWarning) {
         // The tokenizer hit a tag that is neither an item nor the sequence
         // delimiter while scanning this element's fragments; it records a
@@ -482,7 +766,7 @@ function materializeEncapsulatedPixelData(ctx, el, vrInstance, isMeta) {
         // Delegate to the eager code for byte-identical behavior.
         const fragmentStarts = new Set(fragments.map(f => f.offset));
         if (!bot.every(offset => fragmentStarts.has(offset))) {
-            return materializeWithEagerReadTag(ctx, el, isMeta);
+            return materializeWithEagerReadTag(ctx, el, isMeta, entry);
         }
         frames = [];
         for (let i = 0; i < bot.length; i++) {
@@ -549,14 +833,28 @@ function applyValueAccessors(vrType, values) {
  * Builds a lazy dict entry with the same observable shape as the eager
  * `{ vr, Value, _rawValue }` entry. Value/_rawValue are getter-backed and
  * materialize (then cache) on first access. Setters replace the cached
- * value; setting Value flips the non-enumerable `_dirty` flag (groundwork
- * for the passthrough writer, REWIRING-PLAN R4).
+ * value; setting Value OR _rawValue flips the non-enumerable `_dirty` flag
+ * and bumps the nested dirt counter of every enclosing SQ entry
+ * (groundwork for the passthrough writer, REWIRING-PLAN R4 - see the
+ * module docblock for the full writer-seam contract).
  *
  * @param seedState optional pre-materialized { values, rawValues } (used
  *     for the transfer syntax and SpecificCharacterSet entries which the
  *     wrap step has to resolve eagerly anyway).
+ * @param omitSpan true for entries whose source bytes do not faithfully
+ *     represent their value (the rewritten SpecificCharacterSet entry, the
+ *     widened undefined-length untilTag element) - they carry no
+ *     `_sourceSpan` and can never pass through.
  */
-function createLazyEntry(ctx, el, vrInstance, isMeta, cleanTag, seedState) {
+function createLazyEntry(
+    ctx,
+    el,
+    vrInstance,
+    isMeta,
+    cleanTag,
+    seedState,
+    omitSpan
+) {
     const vrType = vrInstance.type;
 
     let state = seedState
@@ -571,12 +869,69 @@ function createLazyEntry(ctx, el, vrInstance, isMeta, cleanTag, seedState) {
     let assignedRaw;
 
     const entry = { vr: vrType };
-    Object.defineProperty(entry, "_dirty", {
-        value: false,
-        writable: true,
-        enumerable: false,
-        configurable: true
+    Object.defineProperties(entry, {
+        // false = clean; assignment flips it. Non-lazy entries lack the
+        // property entirely: ABSENCE MEANS DIRTY (writer must re-encode).
+        _dirty: {
+            value: false,
+            writable: true,
+            enumerable: false,
+            configurable: true
+        },
+        // enclosing SQ entry (null at top level): the bump chain for
+        // nested assignments
+        _parentEntry: {
+            value: ctx.parentEntry || null,
+            enumerable: false,
+            configurable: true
+        },
+        // number of Value/_rawValue assignments anywhere below this entry
+        // (only ever non-zero for SQ entries)
+        _nestedDirtCount: {
+            value: 0,
+            writable: true,
+            enumerable: false,
+            configurable: true
+        },
+        // set when the eager-window fallback produced the value: nested
+        // item entries (if any) are untracked eager entries
+        _untrackedNested: {
+            value: false,
+            writable: true,
+            enumerable: false,
+            configurable: true
+        }
     });
+    if (!omitSpan) {
+        Object.defineProperty(entry, "_sourceSpan", {
+            value: {
+                startOffset: el.startOffset,
+                endOffset: el.endOffset,
+                buffer: isMeta ? ctx.metaSourceByteArray : ctx.sourceByteArray
+            },
+            enumerable: false,
+            configurable: true
+        });
+    }
+    if (vrType === "SQ") {
+        // lazily computed (write-time) - see sequenceItemsContainCharset
+        Object.defineProperty(entry, "_sqHasItemCharset", {
+            get: () => sequenceItemsContainCharset(el),
+            enumerable: false,
+            configurable: true
+        });
+        // Write-time structural verification (writer hardening): a
+        // materialized SQ's item dicts are plain objects, so key
+        // adds/deletes and item pushes bypass the Value/_rawValue setters.
+        // Never-materialized entries (state === null) cannot have been
+        // structurally edited and stay clean without materializing.
+        Object.defineProperty(entry, "_sqStructureDiverged", {
+            get: () =>
+                state !== null && sqStructureDiverged(el, state.values, entry),
+            enumerable: false,
+            configurable: true
+        });
+    }
 
     const ensureMaterialized = () => {
         if (state === null) {
@@ -588,7 +943,8 @@ function createLazyEntry(ctx, el, vrInstance, isMeta, cleanTag, seedState) {
                     ctx,
                     el,
                     vrInstance,
-                    isMeta
+                    isMeta,
+                    entry
                 );
                 state = {
                     values: applyValueAccessors(vrType, values),
@@ -620,6 +976,7 @@ function createLazyEntry(ctx, el, vrInstance, isMeta, cleanTag, seedState) {
             assignedValue = v;
             valueAssigned = true;
             entry._dirty = true;
+            bumpNestedDirt(ctx.parentEntry);
         }
     });
     Object.defineProperty(entry, "_rawValue", {
@@ -631,6 +988,11 @@ function createLazyEntry(ctx, el, vrInstance, isMeta, cleanTag, seedState) {
         set(v) {
             assignedRaw = v;
             rawAssigned = true;
+            // a raw assignment makes the source bytes stale exactly like a
+            // Value assignment does (writer seam: the eager writer prefers
+            // _rawValue when Value is untouched)
+            entry._dirty = true;
+            bumpNestedDirt(ctx.parentEntry);
         }
     });
 
@@ -693,6 +1055,9 @@ function resolveCharacterSet(ctx, csEl, ignoreErrors) {
 
     return {
         vrInstance,
+        // the values as stored in the file, BEFORE the ISO_IR 192 rewrite
+        // (consumed by the charsetPassthroughSafe computation)
+        originalValues: values,
         seedState: {
             // change SpecificCharacterSet to UTF-8 (eager quirk, kept)
             values: ["ISO_IR 192"],
@@ -874,14 +1239,22 @@ export function readFileLazy(buffer, options = {}) {
 
     // Per-dataset materialization context. Body element offsets index into
     // dataSet.byteArray, which is the input buffer - or, for the deflated
-    // transfer syntax, the inflated body-only buffer the inflater returned.
-    // Meta (group 0002) element offsets always index into the ORIGINAL
-    // input buffer, so the context carries both windows.
+    // transfer syntax, the header + inflated body buffer the inflater
+    // returned. Meta (group 0002) element offsets always index into the
+    // ORIGINAL input buffer, so the context carries both windows.
     const ctx = {
         arrayBuffer: dataSet.byteArray.buffer,
         baseOffset: dataSet.byteArray.byteOffset || 0,
         metaArrayBuffer: byteArray.buffer,
         metaBaseOffset: byteArray.byteOffset || 0,
+        // _sourceSpan buffers (writer seam): body element offsets index
+        // dataSet.byteArray (header + inflated body for the deflated
+        // syntax), meta element offsets index the original input buffer
+        sourceByteArray: dataSet.byteArray,
+        metaSourceByteArray: byteArray,
+        // lazy entry of the enclosing SQ element (nested dirt tracking);
+        // null at the top level, set per item by wrapSequenceItem
+        parentEntry: null,
         syntax: EXPLICIT_LITTLE_ENDIAN,
         littleEndian: true,
         implicit: false,
@@ -960,24 +1333,39 @@ export function readFileLazy(buffer, options = {}) {
                 tsState
             );
         } else if (!isMeta && cleanTag === TagHex.SpecificCharacterSet && cs) {
+            // seeded with the REWRITTEN ["ISO_IR 192"] value: its source
+            // bytes no longer represent it, so it carries no _sourceSpan
             entry = createLazyEntry(
                 ctx,
                 el,
                 cs.vrInstance,
                 false,
                 cleanTag,
-                cs.seedState
+                cs.seedState,
+                true
             );
         } else {
+            let omitSpan = false;
             if (isUntilTagElement && el.hadUndefinedLength) {
                 // the parser does not consume the untilTag element's value,
                 // so endOffset only covers the header; widen the (fallback)
                 // re-read window to the end of the buffer - _readTag stops
-                // at the element's own delimiters, like eager.
+                // at the element's own delimiters, like eager. The widened
+                // endOffset is a read window, NOT the element's span - no
+                // _sourceSpan.
                 el = { ...el, endOffset: dataSet.byteArray.length };
+                omitSpan = true;
             }
             const vrInstance = resolveVrInstance(el, ctx, isMeta);
-            entry = createLazyEntry(ctx, el, vrInstance, isMeta, cleanTag);
+            entry = createLazyEntry(
+                ctx,
+                el,
+                vrInstance,
+                isMeta,
+                cleanTag,
+                undefined,
+                omitSpan
+            );
         }
 
         if (isUntilTagElement && untilState.isMeta) {
@@ -993,5 +1381,20 @@ export function readFileLazy(buffer, options = {}) {
 
     const dicomDict = new DicomDict(meta);
     dicomDict.dict = dict;
+    // Writer seam (R4): only the lazy path attaches this - dicts from the
+    // whole-file eager fallback (or built any other way) lack it, and the
+    // writer must re-encode everything for them.
+    Object.defineProperty(dicomDict, "_lazyWriteContext", {
+        value: {
+            sourceByteArray: dataSet.byteArray,
+            sourceSyntax: mainSyntax,
+            charsetPassthroughSafe: isCharsetPassthroughSafe(
+                elements.x00080005,
+                cs
+            )
+        },
+        enumerable: false,
+        configurable: true
+    });
     return dicomDict;
 }

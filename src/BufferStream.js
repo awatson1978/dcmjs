@@ -3,6 +3,14 @@ import SplitDataView from "./SplitDataView";
 import { toFloat } from "./utilities/toFloat";
 import { toInt } from "./utilities/toInt";
 
+/**
+ * Raw spans at least this large are appended as zero-copy windows over the
+ * caller's buffer instead of being copied into the stream's own chunks.
+ * Each window adds one chunk to the SplitDataView (chunk lookups are a
+ * linear scan), so only spans worth a saved memcpy get one.
+ */
+const RAW_ZERO_COPY_THRESHOLD = 64 * 1024;
+
 export class BufferStream {
     offset = 0;
     startOffset = 0;
@@ -150,6 +158,24 @@ export class BufferStream {
         return this.increment(4);
     }
 
+    /**
+     * Writes a Uint16 at an absolute, already-written offset without moving
+     * the stream position. Used to backpatch explicit VR 2-byte length
+     * fields once the value bytes are in place.
+     */
+    writeUint16At(offset, value) {
+        this.view.setUint16(offset, toInt(value), this.isLittleEndian);
+    }
+
+    /**
+     * Writes a Uint32 at an absolute, already-written offset without moving
+     * the stream position. Used to backpatch 4-byte length fields once the
+     * value bytes are in place.
+     */
+    writeUint32At(offset, value) {
+        this.view.setUint32(offset, toInt(value), this.isLittleEndian);
+    }
+
     writeInt32(value) {
         this.checkSize(4);
         this.view.setInt32(this.offset, toInt(value), this.isLittleEndian);
@@ -191,6 +217,30 @@ export class BufferStream {
             this.view.setUint8(startOffset + i, charCode);
         }
         return this.increment(len);
+    }
+
+    /**
+     * Appends raw, already-encoded bytes (a passthrough source span) at the
+     * current write position and returns the number of bytes written.
+     *
+     * Spans of at least RAW_ZERO_COPY_THRESHOLD bytes appended at the end
+     * of the stream become zero-copy read-only windows over the caller's
+     * buffer (the bytes are referenced, not copied - the caller must not
+     * mutate them afterwards); anything else is copied straight into the
+     * stream with a single set.
+     */
+    writeRawBytes(bytes) {
+        const length = bytes.byteLength;
+        if (length === 0) {
+            return 0;
+        }
+        if (length >= RAW_ZERO_COPY_THRESHOLD && this.offset === this.size) {
+            this.view.addZeroCopyWindow(bytes, this.offset);
+            return this.increment(length);
+        }
+        this.checkSize(length);
+        this.view.writeBuffer(bytes, this.offset);
+        return this.increment(length);
     }
 
     readBigUint64() {
@@ -331,14 +381,36 @@ export class BufferStream {
 
     /**
      * Concatenates the stream, starting from the startOffset (to allow concat
-     * on an existing output from the beginning)
+     * on an existing output from the beginning).
+     *
+     * Copies the source chunks straight into this view, without first
+     * merging the source stream into one intermediate buffer.
      */
     concat(stream) {
-        this.view.checkSize(this.size + stream.size - stream.startOffset);
-        this.view.writeBuffer(
-            new Uint8Array(stream.slice(stream.startOffset, stream.size)),
-            this.offset
-        );
+        const startOffset = stream.startOffset;
+        const length = stream.size - startOffset;
+        this.view.checkSize(this.size + length);
+        let copied = 0;
+        while (copied < length) {
+            const position = startOffset + copied;
+            const index = stream.view.findStart(position);
+            const chunkStart = position - stream.view.offsets[index];
+            const copyLength = Math.min(
+                stream.view.lengths[index] - chunkStart,
+                length - copied
+            );
+            this.view.writeBuffer(
+                new Uint8Array(
+                    stream.view.buffers[index],
+                    // zero-copy window chunks start at their view's
+                    // byteOffset within the shared source buffer
+                    chunkStart + stream.view.views[index].byteOffset,
+                    copyLength
+                ),
+                this.offset + copied
+            );
+            copied += copyLength;
+        }
         this.offset += stream.size;
         this.size = this.offset;
         this.endOffset = this.size;
@@ -537,6 +609,14 @@ export class ReadBufferStream extends BufferStream {
         throw new Error(value, "writeUint32 not implemented");
     }
 
+    writeUint16At(offset, value) {
+        throw new Error(value, "writeUint16At not implemented");
+    }
+
+    writeUint32At(offset, value) {
+        throw new Error(value, "writeUint32At not implemented");
+    }
+
     writeInt32(value) {
         throw new Error(value, "writeInt32 not implemented");
     }
@@ -555,6 +635,10 @@ export class ReadBufferStream extends BufferStream {
 
     writeUTF8String(value) {
         throw new Error(value, "writeUTF8String not implemented");
+    }
+
+    writeRawBytes(bytes) {
+        throw new Error(bytes, "writeRawBytes not implemented");
     }
 
     checkSize(step) {

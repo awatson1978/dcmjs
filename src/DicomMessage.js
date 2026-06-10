@@ -16,7 +16,7 @@ import { Tag } from "./Tag.js";
 import { log } from "./log.js";
 import { deepEqual } from "./utilities/deepEqual";
 import { ValueRepresentation } from "./ValueRepresentation.js";
-import { readFileLazy } from "./lazy/LazyDicomReader.js";
+import { readFileLazy, isCleanForPassthrough } from "./lazy/LazyDicomReader.js";
 
 export const singleVRs = ["SQ", "OF", "OW", "OB", "UN", "LT"];
 
@@ -240,14 +240,85 @@ export class DicomMessage {
         tag.write(stream, vr, values, syntax, writeOptions);
     }
 
-    static write(jsonObjects, useStream, syntax, writeOptions) {
+    /**
+     * Writes the elements of jsonObjects to useStream in sorted tag order.
+     *
+     * `lazyWriteContext` (R4 passthrough fast path) is the dict-level
+     * `_lazyWriteContext` a lazy read attaches: when the target BODY
+     * syntax equals the source's BODY syntax (the deflated transfer
+     * syntax differs from explicit little endian only in the stream-level
+     * deflate wrapper - element bytes are ELE on both sides, and a
+     * deflated source's spans already index the INFLATED body buffer) and
+     * the source charset is byte-stable under the writer's UTF-8
+     * normalization, every clean lazy
+     * entry (isCleanForPassthrough) is emitted as its verbatim source span
+     * - header, value, items and delimiters byte-identical - instead of
+     * being re-encoded. Dirty, foreign and span-less entries take the
+     * re-encode path unchanged. Callers that pass no context (the meta
+     * group, nested sequence items, non-lazy dicts) always re-encode.
+     */
+    static write(
+        jsonObjects,
+        useStream,
+        syntax,
+        writeOptions,
+        lazyWriteContext = null
+    ) {
         var written = 0;
+
+        // W4: compare BODY syntaxes - the deflated syntax is the ELE body
+        // in a deflate wrapper, and DicomDict.write hands this function
+        // the pre-deflate body stream, so passthrough applies in every
+        // deflated/ELE source-target combination.
+        const toBodySyntax = candidate =>
+            candidate === DEFLATED_EXPLICIT_LITTLE_ENDIAN
+                ? EXPLICIT_LITTLE_ENDIAN
+                : candidate;
+        // Writer hardening: an encoding-affecting writeOption set to a
+        // NON-DEFAULT value asks for bytes the source file does not
+        // contain, so emitting source spans would silently ignore it.
+        // Passthrough is disabled for the WHOLE dict in that case - simpler
+        // and safer than tracking which elements the option touches, and
+        // these options are rare. Today the only such option is
+        // fragmentMultiframe (default true via
+        // `{ fragmentMultiframe = true } = writeOptions` in
+        // BinaryRepresentation.writeBytes; it re-fragments encapsulated
+        // pixel data). allowInvalidVRLength (default false) is deliberately
+        // NOT in this set: it gates write-time validation only, and
+        // byte-faithful passthrough legitimately preserves invalid stored
+        // lengths (pinned in test/data.test.js).
+        const nonDefaultEncodingOptions =
+            writeOptions != null &&
+            writeOptions.fragmentMultiframe !== undefined &&
+            !writeOptions.fragmentMultiframe;
+        const passthroughSource =
+            !nonDefaultEncodingOptions &&
+            lazyWriteContext &&
+            lazyWriteContext.charsetPassthroughSafe &&
+            toBodySyntax(syntax) === toBodySyntax(lazyWriteContext.sourceSyntax)
+                ? lazyWriteContext.sourceByteArray
+                : null;
 
         var sortedTags = Object.keys(jsonObjects).sort();
         sortedTags.forEach(function (tagString) {
-            var tag = Tag.fromString(tagString),
-                tagObject = jsonObjects[tagString],
+            var tagObject = jsonObjects[tagString],
                 vrType = tagObject.vr;
+
+            if (passthroughSource && isCleanForPassthrough(tagObject)) {
+                const span = tagObject._sourceSpan;
+                // The span must index the buffer the context describes:
+                // an entry transplanted from another lazy dict carries
+                // bytes this context's syntax/charset checks know nothing
+                // about, so it re-encodes.
+                if (span.buffer === passthroughSource) {
+                    written += useStream.writeRawBytes(
+                        span.buffer.subarray(span.startOffset, span.endOffset)
+                    );
+                    return;
+                }
+            }
+
+            var tag = Tag.fromString(tagString);
 
             var values = DicomMessage._getTagWriteValues(vrType, tagObject);
 

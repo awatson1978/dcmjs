@@ -444,6 +444,18 @@ it("test_invalid_vr_length", () => {
     const file = fs.readFileSync("test/invalid-vr-length-test.dcm");
     const dicomDict = dcmjs.data.DicomMessage.readFile(file.buffer);
 
+    if (dicomDict._lazyWriteContext) {
+        // A dict read by the lazy core passes clean elements through as
+        // verbatim source bytes (REWIRING-PLAN R4), so a no-edit write
+        // preserves the invalid stored length instead of re-validating it
+        // during re-encode. Pin that, then drop the context to exercise
+        // the historical re-encode validation below.
+        expect(() =>
+            writeToBuffer(dicomDict, { allowInvalidVRLength: false })
+        ).not.toThrow();
+        delete dicomDict._lazyWriteContext;
+    }
+
     expect(() =>
         writeToBuffer(dicomDict, { allowInvalidVRLength: false })
     ).toThrow();

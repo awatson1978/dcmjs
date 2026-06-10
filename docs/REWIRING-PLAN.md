@@ -1,6 +1,12 @@
 # Rewiring Plan: dcmjs 1.0 on the dicom-parser tokenizer
 
-Status: planning document. Generated 2026-06-09 from the cross-repo analysis
+Status: EXECUTED through R8 step 6 (2026-06-10). Commits ee33089 (step 1, intake),
+d8e4fc3 (step 2, gates), bcdfb49 (step 3, lazy bridge), 2703b90 (step 5, writer
+fusion), fd526c3 (step 6, flip + scoped R6). Version 1.0.0-beta.0, unpublished.
+Remaining 1.x work: full R6 streaming re-platform of AsyncDicomReader onto the
+tokenizer, packaging/subpath split + types, README/API docs, and the open 1.0
+API decisions at the bottom of this file.
+Generated 2026-06-09 from the cross-repo analysis
 (see `dicom-merge-analysis-report.html` in the dicom-parser worktree for the full dossier).
 
 ## Decisions this plan assumes

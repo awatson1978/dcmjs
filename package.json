@@ -37,7 +37,9 @@
         "lint": "eslint --fix \"src/**/*.js\" \"test/**/*.js\"",
         "generate-dictionary": "node generate/generate-dictionary.js",
         "pack-dictionary": "node generate/pack_dicom.mjs",
-        "bench:dictionary": "bun run generate/bench-dictionary-load.mjs"
+        "bench:dictionary": "bun run generate/bench-dictionary-load.mjs",
+        "bench:parser": "node --expose-gc packages/parser/bench/parse-gate.cjs",
+        "gate:parser-bundle": "node packages/parser/bench/bundle-gate.mjs"
     },
     "repository": {
         "type": "git",
@@ -50,11 +52,11 @@
     },
     "homepage": "https://github.com/dcmjs-org/dcmjs#readme",
     "devDependencies": {
-        "@dcmjs/parser": "workspace:*",
         "@babel/core": "7.23.7",
         "@babel/plugin-transform-runtime": "7.23.7",
         "@babel/preset-env": "7.29.5",
         "@babel/register": "7.23.7",
+        "@dcmjs/parser": "workspace:*",
         "@eslint/js": "9.39.4",
         "@rollup/plugin-babel": "6.1.0",
         "@rollup/plugin-commonjs": "28.0.9",
@@ -65,6 +67,7 @@
         "acorn": "7.4.1",
         "acorn-jsx": "5.3.2",
         "cpy-cli": "7.0.0",
+        "dicom-parser": "1.8.21",
         "eslint": "9.39.4",
         "eslint-config-prettier": "10.1.8",
         "follow-redirects": "1.15.5",

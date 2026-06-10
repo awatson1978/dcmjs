@@ -42,6 +42,9 @@ importers:
       '@babel/register':
         specifier: 7.23.7
         version: 7.23.7(@babel/core@7.23.7)
+      '@dcmjs/parser':
+        specifier: workspace:*
+        version: link:packages/parser
       '@eslint/js':
         specifier: 9.39.4
         version: 9.39.4
@@ -102,6 +105,8 @@ importers:
       xml2js:
         specifier: 0.6.2
         version: 0.6.2
+
+  packages/parser: {}
 
 packages:
 

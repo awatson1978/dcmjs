@@ -11,3 +11,4 @@ pnpm-debug.log
 build
 examples/js/dcmjs*
 *.code-workspace
+package-lock.json

@@ -8,7 +8,7 @@ import { collectSectionProblems } from "./helper/equivalence.js";
 const { DicomMessage, Tag } = dcmjs.data;
 
 /**
- * W3 (REWIRING-PLAN R4 item 1) - the passthrough fast path.
+ * W3 (docs roadmap R4 item 1) - the passthrough fast path.
  *
  * A dict read by the lazy core carries `_lazyWriteContext`; when the write
  * syntax equals the source transfer syntax and the source charset is

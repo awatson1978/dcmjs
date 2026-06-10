@@ -446,7 +446,7 @@ it("test_invalid_vr_length", () => {
 
     if (dicomDict._lazyWriteContext) {
         // A dict read by the lazy core passes clean elements through as
-        // verbatim source bytes (REWIRING-PLAN R4), so a no-edit write
+        // verbatim source bytes (docs roadmap R4), so a no-edit write
         // preserves the invalid stored length instead of re-validating it
         // during re-encode. Pin that, then drop the context to exercise
         // the historical re-encode validation below.

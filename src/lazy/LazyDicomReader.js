@@ -16,7 +16,7 @@ import { ValueRepresentation } from "../ValueRepresentation.js";
 import { log } from "../log.js";
 
 /**
- * Lazy read core (REWIRING-PLAN R1+R2).
+ * Lazy read core (docs roadmap R1+R2).
  *
  * `readFileLazy` parses the file with the offsets-only tokenizer
  * (`@dcmjs/parser`) and wraps every element into a dict entry whose
@@ -47,7 +47,7 @@ import { log } from "../log.js";
  *    decodes the item with the default character set, exactly like eager
  *    handles a bad TOP-LEVEL SpecificCharacterSet under ignoreErrors.
  *
- * WRITER SEAM (REWIRING-PLAN R4 groundwork)
+ * WRITER SEAM (docs roadmap R4 groundwork)
  *
  * Every lazy entry carries non-enumerable writer-facing state:
  *  - `_sourceSpan` { startOffset, endOffset, buffer }: the parser element's
@@ -185,7 +185,7 @@ function sequenceItemsContainCharset(el) {
 }
 
 /**
- * Writer-seam predicate (REWIRING-PLAN R4): true ONLY when the writer may
+ * Writer-seam predicate (docs roadmap R4): true ONLY when the writer may
  * emit `entry._sourceSpan` bytes verbatim instead of re-encoding, i.e. for
  * a LAZY entry that
  *  - was never assigned (`_dirty === false`; THE ABSENCE OF `_dirty` MEANS
@@ -835,7 +835,7 @@ function applyValueAccessors(vrType, values) {
  * materialize (then cache) on first access. Setters replace the cached
  * value; setting Value OR _rawValue flips the non-enumerable `_dirty` flag
  * and bumps the nested dirt counter of every enclosing SQ entry
- * (groundwork for the passthrough writer, REWIRING-PLAN R4 - see the
+ * (groundwork for the passthrough writer, docs roadmap R4 - see the
  * module docblock for the full writer-seam contract).
  *
  * @param seedState optional pre-materialized { values, rawValues } (used

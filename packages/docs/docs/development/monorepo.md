@@ -30,10 +30,10 @@ Key source locations:
   byte-level behavior is pinned by its own 245-test suite and the gates below.
 - `packages/parser/bench` — `parse-gate.cjs` (benchmark gate) and
   `bundle-gate.mjs` (self-containment gate).
-- `docs/REWIRING-PLAN.md` — **the engineering log.** Per-section status notes,
-  the R8 gate checklist, the open 1.0 API decisions, and pointers to the
-  commits that executed each step. When in doubt about why something is the
-  way it is, start there.
+- [the roadmap](roadmap.md) — **the engineering plan and log.** Per-section
+  status notes, the R8 gate checklist, the open 1.0 API decisions, and pointers
+  to the commits that executed each step. When in doubt about why something is
+  the way it is, start there. (It absorbed the former `docs/REWIRING-PLAN.md`.)
 
 ## Commands
 

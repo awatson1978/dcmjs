@@ -30,8 +30,8 @@ dcmjs 1.0 absorbs the dicom-parser tokenizer as its read core and is now a pnpm 
 
 Full details: the documentation site under `packages/docs` (run
 `pnpm --filter @dcmjs/docs start`), the migration guide at
-`packages/docs/docs/migration/from-0x.md`, and the engineering log at
-`docs/REWIRING-PLAN.md`.
+`packages/docs/docs/migration/from-0x.md`, and the step-by-step roadmap at
+`packages/docs/docs/development/roadmap.md`.
 
 # Goals
 
@@ -237,7 +237,7 @@ dcmjs is production-tested (OHIF, Cornerstone adapters, ~15k weekly npm download
 - Re-platforming the streaming `AsyncDicomReader` onto the offset tokenizer
 - Removing the legacy eager read path after the beta soak
 - Public subpath packaging (raw parser tier, dictionary) and a TypeScript surface
-- See `docs/REWIRING-PLAN.md` (R8 checklist) and the docs site roadmap page for the full list
+- See the docs site roadmap page (`packages/docs/docs/development/roadmap.md`, R8 checklist) for the full list
 
 # History
 

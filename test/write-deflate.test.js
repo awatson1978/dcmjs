@@ -8,7 +8,7 @@ import { collectSectionProblems } from "./helper/equivalence.js";
 const { DicomMessage } = dcmjs.data;
 
 /**
- * W4 (REWIRING-PLAN R4) - deflate-on-write, transfer syntax
+ * W4 (docs roadmap R4) - deflate-on-write, transfer syntax
  * 1.2.840.10008.1.2.1.99.
  *
  * DicomDict.write now produces deflated part-10 streams: preamble, "DICM"

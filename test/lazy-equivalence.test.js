@@ -6,7 +6,7 @@ import { collectSectionProblems } from "./helper/equivalence.js";
 const { DicomMessage } = dcmjs.data;
 
 /**
- * Exhaustive lazy-vs-eager equivalence matrix (REWIRING-PLAN stage 3).
+ * Exhaustive lazy-vs-eager equivalence matrix (docs roadmap stage 3).
  *
  * Every local DICOM fixture on disk - the full packages/parser/testImages
  * tree (plain syntaxes, encapsulated single/multi-frame with and without

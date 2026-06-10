@@ -13,7 +13,7 @@ import readSequenceItemsExplicit from './readSequenceElementExplicit.js';
 // built once at module load
 const vrLookup = (() => {
   const lookup = new Map();
-  const fourByteLengthVRs = ['OB', 'OD', 'OL', 'OW', 'SQ', 'OF', 'UC', 'UR', 'UT', 'UN'];
+  const fourByteLengthVRs = ['OB', 'OD', 'OL', 'OV', 'OW', 'SQ', 'OF', 'SV', 'UC', 'UR', 'UT', 'UN', 'UV'];
   const twoByteLengthVRs = ['AE', 'AS', 'AT', 'CS', 'DA', 'DS', 'DT', 'FL', 'FD', 'IS', 'LO', 'LT', 'PN', 'SH', 'SL', 'SS', 'ST', 'TM', 'UI', 'UL', 'US'];
 
   fourByteLengthVRs.forEach((vr) => {
@@ -28,7 +28,11 @@ const vrLookup = (() => {
 
 // reads the two VR bytes and resolves them through the prebuilt lookup;
 // unknown byte pairs keep the readFixedString(2) semantics (a null byte ends
-// the string) and are treated as having a 2 byte length field
+// the string) and are framed like UN (2 reserved bytes + 4 byte length).
+// This intentionally diverges from upstream dicom-parser (which assumed a
+// 2 byte length field) to align with dcmjs's eager reader, which uses
+// reserved+4-byte framing for any VR whose isLength32() is true, including
+// VRs it does not recognize.
 const readVR = (byteStream) => {
   if (byteStream.position + 2 > byteStream.byteArray.length) {
     throw 'dicomParser.readFixedString: attempt to read past end of buffer';
@@ -47,7 +51,7 @@ const readVR = (byteStream) => {
 
   return {
     vr: (vrByte0 === 0) ? '' : ((vrByte1 === 0) ? String.fromCharCode(vrByte0) : String.fromCharCode(vrByte0, vrByte1)),
-    lengthSizeBytes: 2
+    lengthSizeBytes: 4
   };
 };
 
@@ -58,7 +62,22 @@ export default function readDicomElementExplicit (byteStream, warnings, untilTag
 
   const startOffset = byteStream.position;
   const { tag, tagValue } = readTagPair(byteStream);
-  const { vr, lengthSizeBytes: dataLengthSizeBytes } = readVR(byteStream);
+
+  // Item and delimitation tags (group FFFE: item start, item delimitation,
+  // sequence delimitation) are encoded without VR bytes in every transfer
+  // syntax (PS3.5 section 7.5) - the tag is followed directly by a 4 byte
+  // length. The upstream 2 byte unknown-VR fallback only consumed these
+  // correctly by accident (2 null "VR" bytes + 2 zero "length" bytes); now
+  // that unknown VRs use UN-style framing they must be recognized up front.
+  let vr;
+  let dataLengthSizeBytes;
+
+  if ((tagValue >>> 16) === 0xFFFE) {
+    vr = ''; // matches what readFixedString(2) returned for the null bytes before
+    dataLengthSizeBytes = 0; // no VR bytes and no reserved bytes before the 4 byte length
+  } else {
+    ({ vr, lengthSizeBytes: dataLengthSizeBytes } = readVR(byteStream));
+  }
 
   // single object literal with all fields present so every element shares one hidden class;
   // later code may only mutate these fields, never add new ones
@@ -81,12 +100,13 @@ export default function readDicomElementExplicit (byteStream, warnings, untilTag
 
   if (dataLengthSizeBytes === 2) {
     element.length = byteStream.readUint16();
-    element.dataOffset = byteStream.position;
   } else {
-    byteStream.seek(2);
+    if (dataLengthSizeBytes === 4) {
+      byteStream.seek(2); // skip the 2 reserved bytes before the 4 byte length
+    }
     element.length = byteStream.readUint32();
-    element.dataOffset = byteStream.position;
   }
+  element.dataOffset = byteStream.position;
 
   if (element.length === 4294967295) {
     element.hadUndefinedLength = true;

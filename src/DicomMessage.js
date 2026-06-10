@@ -16,10 +16,23 @@ import { Tag } from "./Tag.js";
 import { log } from "./log.js";
 import { deepEqual } from "./utilities/deepEqual";
 import { ValueRepresentation } from "./ValueRepresentation.js";
+import { readFileLazy } from "./lazy/LazyDicomReader.js";
 
 export const singleVRs = ["SQ", "OF", "OW", "OB", "UN", "LT"];
 
 export class DicomMessage {
+    /**
+     * Default read core for readFile: 'eager' (the historical in-place
+     * reader) or 'lazy' (offsets-only tokenizer + on-access
+     * materialization). Overridable per call via options.core and globally
+     * via the DCMJS_CORE environment variable.
+     */
+    static defaultCore =
+        (typeof process !== "undefined" &&
+            process.env &&
+            process.env.DCMJS_CORE) ||
+        "eager";
+
     static read(
         bufferStream,
         syntax,
@@ -150,6 +163,15 @@ export class DicomMessage {
             forceStoreRaw: false
         }
     ) {
+        const core = (options && options.core) || DicomMessage.defaultCore;
+        if (core === "lazy") {
+            return readFileLazy(buffer, options);
+        }
+        if (core !== "eager") {
+            throw new Error(
+                `Unknown DicomMessage.readFile core: ${core} (expected 'eager' or 'lazy')`
+            );
+        }
         var stream = new ReadBufferStream(buffer, null, {
                 noCopy: options.noCopy
             }),

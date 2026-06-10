@@ -61,11 +61,18 @@ export default function parseDicom(byteArray, options = {}) {
     const isNode = (Object.prototype.toString.call(typeof process !== 'undefined' ? process : 0) === '[object process]');
 
     if (transferSyntax === '1.2.840.10008.1.2.1.99') {
+      // The inflated buffer is laid out as the original header bytes
+      // [0, position) followed by the inflated data set, so the data set
+      // stream starts at position like every other transfer syntax below.
+      // Upstream dicom-parser started these streams at 0 and re-walked the
+      // preamble/meta header as junk elements, which only parsed because its
+      // 2 byte unknown-VR fallback happened to stride through the zero bytes;
+      // with UN-style framing for unknown VRs that walk no longer works.
       // if an infalter callback is registered, use it
       if (options && options.inflater) {
         const fullByteArrayCallback = options.inflater(byteArray, position);
 
-        return new ByteStream(littleEndianByteArrayParser, fullByteArrayCallback, 0);
+        return new ByteStream(littleEndianByteArrayParser, fullByteArrayCallback, position);
       }
       // if running on node, use the zlib library to inflate
       // http://stackoverflow.com/questions/4224606/how-to-check-whether-a-script-is-running-under-node-js
@@ -81,7 +88,7 @@ export default function parseDicom(byteArray, options = {}) {
         byteArray.copy(fullByteArrayBuffer, 0, 0, position);
         inflatedBuffer.copy(fullByteArrayBuffer, position);
 
-        return new ByteStream(littleEndianByteArrayParser, fullByteArrayBuffer, 0);
+        return new ByteStream(littleEndianByteArrayParser, fullByteArrayBuffer, position);
       }
       // if pako is defined - use it.  This is the web browser path
       // https://github.com/nodeca/pako
@@ -96,7 +103,7 @@ export default function parseDicom(byteArray, options = {}) {
         fullByteArray.set(byteArray.slice(0, position), 0);
         fullByteArray.set(inflated, position);
 
-        return new ByteStream(littleEndianByteArrayParser, fullByteArray, 0);
+        return new ByteStream(littleEndianByteArrayParser, fullByteArray, position);
       }
 
       // throw exception since no inflater is available

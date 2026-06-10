@@ -209,14 +209,14 @@ describe('readDicomElementExplicit', () => {
       byteArray[3] = 0x44;
       byteArray[4] = vrByte0;
       byteArray[5] = vrByte1;
-      byteArray[6] = 0x02; // 2 byte length of 2 (also harmless as reserved bytes for 4 byte length VRs)
+      byteArray[6] = 0x02; // 2 byte length of 2 (read as reserved bytes and skipped for 4 byte length VRs)
       byteArray[7] = 0x00;
 
       return byteArray;
     }
 
     it('should return the exact same vr string for every known VR', () => {
-      const fourByteLengthVRs = ['OB', 'OD', 'OL', 'OW', 'OF', 'UC', 'UR', 'UT', 'UN'];
+      const fourByteLengthVRs = ['OB', 'OD', 'OL', 'OV', 'OW', 'OF', 'SV', 'UC', 'UR', 'UT', 'UN', 'UV'];
       const twoByteLengthVRs = ['AE', 'AS', 'AT', 'CS', 'DA', 'DS', 'DT', 'FL', 'FD', 'IS', 'LO', 'LT', 'PN', 'SH', 'SL', 'SS', 'ST', 'TM', 'UI', 'UL', 'US'];
 
       fourByteLengthVRs.forEach((vr) => {
@@ -237,7 +237,9 @@ describe('readDicomElementExplicit', () => {
       });
     });
 
-    it('should treat an unknown VR byte pair as a 2 byte length field', () => {
+    it('should treat an unknown VR byte pair as UN-style reserved + 4 byte length framing', () => {
+      // intentional divergence from upstream dicom-parser (which assumed a
+      // 2 byte length field) to align with dcmjs's eager reader
       // Arrange
       const byteArray = makeElementByteArray(0x5A, 0x5A); // ZZ
       const byteStream = new ByteStream(littleEndianByteArrayParser, byteArray);
@@ -245,10 +247,10 @@ describe('readDicomElementExplicit', () => {
       // Act
       const element = readDicomElementExplicit(byteStream);
 
-      // Assert
+      // Assert - bytes 6-7 are skipped as reserved, bytes 8-11 hold the length
       expect(element.vr).toBe('ZZ');
-      expect(element.dataOffset).toBe(8);
-      expect(element.length).toBe(2);
+      expect(element.dataOffset).toBe(12);
+      expect(element.length).toBe(0);
     });
 
     it('should preserve null-terminator semantics for VR bytes (both null)', () => {
@@ -259,10 +261,11 @@ describe('readDicomElementExplicit', () => {
       // Act
       const element = readDicomElementExplicit(byteStream);
 
-      // Assert - readFixedString(2) returned '' for a leading null byte
+      // Assert - readFixedString(2) returned '' for a leading null byte;
+      // unknown VRs use UN-style reserved + 4 byte length framing
       expect(element.vr).toBe('');
-      expect(element.dataOffset).toBe(8);
-      expect(element.length).toBe(2);
+      expect(element.dataOffset).toBe(12);
+      expect(element.length).toBe(0);
     });
 
     it('should preserve null-terminator semantics for VR bytes (second byte null)', () => {
@@ -273,10 +276,11 @@ describe('readDicomElementExplicit', () => {
       // Act
       const element = readDicomElementExplicit(byteStream);
 
-      // Assert - readFixedString(2) stopped at the null byte
+      // Assert - readFixedString(2) stopped at the null byte;
+      // unknown VRs use UN-style reserved + 4 byte length framing
       expect(element.vr).toBe('S');
-      expect(element.dataOffset).toBe(8);
-      expect(element.length).toBe(2);
+      expect(element.dataOffset).toBe(12);
+      expect(element.length).toBe(0);
     });
 
     it('should throw the readFixedString overread message when the VR bytes are missing', () => {

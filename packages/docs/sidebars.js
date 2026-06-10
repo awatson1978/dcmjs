@@ -33,7 +33,11 @@ const sidebars = {
         {
             type: "category",
             label: "Migration",
-            items: ["migration/from-0x", "migration/from-dicom-parser"]
+            items: [
+                "migration/before-and-after",
+                "migration/from-0x",
+                "migration/from-dicom-parser"
+            ]
         },
         "performance",
         {

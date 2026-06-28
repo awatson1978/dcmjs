@@ -184,6 +184,22 @@ extraction ("one read core", roadmap goal) is a scheduled follow-up.
 (OB/OW/OF/OD) are not in `binaryVRs`. So the walker routes by the **decoded value type**
 (ArrayBuffer → binary sub-stream; else → `value()`), not by `isBinary()`.
 
+## D10. Slice C value handling (DICOMweb JSON generator)
+
+**Question:** How should the DICOMweb JSON generator handle values that differ in
+representation from the Part 10 path (PN `{Alphabetic}` vs string, `InlineBinary` base64
+vs bytes, JSON numbers vs IS/DS strings)?
+
+**Options:** Emit as-is, defer canonicalization to slice D · Canonicalize at generation now.
+
+**Answer:** **Emit as-is, defer canonicalization to slice D.** The generator is a faithful
+transport: PN stays the DICOMweb `{Alphabetic}` object, numbers stay numbers, `BulkDataURI`
+→ `bulkDataReference`, `InlineBinary` base64 → decoded buffer (§22/§24.1). Cross-source
+value reconciliation (PN proxy — still an open spec decision §17 — and IS/DS normalization,
+§28) lands in the naturalized listener (slice D). Keeps slice boundaries clean; the
+slice-C cross-source gate asserts structure + unambiguous values and defers PN/number
+equality to D.
+
 ## Grounding facts established during exploration
 
 - Parser element shape (confirmed): `tag`, `tagValue` (numeric), `vr`, `length`,

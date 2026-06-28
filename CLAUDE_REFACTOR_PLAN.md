@@ -28,7 +28,7 @@ Each slice is its own spec → plan → implement cycle. Dependency-ordered:
 |---|---|---|---|
 | **A** | **Event-stream contract** | — | **DONE** — `src/eventStream/`, 79 tests, corpus round-trip green |
 | **B** | **Part 10 (raw bytes) → generator** | A | **DONE** — `fromPart10`, 31-fixture corpus gate green |
-| C | DICOMweb JSON → event-stream generator | A | not started |
+| **C** | **DICOMweb JSON → generator** | A | **DONE** — `fromDicomWebJson`, source-agnostic structural gate green |
 | D | Naturalized listener + value model | A, B | not started |
 | E | Writers (Part 10 + DICOMweb) on event stream | A | not started |
 | F | Public source/sink API + compat wrappers | A–E | not started |
@@ -174,9 +174,21 @@ non-binary tags exact (vr+Value, SQ-aware), binary tags compared at the
 concatenated-fragment-bytes level, `SpecificCharacterSet` (0008,0005) exempted (readFile
 rewrites it to ISO_IR 192 — a known eager-compat quirk the new path does not propagate).
 
-# Slices C–G — summaries (not yet planned in detail)
-- **C. DICOMweb JSON generator** — low-allocation visitor over parsed DICOMweb JSON (§24.1)
-  emitting the same contract; canonicalize `InlineBinary`/`BulkDataURI` to binary events.
+# Slice C — DICOMweb JSON → event-stream generator  *(DONE)*
+
+`src/eventStream/fromDicomWebJson.js` (exposed as `dcmjs.eventStream.fromDicomWebJson`).
+Low-allocation visitor over the DICOM JSON model emitting the same contract — proves the
+source-agnostic claim (§4.4) from a third source. Values emitted **as-is** (PN stays a
+`{Alphabetic}` object, numbers stay numbers); cross-source value canonicalization is
+deferred to the naturalized listener (slice D), per decision D10. Binary forms:
+`BulkDataURI` → `bulkDataReference` (unfetched, §21); `InlineBinary` base64 → decoded
+buffer fragment (§22/§24.1). Tests in `test/eventStream/fromDicomWebJson.test.js`:
+vocabulary/round-trip incl. nested SQ + PN objects, both binary forms, backpressure, and a
+source-agnostic structural check (DICOMweb JSON vs dcmjs dict produce identical
+event/tag structure). Full suite green (995 tests). The exhaustive corpus-wide cross-source
+*value* matrix is slice G.
+
+# Slices D–G — summaries (not yet planned in detail)
 - **D. Naturalized listener + value model** — the bulk of the metadata spec: VM cardinality
   (§7–§14), present-empty rules, PN proxy (§17), precision preservation (§16), private-tag
   grouping (§18), bulk/inline/openInlineBinary (§20–§26), raw retention (§27),

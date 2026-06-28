@@ -31,6 +31,8 @@ Each slice is its own spec → plan → implement cycle. Dependency-ordered:
 | **C** | **DICOMweb JSON → generator** | A | **DONE** — `fromDicomWebJson`, source-agnostic structural gate green |
 | **D1** | **Naturalized value model (core)** | A, B, C | **DONE** — `NaturalizedListener`, generator-agnostic corpus gate green |
 | D2 | Naturalized PN proxy + private grouping + precision/raw retention | D1 | not started |
+| **E1** | **DICOMweb JSON writer (sink)** | A | **DONE** — `DicomWebJsonWriter`, JSON round-trip + end-to-end gate green |
+| E2 | Part 10 byte writer (passthrough via sourceSpan) | A | not started |
 | E | Writers (Part 10 + DICOMweb) on event stream | A | not started |
 | F | Public source/sink API + compat wrappers | A–E | not started |
 | G | Cross-source equivalence suite (§31) | A–F | not started |
@@ -223,8 +225,15 @@ Full suite green on both cores (1038 tests).
 - **D2. Naturalized PN/private/precision** — PN proxy (§17), private-tag grouping (§18),
   precision preservation (§16), raw retention (§27, needs the contract to carry raw values),
   low-allocation state-by-depth tuning (§15.4).
-- **E. Writers** — Part 10 (verbatim passthrough via `sourceSpan`, building on R4) and
-  DICOMweb JSON, both as event-stream consumers; `BinaryOutputMode` policy (§26).
+- **E1. DICOMweb JSON writer** — DONE. `src/eventStream/DicomWebJsonWriter.js` (exposed as
+  `dcmjs.eventStream.DicomWebJsonWriter`): the faithful inverse of `fromDicomWebJson`,
+  making the contract a sink. Output `{vr, Value}` / `{vr, BulkDataURI}` /
+  `{vr, InlineBinary base64}`; PN passes through as `{Alphabetic}`; binary source form
+  preserved (§25). Tests: JSON→events→JSON identity, and end-to-end
+  bytes→events→JSON→events→naturalized == direct naturalize (plain/implicit LE + deep SR).
+  Full suite green both cores (1043 tests).
+- **E2. Part 10 byte writer** — verbatim passthrough via `sourceSpan` (building on R4) and
+  re-encode of edits; `BinaryOutputMode` policy (§26). The heavy writer; not started.
 - **F. Public API** — `Naturalized.from(events)`, `Part10.from`, `DicomWebJson.from`,
   `DicomEventStream.fromPart10` (§32); compat wrappers over legacy APIs.
 - **G. Equivalence suite** — semantic-consistency matrix across all source formats (§31).

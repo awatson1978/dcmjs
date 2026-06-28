@@ -32,7 +32,7 @@ Each slice is its own spec → plan → implement cycle. Dependency-ordered:
 | **D1** | **Naturalized value model (core)** | A, B, C | **DONE** — `NaturalizedListener`, generator-agnostic corpus gate green |
 | **D2a** | **Naturalized Person Name proxy (§17)** | D1 | **DONE** — `.Alphabetic` + `String()`→raw PN, reuses `pnAddValueAccessors` |
 | **D2b** | **Naturalized private-tag grouping (§18)** | D1 | **DONE** — `<slot>:<creator>` groups incl. registered names (§18.1–§18.5) |
-| D2c | Naturalized precision/raw retention (§16/§27) — needs contract extension | D1, A | not started |
+| **D2c** | **Naturalized precision/raw retention (§16/§27)** | D1, A | **DONE** — raw-value channel + round-trip retention; DS precision preserved |
 | **E1** | **DICOMweb JSON writer (sink)** | A | **DONE** — `DicomWebJsonWriter`, JSON round-trip + end-to-end gate green |
 | E2 | Part 10 byte writer (passthrough via sourceSpan) | A | not started |
 | **F** | **Public source/sink API (§32)** | A–E1 | **DONE** — `DicomEventStream` + `Naturalized.from` / `DicomWebJson.from` |
@@ -243,10 +243,14 @@ Full suite green on both cores (1038 tests).
   nested key when known, meaningful (not "Unknown"), and non-colliding — e.g. SIEMENS CSA
   HEADER (0029,1010) → `CSAImageHeaderInfo`; otherwise the numeric block-relative offset.
   Applies identically across generators (cross-source gate stays green).
-- **D2c. Precision / raw retention (§16/§27)** — needs a **contract extension** to carry raw
-  values (value events gain an optional raw payload; generators emit it). Default "inexact
-  only": retain raw strings where Number conversion loses precision (large ints, DS). Its own
-  plan. Not started.
+- **D2c. Precision / raw retention (§16/§27)** — DONE. The contract's `value` event gained an
+  optional `rawValue` payload; `fromPart10` (via parallel raw shaping) and `fromDataSet`
+  (via `_rawValue`) emit it. `NaturalizedListener` retains the raw source string whenever a
+  numeric VR value's shortest decimal cannot reproduce the source (over-length DS, or an
+  integer beyond the safe range) — a VR-agnostic round-trip check, so normal values keep
+  their number. `fromDicomWebJson` carries no raw, so JSON-sourced numbers stay numbers
+  (DICOMweb JSON has already chosen a number). Note: IS is capped at 12 chars so it never
+  overflows; the real case is DS (≤16 chars). Default behavior matches §27 "inexact only".
 - Low-allocation state-by-depth tuning (§15.4) — future.
 - **E1. DICOMweb JSON writer** — DONE. `src/eventStream/DicomWebJsonWriter.js` (exposed as
   `dcmjs.eventStream.DicomWebJsonWriter`): the faithful inverse of `fromDicomWebJson`,

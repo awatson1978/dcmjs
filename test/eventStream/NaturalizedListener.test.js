@@ -365,3 +365,67 @@ describe("NaturalizedListener — private-tag grouping (§18)", () => {
         expect(item["10:ITEM CREATOR"]["10"]).toBe("item");
     });
 });
+
+describe("NaturalizedListener — precision / raw retention (§16)", () => {
+    test("retains the raw string for a decimal the JS number cannot reproduce", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        l.startElement("00180050", { vr: "DS" }); // SliceThickness, DS
+        // 16-char DS; the double rounds to ...992, losing the last digit.
+        l.value(9007199254740993, { rawValue: "9007199254740993" });
+        l.endElement();
+        l.endDataSet();
+        expect(l.result.SliceThickness).toBe("9007199254740993");
+    });
+
+    test("keeps the number for exactly-representable decimals (incl. trailing zeros)", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        l.startElement("00180050", { vr: "DS" });
+        l.value(1.5, { rawValue: "1.50" }); // recoverable as 1.5
+        l.endElement();
+        l.endDataSet();
+        expect(l.result.SliceThickness).toBe(1.5);
+    });
+
+    test("without a raw value (e.g. DICOMweb JSON) the number is kept as-is", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        l.startElement("00180050", { vr: "DS" });
+        l.value(9007199254740993); // no rawValue available
+        l.endElement();
+        l.endDataSet();
+        expect(typeof l.result.SliceThickness).toBe("number");
+    });
+});
+
+describe("NaturalizedListener — precision end-to-end through generators", () => {
+    const { DicomDict } = dcmjs.data;
+
+    function buildLossyDsPart10() {
+        const meta = {
+            "00020010": { vr: "UI", Value: ["1.2.840.10008.1.2.1"] },
+            "00020002": { vr: "UI", Value: ["1.2.840.10008.5.1.4.1.1.7"] },
+            "00020003": { vr: "UI", Value: ["1.2.3.4.5"] }
+        };
+        const dd = new DicomDict(meta);
+        // 16-char DS whose double representation loses the final digit.
+        dd.dict = { "00180050": { vr: "DS", Value: ["9007199254740993"] } };
+        return dd.write();
+    }
+
+    test("lossy DS retains its raw string from raw bytes (fromPart10)", async () => {
+        const buffer = buildLossyDsPart10();
+        const l = new NaturalizedListener();
+        await fromPart10(buffer.slice(0), l);
+        expect(l.result.SliceThickness).toBe("9007199254740993");
+    });
+
+    test("lossy DS retains its raw string from a dict (fromDataSet)", async () => {
+        const buffer = buildLossyDsPart10();
+        const dict = DicomMessage.readFile(buffer.slice(0));
+        const l = new NaturalizedListener();
+        await fromDataSet({ meta: dict.meta, dict: dict.dict }, l);
+        expect(l.result.SliceThickness).toBe("9007199254740993");
+    });
+});

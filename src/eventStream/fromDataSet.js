@@ -79,12 +79,20 @@ function emitEntry(listener, tag, entry) {
     }
 
     listener.startElement(tag, { vr: entry.vr, length: entry.length });
+    // _rawValue (when present on lazy/eager dict entries) carries the source
+    // string for precision-preserving retention (§16/§27).
+    const rawValues = entry._rawValue;
     let index = 0;
     for (const v of values) {
         if (isBulkDataReference(v)) {
             listener.bulkDataReference({ uri: v.BulkDataURI });
         } else {
-            listener.value(v, { index });
+            listener.value(v, {
+                index,
+                rawValue: Array.isArray(rawValues)
+                    ? rawValues[index]
+                    : undefined
+            });
         }
         index++;
     }

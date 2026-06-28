@@ -78,12 +78,15 @@ export class NaturalizedListener extends EventStreamListener {
             tag,
             vr: info.vr,
             values: [],
+            rawValues: [],
             binary: undefined
         });
     }
 
-    _baseValue(v) {
-        this._stack[this._stack.length - 1].values.push(v);
+    _baseValue(v, opts = {}) {
+        const frame = this._stack[this._stack.length - 1];
+        frame.values.push(v);
+        frame.rawValues.push(opts.rawValue);
     }
 
     _baseBulkDataReference(ref = {}) {
@@ -110,6 +113,18 @@ export class NaturalizedListener extends EventStreamListener {
     _baseEndElement() {
         const frame = this._stack.pop();
         const targetFrame = this._objectFrame();
+
+        // §16 precision: where a canonical JS number would lose precision and a
+        // raw source string is available, retain the raw string.
+        if (frame.binary === undefined && frame.rawValues) {
+            for (let i = 0; i < frame.values.length; i++) {
+                frame.values[i] = retainPrecision(
+                    frame.vr,
+                    frame.values[i],
+                    frame.rawValues[i]
+                );
+            }
+        }
 
         if (isPrivateTag(frame.tag)) {
             this._placePrivate(targetFrame, frame);
@@ -300,6 +315,54 @@ function privateKeyFor(tag, creator, offset, group) {
         return reg.name;
     }
     return numeric;
+}
+
+/**
+ * §16 precision retention (raw-retention default "inexact only", §27). A numeric
+ * VR value (IS/DS) decoded to a JS number has lost precision when the number's
+ * shortest decimal cannot reproduce the source string (an over-length decimal,
+ * or an integer beyond the safe range). In that case retain the original string.
+ * This is VR-agnostic: it fires only when a number and its source string
+ * disagree, so normal values keep their number.
+ */
+function retainPrecision(vr, value, raw) {
+    if (typeof value !== "number" || typeof raw !== "string") {
+        return value;
+    }
+    const source = raw.trim();
+    if (source === "" || !Number.isFinite(value)) {
+        return value;
+    }
+    if (canonicalDecimal(source) === canonicalDecimal(value.toString())) {
+        return value; // recoverable from the number -> no loss
+    }
+    return source;
+}
+
+/**
+ * Canonical decimal form for comparing whether two decimal strings denote the
+ * same number, ignoring formatting (sign, leading/trailing zeros). Exponent
+ * notation is left intact, so a number serialized in exponent form that differs
+ * from a fixed-notation source compares unequal (conservatively retained).
+ */
+function canonicalDecimal(s) {
+    let str = s.trim().replace(/^\+/, "");
+    if (/[eE]/.test(str)) {
+        return str;
+    }
+    let neg = false;
+    if (str.startsWith("-")) {
+        neg = true;
+        str = str.slice(1);
+    }
+    let [int = "", frac = ""] = str.split(".");
+    int = int.replace(/^0+(?=\d)/, "");
+    frac = frac.replace(/0+$/, "");
+    if (int === "") {
+        int = "0";
+    }
+    const body = frac ? `${int}.${frac}` : int;
+    return neg && body !== "0" ? `-${body}` : body;
 }
 
 /** Shape a private data value with no VM info: scalar if one value, else array. */

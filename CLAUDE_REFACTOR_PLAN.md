@@ -33,6 +33,7 @@ Each slice is its own spec → plan → implement cycle. Dependency-ordered:
 | D2 | Naturalized PN proxy + private grouping + precision/raw retention | D1 | not started |
 | **E1** | **DICOMweb JSON writer (sink)** | A | **DONE** — `DicomWebJsonWriter`, JSON round-trip + end-to-end gate green |
 | E2 | Part 10 byte writer (passthrough via sourceSpan) | A | not started |
+| **F** | **Public source/sink API (§32)** | A–E1 | **DONE** — `DicomEventStream` + `Naturalized.from` / `DicomWebJson.from` |
 | E | Writers (Part 10 + DICOMweb) on event stream | A | not started |
 | F | Public source/sink API + compat wrappers | A–E | not started |
 | G | Cross-source equivalence suite (§31) | A–F | not started |
@@ -234,6 +235,12 @@ Full suite green on both cores (1038 tests).
   Full suite green both cores (1043 tests).
 - **E2. Part 10 byte writer** — verbatim passthrough via `sourceSpan` (building on R4) and
   re-encode of edits; `BinaryOutputMode` policy (§26). The heavy writer; not started.
-- **F. Public API** — `Naturalized.from(events)`, `Part10.from`, `DicomWebJson.from`,
-  `DicomEventStream.fromPart10` (§32); compat wrappers over legacy APIs.
+- **F. Public API** — DONE. `src/eventStream/api.js` (exposed as
+  `dcmjs.eventStream.{DicomEventStream, Naturalized, DicomWebJson}`). `DicomEventStream`
+  wraps a re-runnable source with `.fromPart10/.fromDicomWebJson/.fromDataSet` factories and
+  `.process(listener)` / `.toNaturalized()` / `.toDicomWebJson()` / `.toDataSet()` /
+  `.asyncIterable()`; plus §32 sink helpers `Naturalized.from(events)` /
+  `DicomWebJson.from(events)`. Sources are reusable (drive multiple sinks). Tests in
+  `test/eventStream/api.test.js` (5). Full suite green (1048 tests). Compat wrappers over
+  legacy `DicomMessage`/naturalize APIs remain a follow-up.
 - **G. Equivalence suite** — semantic-consistency matrix across all source formats (§31).

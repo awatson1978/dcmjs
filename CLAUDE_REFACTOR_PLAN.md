@@ -293,3 +293,55 @@ Full suite green on both cores (1038 tests).
   Deeper legacy compat wrappers (drop-in replacements at old `DicomMessage`/naturalize call
   sites) remain an optional follow-up.
 - **G. Equivalence suite** — semantic-consistency matrix across all source formats (§31).
+
+---
+
+# Remaining Items — Each Needs Its Own Planning Pass
+
+The core architecture (slices A–G, D1–D2c, E1–E2, F, §15.4) is complete, fully bidirectional,
+and green (1128 tests on both cores). What is left is intentionally **not** picked up in the
+same incremental flow: each item is either behavior-changing, a risky refactor of existing
+core code, or only justified by a requirement that is not yet real. Each should get its own
+brainstorm → design → plan cycle (the way A–G were scoped) rather than a tail-end push.
+
+### R1. Legacy compatibility wrappers (migration ergonomics, §32.2)
+**Why a planning pass:** the new naturalized output **intentionally differs** from the legacy
+`DicomMetaDictionary.naturalizeDataset` (VM-1-n values stay arrays, private tags are grouped,
+sequences expose hidden length, precision strings are retained). So a "compat wrapper" is
+**not** a drop-in — adopting it changes behavior at call sites (OHIF, Cornerstone3D). The
+planning pass must decide: which legacy entry points get event-backed equivalents; whether to
+offer a strict "legacy-shape" mode vs. only the new shape; and a migration guide with a
+behavior-diff. Low technical risk, high coordination/communication risk.
+**Scope sketch:** audit legacy call sites → choose wrapped entry points → optional
+legacy-shape adapter → migration doc + behavior-diff table → deprecation messaging.
+
+### R2. Streaming + passthrough Part 10 byte encoder (deferred per D15)
+**Why a planning pass:** the current `Part10Writer` correctly layers over the canonical
+`DicomDict.write`. A streaming, event-driven byte encoder with verbatim `sourceSpan`
+passthrough would be a **second encoder** (duplication), justified **only** when streaming
+*writes* of datasets too large to buffer become a real requirement. Byte-identical round-trip
+is a §4.5 non-goal already served by the lazy-read + R4 passthrough path.
+**Trigger to start:** a concrete need to write multi-GB datasets without materializing them.
+**Scope sketch:** define streaming write contract (length backpatching vs. undefined-length);
+emit `sourceSpan` from `fromPart10` + thread the source buffer to the writer; byte-equivalence
+gate against the existing passthrough writer; decide whether it supersedes or supplements
+`DicomDict.write`.
+
+### R3. "One read core" extraction (decouple slice B from the lazy core)
+**Why a planning pass:** `fromPart10` currently **delegates** deflate and hard
+undefined-length / unknown-VR cases to the lazy core (`readFileLazy`), because the decode
+primitives are closures trapped inside it (see D9). The roadmap's "one read core" goal is to
+extract `materializeElement`/`resolveVrInstance`/charset/ctx-setup into a shared module used
+by **both** the lazy reader and `fromPart10`, removing the delegation. This is a refactor of
+the 56KB `src/lazy/LazyDicomReader.js` core — guarded by 1128 tests + the corpus gates, but
+still the highest-risk remaining change.
+**Scope sketch:** extract a `decodeElement` core module → repoint `readFileLazy` at it (prove
+the 1059 read tests + dual-core gate stay green) → repoint `fromPart10` at it → delete the
+delegation paths → confirm deflate + undefined-length now decode natively.
+
+### R4. §15.4 low-allocation micro-tuning (optional)
+**Why a planning pass:** scale is already validated (100k items ~76 ms; 500-deep ~16 ms) and
+linear, so this is **not** currently needed. If a profiled real workload (large microscopy /
+enhanced multi-frame) shows GC pressure, the spec's "reusable state objects by nesting depth"
+(§15.4) is the lever: pool the listener's frame objects by depth instead of allocating per
+element. **Trigger to start:** a profiled allocation problem on a real dataset.

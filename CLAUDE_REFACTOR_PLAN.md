@@ -37,7 +37,7 @@ Each slice is its own spec → plan → implement cycle. Dependency-ordered:
 | E2 | Part 10 byte writer (passthrough via sourceSpan) | A | not started |
 | **F** | **Public source/sink API (§32)** | A–E1 | **DONE** — `DicomEventStream` + `Naturalized.from` / `DicomWebJson.from` |
 | **G** | **Cross-source equivalence matrix (§31)** | A–F | **DONE** — 30-fixture three-source (bytes/dict/DICOMweb JSON) naturalize-identically gate |
-| E2 | Part 10 byte writer (passthrough via sourceSpan) | A | not started (heavy; overlaps existing writer) |
+| **E2** | **Part 10 byte writer (sink)** | A, E1 | **DONE** — `Part10Writer` layers over the canonical `DicomDict.write`; corpus semantic round-trip green |
 | E | Writers (Part 10 + DICOMweb) on event stream | A | not started |
 | F | Public source/sink API + compat wrappers | A–E | not started |
 | G | Cross-source equivalence suite (§31) | A–F | not started |
@@ -261,8 +261,23 @@ Full suite green on both cores (1038 tests).
   preserved (§25). Tests: JSON→events→JSON identity, and end-to-end
   bytes→events→JSON→events→naturalized == direct naturalize (plain/implicit LE + deep SR).
   Full suite green both cores (1043 tests).
-- **E2. Part 10 byte writer** — verbatim passthrough via `sourceSpan` (building on R4) and
-  re-encode of edits; `BinaryOutputMode` policy (§26). The heavy writer; not started.
+- **E2. Part 10 byte writer** — DONE. `src/eventStream/Part10Writer.js` (exposed as
+  `dcmjs.eventStream.Part10Writer`; `DicomEventStream.toPart10()`). A thin LAYER over the
+  canonical encoder, not a second encoder: it collects events into `{meta, dict}` (via
+  CollectorListener) and delegates to the proven `DicomDict.write()` (all VRs,
+  undefined-length SQ, deflate, padding, Big16, group-length recompute). Drops any collected
+  group-length so it isn't double-counted; forwards write options (e.g.
+  `allowInvalidVRLength` for malformed round-trips).
+
+  **Architecture decision (D15):** byte-IDENTICAL Part 10 round-tripping (incl. re-emitting
+  compressed pixel data verbatim) is a non-goal of the event/naturalized path (spec §4.5) and
+  remains served by the lazy-read + R4 passthrough-write path. A true streaming + passthrough
+  event encoder would *duplicate* the canonical encoder, not replace it, and is only worth it
+  for streaming writes of giant datasets — deferred until that need is real.
+
+  Tests: synthesized round-trip (scalars/PN/sequence/meta) + a 30-fixture corpus **semantic**
+  round-trip (bytes → events → Part 10 → readback naturalizes identically). Full suite green
+  on both cores (1122 tests).
 - **F. Public API** — DONE. `src/eventStream/api.js` (exposed as
   `dcmjs.eventStream.{DicomEventStream, Naturalized, DicomWebJson}`). `DicomEventStream`
   wraps a re-runnable source with `.fromPart10/.fromDicomWebJson/.fromDataSet` factories and

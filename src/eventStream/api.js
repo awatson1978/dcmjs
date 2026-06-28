@@ -1,5 +1,6 @@
 import { NaturalizedListener } from "./NaturalizedListener.js";
 import { DicomWebJsonWriter } from "./DicomWebJsonWriter.js";
+import { Part10Writer } from "./Part10Writer.js";
 import { CollectorListener } from "./CollectorListener.js";
 import { fromPart10 } from "./fromPart10.js";
 import { fromDicomWebJson } from "./fromDicomWebJson.js";
@@ -62,6 +63,13 @@ export class DicomEventStream {
         const writer = new DicomWebJsonWriter();
         await this._run(writer);
         return writer.result;
+    }
+
+    /** Serialize to a Part 10 ArrayBuffer (slice E2). */
+    async toPart10(writeOptions) {
+        const writer = new Part10Writer();
+        await this._run(writer);
+        return writer.write(writeOptions);
     }
 
     /** Rebuild a tag-keyed { meta, dict } tree (the reference collector). */

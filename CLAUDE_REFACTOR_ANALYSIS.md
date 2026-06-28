@@ -250,6 +250,23 @@ case is `DS` (≤16 characters), whose double can drop the final digit (e.g. the
 "9007199254740993" → 9007199254740992). The retention rule is therefore round-trip-based,
 not VR-specific.
 
+## D15. Part 10 byte writer — reuse vs. a second encoder
+
+**Question (raised by the user):** Would a streaming event-driven byte encoder replace the
+old writer, or just add duplication?
+
+**Finding:** the existing `DicomMessage.write` IS the canonical byte encoder and already does
+byte-faithful output incl. R4 verbatim passthrough. A streaming event encoder would
+**duplicate** its encoding logic, not deprecate it — its only added benefit is not buffering
+the dataset while writing (a niche need). Byte-identical Part 10 round-trip is also an
+explicit **non-goal** of the event/naturalized path (spec §4.5) and is already served by the
+lazy-read + passthrough-write path.
+
+**Decision:** build E2 as a thin LAYER over the canonical encoder — collect events into
+`{meta, dict}` and call `DicomDict.write()`. This is correct layering, not a patch; it avoids
+a second encoder. A streaming + passthrough event encoder is deferred until streaming writes
+of giant datasets are a real requirement, at which point it is an *addition* for that need.
+
 ## Grounding facts established during exploration
 
 - Parser element shape (confirmed): `tag`, `tagValue` (numeric), `vr`, `length`,

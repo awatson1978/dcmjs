@@ -253,7 +253,11 @@ Full suite green on both cores (1038 tests).
   their number. `fromDicomWebJson` carries no raw, so JSON-sourced numbers stay numbers
   (DICOMweb JSON has already chosen a number). Note: IS is capped at 12 chars so it never
   overflows; the real case is DS (≤16 chars). Default behavior matches §27 "inexact only".
-- Low-allocation state-by-depth tuning (§15.4) — future.
+- **§15.4 scale** — VALIDATED. `test/eventStream/scale.test.js` drives the naturalized
+  listener with a 100k-item PerFrameFunctionalGroupsSequence (~76 ms) and 500-deep recursive
+  ContentSequence (~16 ms). The depth-bounded frame stack scales linearly; no state-by-depth
+  pooling needed at these sizes (deeper micro-optimization remains a future option if a real
+  workload demands it).
 - **E1. DICOMweb JSON writer** — DONE. `src/eventStream/DicomWebJsonWriter.js` (exposed as
   `dcmjs.eventStream.DicomWebJsonWriter`): the faithful inverse of `fromDicomWebJson`,
   making the contract a sink. Output `{vr, Value}` / `{vr, BulkDataURI}` /

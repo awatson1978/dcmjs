@@ -11,6 +11,7 @@ export {
     CONTRACT_VERSION
 } from "./EventStreamListener.js";
 export { CollectorListener } from "./CollectorListener.js";
+export { NaturalizedListener } from "./NaturalizedListener.js";
 export { fromDataSet } from "./fromDataSet.js";
 export { fromPart10 } from "./fromPart10.js";
 export { fromDicomWebJson } from "./fromDicomWebJson.js";
@@ -22,6 +23,7 @@ import {
     CONTRACT_VERSION
 } from "./EventStreamListener.js";
 import { CollectorListener } from "./CollectorListener.js";
+import { NaturalizedListener } from "./NaturalizedListener.js";
 import { fromDataSet } from "./fromDataSet.js";
 import { fromPart10 } from "./fromPart10.js";
 import { fromDicomWebJson } from "./fromDicomWebJson.js";
@@ -32,6 +34,7 @@ export default {
     EVENT_STREAM_VOCABULARY,
     CONTRACT_VERSION,
     CollectorListener,
+    NaturalizedListener,
     fromDataSet,
     fromPart10,
     fromDicomWebJson,

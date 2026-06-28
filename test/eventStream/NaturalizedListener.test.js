@@ -1,0 +1,262 @@
+import fs from "fs";
+import path from "path";
+import dcmjs from "../../src/index.js";
+import { NaturalizedListener } from "../../src/eventStream/NaturalizedListener";
+import { fromPart10 } from "../../src/eventStream/fromPart10";
+import { fromDataSet } from "../../src/eventStream/fromDataSet";
+
+const { DicomMessage } = dcmjs.data;
+
+/** Drive helpers. */
+const scalar = (l, tag, vr, ...values) => {
+    l.startElement(tag, { vr });
+    for (const v of values) l.value(v);
+    l.endElement();
+};
+
+describe("NaturalizedListener — keyword naming + scalar cardinality", () => {
+    test("maps tags to canonical keywords; VM-1 single value is a scalar", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        scalar(l, "00100020", "LO", "12345"); // PatientID, VM 1
+        scalar(l, "00200013", "IS", 12); // InstanceNumber, VM 1
+        l.endDataSet();
+        expect(l.result).toEqual({ PatientID: "12345", InstanceNumber: 12 });
+    });
+
+    test("VM-1 present-empty is null; absent is omitted", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        scalar(l, "00100020", "LO"); // present, no value
+        l.endDataSet();
+        expect(l.result).toEqual({ PatientID: null });
+        expect("InstanceNumber" in l.result).toBe(false);
+    });
+
+    test("VM-1 with multiple values: warnAndPreserve keeps an array and records a violation", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        scalar(l, "00100020", "LO", "12345", "67890");
+        l.endDataSet();
+        expect(l.result.PatientID).toEqual(["12345", "67890"]);
+        expect(l.violations.some(v => v.keyword === "PatientID")).toBe(true);
+    });
+});
+
+describe("NaturalizedListener — multi-VM cardinality", () => {
+    test("VM 1-n / 2-n stays list-like even for a single value", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        scalar(l, "00080008", "CS", "ORIGINAL"); // ImageType, VM 2-n
+        scalar(l, "00101000", "LO", "A"); // OtherPatientIDs, VM 1-n
+        l.endDataSet();
+        expect(l.result.ImageType).toEqual(["ORIGINAL"]);
+        expect(l.result.OtherPatientIDs).toEqual(["A"]);
+    });
+
+    test("multi-VM present-empty is an empty array", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        scalar(l, "00080008", "CS"); // present, no value
+        l.endDataSet();
+        expect(l.result.ImageType).toEqual([]);
+    });
+
+    test("multi-VM multiple values is the array", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        scalar(l, "00080008", "CS", "ORIGINAL", "PRIMARY", "AXIAL");
+        l.endDataSet();
+        expect(l.result.ImageType).toEqual(["ORIGINAL", "PRIMARY", "AXIAL"]);
+    });
+});
+
+describe("NaturalizedListener — sequences", () => {
+    function item(l, build) {
+        l.startItem({});
+        build();
+        l.endItem();
+    }
+
+    test("single-item sequence is the item object, with hidden length 1", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        l.startSequence("00081110", { vr: "SQ" }); // ReferencedStudySequence, VM 1
+        item(l, () => scalar(l, "00081150", "UI", "1.2.3"));
+        l.endSequence();
+        l.endDataSet();
+
+        const seq = l.result.ReferencedStudySequence;
+        expect(seq.ReferencedSOPClassUID).toBe("1.2.3"); // delegates to item[0]
+        expect(seq.length).toBe(1);
+        expect(seq[0].ReferencedSOPClassUID).toBe("1.2.3");
+    });
+
+    test("multi-item sequence is an array (not a violation, even at declared VM 1)", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        l.startSequence("52009230", { vr: "SQ" }); // PerFrameFunctionalGroupsSequence
+        item(l, () => scalar(l, "00200013", "IS", 1));
+        item(l, () => scalar(l, "00200013", "IS", 2));
+        l.endSequence();
+        l.endDataSet();
+
+        expect(Array.isArray(l.result.PerFrameFunctionalGroupsSequence)).toBe(true);
+        expect(l.result.PerFrameFunctionalGroupsSequence).toHaveLength(2);
+        expect(l.violations).toEqual([]);
+    });
+
+    test("present-empty sequence is an empty array", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        l.startSequence("00081110", { vr: "SQ" });
+        l.endSequence();
+        l.endDataSet();
+        expect(l.result.ReferencedStudySequence).toEqual([]);
+    });
+});
+
+describe("NaturalizedListener — binary and meta", () => {
+    test("assembled binary fragments become InlineBinary", () => {
+        const l = new NaturalizedListener();
+        const buf = new Uint8Array([1, 2, 3, 4]).buffer;
+        l.startDataSet({});
+        l.startElement("7FE00010", { vr: "OB" });
+        l.startBinary({ encapsulated: false });
+        l.binaryFragment(buf);
+        l.endBinary();
+        l.endElement();
+        l.endDataSet();
+        expect(Array.from(new Uint8Array(l.result.PixelData.InlineBinary))).toEqual([
+            1, 2, 3, 4
+        ]);
+    });
+
+    test("bulkDataReference becomes BulkDataURI", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        l.startElement("7FE00010", { vr: "OB" });
+        l.bulkDataReference({ uri: "../bulk/1" });
+        l.endElement();
+        l.endDataSet();
+        expect(l.result.PixelData).toEqual({ BulkDataURI: "../bulk/1" });
+    });
+
+    test("File Meta Information naturalizes into .meta", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        l.startFileMetaInformation();
+        scalar(l, "00020010", "UI", "1.2.840.10008.1.2.1"); // TransferSyntaxUID
+        l.endFileMetaInformation();
+        l.endDataSet();
+        expect(l.meta.TransferSyntaxUID).toBe("1.2.840.10008.1.2.1");
+    });
+});
+
+// --- generator-agnostic cross-source gate -----------------------------------
+
+const REPO_ROOT = path.join(__dirname, "..", "..");
+const PARSER_IMAGES_DIR = path.join(REPO_ROOT, "packages", "parser", "testImages");
+const TEST_DIR = path.join(REPO_ROOT, "test");
+
+function discover(dir, accept) {
+    const out = [];
+    for (const name of fs.readdirSync(dir).sort()) {
+        const full = path.join(dir, name);
+        const stat = fs.statSync(full);
+        if (stat.isDirectory()) out.push(...discover(full, accept));
+        else if (stat.isFile() && accept(name)) out.push(full);
+    }
+    return out;
+}
+
+const FIXTURES = [
+    ...discover(PARSER_IMAGES_DIR, n => !n.toLowerCase().endsWith(".md")),
+    ...discover(TEST_DIR, n => /\.(dcm|dicom|lei)$/i.test(n))
+].map(full => [path.relative(REPO_ROOT, full), full]);
+
+function readBuffer(full) {
+    const data = fs.readFileSync(full);
+    return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+}
+
+/**
+ * Normalize a naturalized object for cross-source comparison: binary leaves
+ * collapse to a placeholder (raw-fragments vs frame grouping is slice G), and
+ * single-item sequence proxies (arrays under the hood) compare structurally.
+ */
+function normalize(v) {
+    if (v === null || typeof v !== "object") return v;
+    if (v instanceof ArrayBuffer || ArrayBuffer.isView(v)) return "__bytes";
+    if ("InlineBinary" in v || "BulkDataURI" in v) return "__binary";
+    if (Array.isArray(v)) return v.map(normalize);
+    const out = {};
+    for (const k of Object.keys(v).sort()) {
+        // readFile rewrites SpecificCharacterSet to ISO_IR 192 at every level;
+        // the raw-bytes path keeps the true source value. Exempt it everywhere.
+        if (k === "SpecificCharacterSet") continue;
+        out[k] = normalize(v[k]);
+    }
+    return out;
+}
+
+async function naturalizeFrom(generator) {
+    const l = new NaturalizedListener();
+    await generator(l);
+    return normalize(l.result);
+}
+
+describe("NaturalizedListener — generator-agnostic over the corpus", () => {
+    test.each(FIXTURES)("%s naturalizes identically from bytes and from dict", async (_rel, full) => {
+        let dict;
+        try {
+            dict = DicomMessage.readFile(readBuffer(full));
+        } catch {
+            return; // fixtures both cores reject
+        }
+        const fromBytes = await naturalizeFrom(l => fromPart10(readBuffer(full), l));
+        const fromDict = await naturalizeFrom(l =>
+            fromDataSet({ meta: dict.meta, dict: dict.dict }, l)
+        );
+        expect(fromBytes).toEqual(fromDict);
+    });
+});
+
+describe("NaturalizedListener — all three sources agree (§4.4)", () => {
+    test("dict and DICOMweb JSON naturalize to the same object", async () => {
+        const dictSource = {
+            dict: {
+                "00100020": { vr: "LO", Value: ["12345"] },
+                "00080008": { vr: "CS", Value: ["ORIGINAL", "PRIMARY"] },
+                "00200013": { vr: "IS", Value: [7] },
+                "00081110": {
+                    vr: "SQ",
+                    Value: [{ "00081150": { vr: "UI", Value: ["1.2.3"] } }]
+                }
+            }
+        };
+        const jsonSource = {
+            "00100020": { vr: "LO", Value: ["12345"] },
+            "00080008": { vr: "CS", Value: ["ORIGINAL", "PRIMARY"] },
+            "00200013": { vr: "IS", Value: [7] },
+            "00081110": {
+                vr: "SQ",
+                Value: [{ "00081150": { vr: "UI", Value: ["1.2.3"] } }]
+            }
+        };
+
+        const { fromDicomWebJson } = await import(
+            "../../src/eventStream/fromDicomWebJson"
+        );
+        const fromDict = await naturalizeFrom(l => fromDataSet(dictSource, l));
+        const fromJson = await naturalizeFrom(l => fromDicomWebJson(jsonSource, l));
+        expect(fromJson).toEqual(fromDict);
+        // (fromDict is the normalized form: single-item sequences are flattened
+        // to [item], so assert on that shape.)
+        expect(fromDict.OtherPatientIDs).toBeUndefined();
+        expect(fromDict.ImageType).toEqual(["ORIGINAL", "PRIMARY"]);
+        expect(fromDict.ReferencedStudySequence[0].ReferencedSOPClassUID).toBe(
+            "1.2.3"
+        );
+    });
+});

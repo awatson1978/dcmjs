@@ -200,6 +200,29 @@ value reconciliation (PN proxy — still an open spec decision §17 — and IS/D
 slice-C cross-source gate asserts structure + unambiguous values and defers PN/number
 equality to D.
 
+## D11. Decompose slice D?
+
+**Question:** Slice D (VM cardinality + PN proxy + private grouping + precision/raw
+retention) is large. Decompose it?
+
+**Answer:** **D1 core now, D2 (PN/private/raw) later.** D1 = keyword keys + VM cardinality
++ sequences + binary assembly + cardinality policy. D2 = PN proxy (§17, open spec
+decision), private-tag grouping (§18), precision/raw retention (§16/§27 — needs a contract
+extension to carry raw values).
+
+## D12. Default cardinality-violation policy (§15.2)
+
+**Answer:** **warnAndPreserve** — keep all observed values (loss-preserving) and emit a
+skippable diagnostic; configurable to discardExtra/record/throw. Violations also exposed on
+`listener.violations`.
+
+**Interpretation established during D1:** a DICOM sequence's declared VM ("1") constrains
+attribute occurrence, not item count. Multi-item sequences (e.g.
+PerFrameFunctionalGroupsSequence, declared VM 1) are normal — NOT cardinality violations.
+A literal reading of §12 would warn on every enhanced/multi-frame object; the engineering
+call is that violations apply only to non-sequence scalar VRs whose value count exceeds the
+declared VM.
+
 ## Grounding facts established during exploration
 
 - Parser element shape (confirmed): `tag`, `tagValue` (numeric), `vr`, `length`,

@@ -29,7 +29,8 @@ Each slice is its own spec → plan → implement cycle. Dependency-ordered:
 | **A** | **Event-stream contract** | — | **DONE** — `src/eventStream/`, 79 tests, corpus round-trip green |
 | **B** | **Part 10 (raw bytes) → generator** | A | **DONE** — `fromPart10`, 31-fixture corpus gate green |
 | **C** | **DICOMweb JSON → generator** | A | **DONE** — `fromDicomWebJson`, source-agnostic structural gate green |
-| D | Naturalized listener + value model | A, B | not started |
+| **D1** | **Naturalized value model (core)** | A, B, C | **DONE** — `NaturalizedListener`, generator-agnostic corpus gate green |
+| D2 | Naturalized PN proxy + private grouping + precision/raw retention | D1 | not started |
 | E | Writers (Part 10 + DICOMweb) on event stream | A | not started |
 | F | Public source/sink API + compat wrappers | A–E | not started |
 | G | Cross-source equivalence suite (§31) | A–F | not started |
@@ -188,11 +189,40 @@ source-agnostic structural check (DICOMweb JSON vs dcmjs dict produce identical
 event/tag structure). Full suite green (995 tests). The exhaustive corpus-wide cross-source
 *value* matrix is slice G.
 
-# Slices D–G — summaries (not yet planned in detail)
-- **D. Naturalized listener + value model** — the bulk of the metadata spec: VM cardinality
-  (§7–§14), present-empty rules, PN proxy (§17), precision preservation (§16), private-tag
-  grouping (§18), bulk/inline/openInlineBinary (§20–§26), raw retention (§27),
-  cardinality-violation policy (§15.2), low-allocation state-by-depth (§15.4).
+# Slice D1 — Naturalized value model (core)  *(DONE)*
+
+`src/eventStream/NaturalizedListener.js` (exposed as `dcmjs.eventStream.NaturalizedListener`).
+An event-stream consumer that builds the application-facing naturalized object: canonical
+keyword keys (§5, via `lookupTagHex`) and VM-driven cardinality (§7–§14). Because it
+consumes the source-agnostic contract, the SAME object is produced from Part 10 bytes, a
+dcmjs dict, or DICOMweb JSON.
+
+Rules: scalar VM (1 / 0-1) → scalar; present-empty → null; multi VM (1-n, 2-n, …) →
+always list-like; multi present-empty → []; single-item sequence → the item object with
+hidden length 1 (reusing the shared `addAccessors` proxy); empty sequence → []; multi-item
+sequence → array. Binary: fragments assembled to `{InlineBinary}`, `bulkDataReference` →
+`{BulkDataURI}`. Cardinality-violation policy (§15.2) default **warnAndPreserve**
+(configurable: preserve/discardExtra/warn*/record*/throw); violations also exposed on
+`listener.violations`.
+
+**Key interpretation:** a DICOM sequence's declared VM ("1") constrains attribute
+occurrence, NOT item count — so multi-item sequences (PerFrameFunctionalGroupsSequence) are
+normal, not violations. Violations apply only to non-SQ scalar VRs exceeding their VM.
+
+**Deferred to D2:** PN proxy/`toString` sugar (§17, still an open spec decision), private-tag
+grouping (§18), and precision/raw retention (§16/§27 — needs a contract extension to carry
+raw values; the underlying PN `{Alphabetic}` value already matches across sources today).
+
+Tests in `test/eventStream/NaturalizedListener.test.js` (43): the full §14 VM table,
+sequences, binary/meta, a **generator-agnostic corpus gate** (fromPart10 vs fromDataSet
+naturalize identically across all fixtures, modulo the known SpecificCharacterSet rewrite
+and binary frame-grouping), and a three-source agreement check (dict vs DICOMweb JSON).
+Full suite green on both cores (1038 tests).
+
+# Slices D2–G — summaries (not yet planned in detail)
+- **D2. Naturalized PN/private/precision** — PN proxy (§17), private-tag grouping (§18),
+  precision preservation (§16), raw retention (§27, needs the contract to carry raw values),
+  low-allocation state-by-depth tuning (§15.4).
 - **E. Writers** — Part 10 (verbatim passthrough via `sourceSpan`, building on R4) and
   DICOMweb JSON, both as event-stream consumers; `BinaryOutputMode` policy (§26).
 - **F. Public API** — `Naturalized.from(events)`, `Part10.from`, `DicomWebJson.from`,

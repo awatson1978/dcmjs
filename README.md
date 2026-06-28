@@ -7,11 +7,31 @@
 
 [![CI](https://github.com/dcmjs-org/dcmjs/actions/workflows/publish-package.yml/badge.svg)](https://github.com/dcmjs-org/dcmjs/actions?query=workflow:publish-package)
 
-**Note: this code is a work-in-progress**
+**Note: master is the 1.0.0-beta line — a major architecture release (not yet published to npm).**
 
 This is a community effort so please help improve support for a wide range of DICOM data and use cases.
 
 See [live examples here](https://master--dcmjs2.netlify.app/)
+
+# What changed in 1.0
+
+dcmjs 1.0 absorbs the dicom-parser tokenizer as its read core and is now a pnpm monorepo:
+
+- **Lazy reading by default.** `DicomMessage.readFile` records element offsets and
+  materializes values on first access. Set `DCMJS_CORE=eager` (or
+  `readFile(buffer, { core: "eager" })`) to restore the 0.x reader during the beta.
+- **Byte-faithful writing.** Untouched elements are written back as verbatim source
+  bytes; a no-edit read-write round trip reproduces the body byte for byte. Deflate
+  transfer syntax is now actually written deflated (a long-standing 0.x bug).
+- **Monorepo.** The vendored tokenizer lives in `packages/parser` (private), the
+  documentation site in `packages/docs`, and the main `dcmjs` package at the root.
+- **Removed:** the deprecated `DicomMessage.read`/`readTag` statics and the legacy
+  `DICOMWEB` class (use [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client)).
+
+Full details: the documentation site under `packages/docs` (run
+`pnpm --filter @dcmjs/docs start`), the migration guide at
+`packages/docs/docs/migration/from-0x.md`, and the step-by-step roadmap at
+`packages/docs/docs/development/roadmap.md`.
 
 # Goals
 
@@ -56,23 +76,48 @@ _Parts of DICOM that dcmjs *will not* focus on:_
 
 ## In Node
 
-```None
-// To install latest _stable_ release
-npm install --save dcmjs
+Add **dcmjs** to your application (pnpm):
 
-// To install latest code merged to master
-npm install --save dcmjs@dev
+```bash
+pnpm add dcmjs       # latest stable release
+pnpm add dcmjs@dev   # latest code merged to master
 ```
+
+The same versions can be installed with `npm install` or Yarn in **your** project; those clients are fine for consuming the published package. **Building this repository** is pnpm-only (see below).
 
 ## For Developers
 
-```None
+Building and testing this repository requires **[pnpm](https://pnpm.io/)** and **Node.js 22.13 or newer** (pnpm 11 and this repo’s tooling expect that baseline; Rollup’s dependency chain expects a modern `crypto` global). CI runs tests on Node 22 and 24, and runs the production Rollup build on Node 24. The pnpm version is pinned under `packageManager` in `package.json`. Enable [Corepack](https://nodejs.org/api/corepack.html) (`corepack enable`) and use pnpm for every install and script:
+
+```bash
+corepack enable
 git clone https://github.com/dcmjs-org/dcmjs
 cd dcmjs
-npm install
-npm run build
-npm test
+pnpm install
+pnpm run build
+pnpm test
 ```
+
+Other common tasks:
+
+```bash
+pnpm run build:examples         # Rollup build + copy bundles into examples/js
+pnpm run lint                   # ESLint (writes fixes)
+pnpm run format                 # Prettier (writes)
+pnpm run format:check           # Prettier (check only)
+pnpm run bench:parser           # parse non-regression gate vs published dicom-parser
+pnpm run gate:parser-bundle     # parser package self-containment gate
+pnpm --filter @dcmjs/docs start # documentation site dev server (packages/docs)
+pnpm --filter @dcmjs/docs build # documentation site production build
+```
+
+This repository is a pnpm workspace: the main `dcmjs` package lives at the root,
+the vendored read tokenizer at `packages/parser` (private, with its own jest
+suite), and the Docusaurus documentation site at `packages/docs`.
+
+**Yarn is no longer supported** for working in this repo: there is no `yarn.lock`, and installs, builds, and CI are aligned with `pnpm-lock.yaml` only. Use pnpm so dependency resolution matches lockfile and automation.
+
+After changing dependencies in `package.json`, refresh the lockfile with `pnpm run install:update-lockfile` (or `pnpm install --no-frozen-lockfile`) before opening a PR.
 
 ## For Maintainers and Contributors
 
@@ -94,8 +139,9 @@ It is advised to use the git-cz, i.e.:
 
 - install git-cz
 
-```
-npm install -g git-cz
+```bash
+pnpm add -g git-cz
+# or: npm install -g git-cz
 ```
 
 - how to commit
@@ -114,7 +160,8 @@ The dcmjs library includes DICOM data dictionaries that map DICOM tags to their 
 
 - **`src/dictionary.fast.js`** - Pre-compiled fast dictionary (used at runtime)
 - **`generate/dictionary.mjs`** - Source dictionary generator
-- **`src/privateDictionary.js`** - Private tag definitions
+- **`src/dictionary.private.data.js`** - Private tag definitions
+- Since 1.0, `DicomMetaDictionary.nameMap` is built lazily on first access instead of at import time
 
 ### Updating the Dictionary
 
@@ -122,13 +169,13 @@ When DICOM standards are updated or new tags need to be added:
 
 1. **Generate the dictionary from DICOM standards** (downloads latest PS3.6 and PS3.7 XML from dicom.nema.org):
    ```bash
-   npm run generate-dictionary
+   pnpm run generate-dictionary
    ```
    This creates/updates `generate/dictionary.js` with the latest tag definitions.
 
 2. **Pack the dictionary into optimized format**:
    ```bash
-   npm run pack-dictionary
+   pnpm run pack-dictionary
    ```
    This generates the optimized `src/dictionary.fast.js` used at runtime.
 
@@ -168,29 +215,29 @@ Tests are written using the [Jest](https://jestjs.io) testing framework and live
 
 Pull requests should either update existing tests or add new tests in order to ensure good test coverage of the changes being made.
 
-To run all tests use `npm run test`. To only run specific tests use Jest's [`.only`](https://www.testim.io/blog/unit-testing-best-practices/) feature. If you're using VS Code, an extension such as [`firsttris.vscode-jest-runner`](https://marketplace.visualstudio.com/items?itemName=firsttris.vscode-jest-runner) can be used to step through specific tests in the debugger.
+To run all tests use `pnpm test`. To only run specific tests use Jest's [`.only`](https://www.testim.io/blog/unit-testing-best-practices/) feature. If you're using VS Code, an extension such as [`firsttris.vscode-jest-runner`](https://marketplace.visualstudio.com/items?itemName=firsttris.vscode-jest-runner) can be used to step through specific tests in the debugger.
 
 Read all about unit testing best practices [here](https://www.testim.io/blog/unit-testing-best-practices/).
 
 # Status
 
-Currently dcmjs is an early-stage development experiment, but already has valuable functionality.
+dcmjs is production-tested (OHIF, Cornerstone adapters, ~15k weekly npm downloads) and is currently in its 1.0 beta cycle.
 
 ## Implemented
 
+- Lazy, offset-based Part 10 reading (default since 1.0) with an equivalence-gated eager fallback
+- Byte-faithful Part 10 writing with passthrough of untouched elements, length backpatching, and deflate-on-write
 - Bidirectional conversion to and from part 10 binary DICOM and DICOM standard JSON encoding (as in [DICOMweb](http://dicomweb.org))
-- Bidirectional convertion to and from DICOM standard JSON and a programmer-friendly high-level version (high-level form is called the "naturalized" form in the code).
+- Bidirectional conversion to and from DICOM standard JSON and a programmer-friendly high-level version (the "naturalized" form)
+- Creation of derived DICOM objects such as Segmentations and Structured Reports
+- Packed data dictionary with lazy initialization, character set support, anonymization, streaming reader
 
-## In development
+## In development (1.x backlog)
 
-- Creation of (correct) enhanced multiframe DICOM objects from legacy image objects
-- Creation of (correct) derived DICOM objects such as Segmentations and Structured Reports
-
-## TODO
-
-- Create a test suite of input and output DICOM objects
-- Test interoperability with other DICOM implementations
-- Add documentation
+- Re-platforming the streaming `AsyncDicomReader` onto the offset tokenizer
+- Removing the legacy eager read path after the beta soak
+- Public subpath packaging (raw parser tier, dictionary) and a TypeScript surface
+- See the docs site roadmap page (`packages/docs/docs/development/roadmap.md`, R8 checklist) for the full list
 
 # History
 
@@ -221,4 +268,4 @@ The developers gratefully acknowledge their research support:
 
 ## Logging
 
-This library uses [loglevel](https://github.com/pimterry/loglevel) for logging. By default, the log level is set to "warn". You can change the log level by setting the `LOG_LEVEL` environment variable or by using the `setLevel` method in your code.
+This library uses [loglevel](https://github.com/pimterry/loglevel) for logging through a named child logger (`loglevel.getLogger("dcmjs")`). Since 1.0, importing dcmjs no longer calls `setLevel` on the global loglevel root logger, so host application logging configuration is left untouched. The dcmjs logger defaults to "warn"; change it with the `LOG_LEVEL` environment variable or `loglevel.getLogger("dcmjs").setLevel(...)` in your code.

@@ -444,6 +444,18 @@ it("test_invalid_vr_length", () => {
     const file = fs.readFileSync("test/invalid-vr-length-test.dcm");
     const dicomDict = dcmjs.data.DicomMessage.readFile(file.buffer);
 
+    if (dicomDict._lazyWriteContext) {
+        // A dict read by the lazy core passes clean elements through as
+        // verbatim source bytes (docs roadmap R4), so a no-edit write
+        // preserves the invalid stored length instead of re-validating it
+        // during re-encode. Pin that, then drop the context to exercise
+        // the historical re-encode validation below.
+        expect(() =>
+            writeToBuffer(dicomDict, { allowInvalidVRLength: false })
+        ).not.toThrow();
+        delete dicomDict._lazyWriteContext;
+    }
+
     expect(() =>
         writeToBuffer(dicomDict, { allowInvalidVRLength: false })
     ).toThrow();
@@ -1724,6 +1736,60 @@ describe("Save original non-standard VR and check dataset after denaturalized", 
 
     denaturalizedDataset["00283010"].Value.forEach(sequenceItem => {
         expect(sequenceItem["00283006"].vr).toBe("OW");
+    });
+});
+
+// https://github.com/dcmjs-org/dcmjs/security/advisories/GHSA-px68-xx5g-48q5
+describe("DS / IS applyFormatting input validation (GHSA-px68-xx5g-48q5)", () => {
+    const ds = ValueRepresentation.createByTypeString("DS");
+    const is = ValueRepresentation.createByTypeString("IS");
+
+    describe("DecimalString (DS)", () => {
+        it("rejects scientific notation overflow that becomes JS Infinity", () => {
+            expect(ds.applyFormatting("1e999999")).toBeNull();
+            expect(ds.applyFormatting("-1e999999")).toBeNull();
+            expect(ds.applyFormatting("1E999999")).toBeNull();
+        });
+
+        it("accepts finite decimal and finite scientific values", () => {
+            expect(ds.applyFormatting("1.5")).toBe(1.5);
+            expect(ds.applyFormatting("-0.25")).toBe(-0.25);
+            expect(ds.applyFormatting("1.5e2")).toBe(150);
+            expect(ds.applyFormatting("3e-4")).toBe(0.0003);
+        });
+
+        it("rejects NaN-producing remnants and non-finite Number results", () => {
+            expect(ds.applyFormatting("NaN")).toBeNull();
+            expect(ds.applyFormatting("Infinity")).toBeNull();
+            expect(ds.applyFormatting("-Infinity")).toBeNull();
+            expect(ds.applyFormatting(".")).toBeNull();
+            expect(ds.applyFormatting("+")).toBeNull();
+            expect(ds.applyFormatting("-")).toBeNull();
+        });
+    });
+
+    describe("IntegerString (IS)", () => {
+        it("rejects scientific notation (not valid per PS3.5 IS)", () => {
+            expect(is.applyFormatting("1e2")).toBeNull();
+            expect(is.applyFormatting("1E2")).toBeNull();
+            expect(is.applyFormatting("1e999999")).toBeNull();
+        });
+
+        it("rejects decimal strings", () => {
+            expect(is.applyFormatting("12.0")).toBeNull();
+            expect(is.applyFormatting(".5")).toBeNull();
+        });
+
+        it("accepts signed and unsigned integer strings", () => {
+            expect(is.applyFormatting("0")).toBe(0);
+            expect(is.applyFormatting("+42")).toBe(42);
+            expect(is.applyFormatting("-7")).toBe(-7);
+            expect(is.applyFormatting("00123")).toBe(123);
+        });
+
+        it("rejects digit overflow beyond Number finite range", () => {
+            expect(is.applyFormatting("9".repeat(400))).toBeNull();
+        });
     });
 });
 

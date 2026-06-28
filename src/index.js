@@ -8,9 +8,13 @@ import { DicomMessage } from "./DicomMessage.js";
 import { DicomMetaDictionary } from "./DicomMetaDictionary.js";
 import { registerPrivatesModule } from "./dictionary.fast.js";
 import * as privateData from "./dictionary.private.data.js";
-import { DICOMWEB } from "./dicomweb.js";
 
-registerPrivatesModule(privateData);
+// R7: register the privates as a lazy wrapper - importing dcmjs does no
+// private-dictionary work. The packed module's base64 index decode
+// (initPackedPrivate) only runs on the first private-tag lookup.
+registerPrivatesModule({
+    lookupPrivateTag: keyStr => privateData.lookupPrivateTag(keyStr)
+});
 import { Tag } from "./Tag.js";
 import { ValueRepresentation } from "./ValueRepresentation.js";
 import { Colors } from "./colors.js";
@@ -46,6 +50,7 @@ import { DSRNormalizer } from "./normalizers.js";
 
 import adapters from "./adapters/index.js";
 import utilities from "./utilities/index.js";
+import eventStream from "./eventStream/index.js";
 import sr from "./sr/index.js";
 import * as constants from "./constants/dicom.js";
 
@@ -98,11 +103,11 @@ const anonymizer = {
 };
 
 const dcmjs = {
-    DICOMWEB,
     adapters,
     constants,
     data,
     derivations,
+    eventStream,
     normalizers,
     sr,
     utilities,
@@ -117,13 +122,13 @@ ValueRepresentation.setTagClass(Tag);
 Tag.setDicomMessageClass(DicomMessage);
 
 export {
-    DICOMWEB,
     adapters,
     anonymizer,
     async,
     constants,
     data,
     derivations,
+    eventStream,
     normalizers,
     sr,
     utilities,

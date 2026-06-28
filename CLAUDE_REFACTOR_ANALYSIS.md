@@ -223,6 +223,18 @@ A literal reading of §12 would warn on every enhanced/multi-frame object; the e
 call is that violations apply only to non-sequence scalar VRs whose value count exceeds the
 declared VM.
 
+## D13. PN proxy shape (§17, resolving the spec's open decision)
+
+**Question:** §17 leaves PN proxy/list behavior for VM 1 vs VM n open, including whether
+`PatientName.Alphabetic` is supported directly for VM 1.
+
+**Decision:** VM 1 → the `{Alphabetic, Ideographic, Phonetic}` object itself, so
+`.Alphabetic` works directly, plus non-enumerable `toString()` (→ raw PN string) and
+`toJSON()`. VM n → array of those objects with array-level `toString()` joining components
+with `\`. Reuse `dicomJson.pnAddValueAccessors` (idempotent, non-enumerable, so cross-source
+structural equality is unaffected). `toJSON` serializes to the DICOM JSON model (PN Value is
+an array of component objects), matching dcmjs's existing convention.
+
 ## Grounding facts established during exploration
 
 - Parser element shape (confirmed): `tag`, `tagValue` (numeric), `vr`, `length`,

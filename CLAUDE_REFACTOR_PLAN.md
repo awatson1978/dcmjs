@@ -30,7 +30,9 @@ Each slice is its own spec → plan → implement cycle. Dependency-ordered:
 | **B** | **Part 10 (raw bytes) → generator** | A | **DONE** — `fromPart10`, 31-fixture corpus gate green |
 | **C** | **DICOMweb JSON → generator** | A | **DONE** — `fromDicomWebJson`, source-agnostic structural gate green |
 | **D1** | **Naturalized value model (core)** | A, B, C | **DONE** — `NaturalizedListener`, generator-agnostic corpus gate green |
-| D2 | Naturalized PN proxy + private grouping + precision/raw retention | D1 | not started |
+| **D2a** | **Naturalized Person Name proxy (§17)** | D1 | **DONE** — `.Alphabetic` + `String()`→raw PN, reuses `pnAddValueAccessors` |
+| D2b | Naturalized private-tag grouping (§18) | D1 | not started |
+| D2c | Naturalized precision/raw retention (§16/§27) — needs contract extension | D1, A | not started |
 | **E1** | **DICOMweb JSON writer (sink)** | A | **DONE** — `DicomWebJsonWriter`, JSON round-trip + end-to-end gate green |
 | E2 | Part 10 byte writer (passthrough via sourceSpan) | A | not started |
 | **F** | **Public source/sink API (§32)** | A–E1 | **DONE** — `DicomEventStream` + `Naturalized.from` / `DicomWebJson.from` |
@@ -222,10 +224,23 @@ naturalize identically across all fixtures, modulo the known SpecificCharacterSe
 and binary frame-grouping), and a three-source agreement check (dict vs DICOMweb JSON).
 Full suite green on both cores (1038 tests).
 
-# Slices D2–G — summaries (not yet planned in detail)
-- **D2. Naturalized PN/private/precision** — PN proxy (§17), private-tag grouping (§18),
-  precision preservation (§16), raw retention (§27, needs the contract to carry raw values),
-  low-allocation state-by-depth tuning (§15.4).
+# Slices D2–G — summaries
+
+- **D2a. Naturalized Person Name proxy (§17)** — DONE. In `NaturalizedListener`, PN values
+  get non-enumerable `toString()`/`toJSON()` via the existing `dicomJson.pnAddValueAccessors`:
+  VM 1 → the `{Alphabetic,...}` object (so `PatientName.Alphabetic` works) with
+  `String(name)` → raw PN string; VM n → array with `\`-joined `toString()`. Accessors are
+  non-enumerable so the cross-source corpus gate is unaffected. Resolved the spec's open §17
+  question (component access IS supported for VM 1; toJSON serializes to the DICOM JSON array
+  form). 1051 tests green both cores.
+- **D2b. Private-tag grouping (§18)** — group private attributes under
+  `"<creatorOffset>:<CREATOR>"` keys with block-relative element keys / registered names;
+  reuse `registerPrivatesModule`/`lookupPrivateTag`. Not started.
+- **D2c. Precision / raw retention (§16/§27)** — needs a **contract extension** to carry raw
+  values (value events gain an optional raw payload; generators emit it). Default "inexact
+  only": retain raw strings where Number conversion loses precision (large ints, DS). Its own
+  plan. Not started.
+- Low-allocation state-by-depth tuning (§15.4) — future.
 - **E1. DICOMweb JSON writer** — DONE. `src/eventStream/DicomWebJsonWriter.js` (exposed as
   `dcmjs.eventStream.DicomWebJsonWriter`): the faithful inverse of `fromDicomWebJson`,
   making the contract a sink. Output `{vr, Value}` / `{vr, BulkDataURI}` /

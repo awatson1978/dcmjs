@@ -260,3 +260,46 @@ describe("NaturalizedListener — all three sources agree (§4.4)", () => {
         );
     });
 });
+
+describe("NaturalizedListener — Person Name proxy (§17)", () => {
+    test("VM-1 PN exposes components and stringifies to the raw PN string", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        l.startElement("00100010", { vr: "PN" }); // PatientName, VM 1
+        l.value({ Alphabetic: "Wallace^Bill" });
+        l.endElement();
+        l.endDataSet();
+
+        expect(l.result.PatientName.Alphabetic).toBe("Wallace^Bill");
+        expect(String(l.result.PatientName)).toBe("Wallace^Bill");
+        // toJSON serializes to the DICOM JSON model (PN Value is an array of
+        // component objects), matching dcmjs's existing convention.
+        expect(JSON.parse(JSON.stringify(l.result.PatientName))).toEqual([
+            { Alphabetic: "Wallace^Bill" }
+        ]);
+    });
+
+    test("VM-n PN is an array that stringifies with the value delimiter", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        l.startElement("00101001", { vr: "PN" }); // OtherPatientNames, VM 1-n
+        l.value({ Alphabetic: "Doe^John" });
+        l.value({ Alphabetic: "Doe^Jane" });
+        l.endElement();
+        l.endDataSet();
+
+        expect(Array.isArray(l.result.OtherPatientNames)).toBe(true);
+        expect(l.result.OtherPatientNames).toHaveLength(2);
+        expect(l.result.OtherPatientNames[0].Alphabetic).toBe("Doe^John");
+        expect(String(l.result.OtherPatientNames)).toBe("Doe^John\\Doe^Jane");
+    });
+
+    test("present-empty PN stays null", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        l.startElement("00100010", { vr: "PN" });
+        l.endElement();
+        l.endDataSet();
+        expect(l.result.PatientName).toBeNull();
+    });
+});

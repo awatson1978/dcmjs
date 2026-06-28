@@ -1,6 +1,7 @@
 import { EventStreamListener } from "./EventStreamListener.js";
 import { lookupTagHex } from "../dicom.lookup.js";
 import addAccessors from "../utilities/addAccessors.js";
+import dicomJson from "../utilities/dicomJson.js";
 import log from "../log.js";
 
 /**
@@ -115,7 +116,11 @@ export class NaturalizedListener extends EventStreamListener {
             target[key] = frame.binary;
             return;
         }
-        target[key] = this._shapeValues(frame, entry, key);
+        let shaped = this._shapeValues(frame, entry, key);
+        if (frame.vr === "PN" && shaped !== null) {
+            shaped = addPersonNameAccessors(shaped);
+        }
+        target[key] = shaped;
     }
 
     _baseStartSequence(tag, info = {}) {
@@ -205,6 +210,22 @@ export class NaturalizedListener extends EventStreamListener {
         }
         return kept;
     }
+}
+
+/**
+ * Add Person Name accessors (§17): a non-enumerable toString() returning the raw
+ * PN string and toJSON() keeping the DICOM JSON model. Component access
+ * (`.Alphabetic`) works directly because the value IS the {Alphabetic,...}
+ * object (VM 1) or an array of them (VM n). Reuses dcmjs's shared helper.
+ */
+function addPersonNameAccessors(shaped) {
+    if (typeof shaped === "string") {
+        shaped = new String(shaped);
+    }
+    if (shaped && typeof shaped === "object") {
+        return dicomJson.pnAddValueAccessors(shaped);
+    }
+    return shaped;
 }
 
 /**

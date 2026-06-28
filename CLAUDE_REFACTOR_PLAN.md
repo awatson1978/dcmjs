@@ -31,7 +31,7 @@ Each slice is its own spec → plan → implement cycle. Dependency-ordered:
 | **C** | **DICOMweb JSON → generator** | A | **DONE** — `fromDicomWebJson`, source-agnostic structural gate green |
 | **D1** | **Naturalized value model (core)** | A, B, C | **DONE** — `NaturalizedListener`, generator-agnostic corpus gate green |
 | **D2a** | **Naturalized Person Name proxy (§17)** | D1 | **DONE** — `.Alphabetic` + `String()`→raw PN, reuses `pnAddValueAccessors` |
-| **D2b** | **Naturalized private-tag grouping (§18)** | D1 | **DONE** — `<slot>:<creator>` groups, §18.1/3/4/5; registered names (§18.2) deferred |
+| **D2b** | **Naturalized private-tag grouping (§18)** | D1 | **DONE** — `<slot>:<creator>` groups incl. registered names (§18.1–§18.5) |
 | D2c | Naturalized precision/raw retention (§16/§27) — needs contract extension | D1, A | not started |
 | **E1** | **DICOMweb JSON writer (sink)** | A | **DONE** — `DicomWebJsonWriter`, JSON round-trip + end-to-end gate green |
 | E2 | Part 10 byte writer (passthrough via sourceSpan) | A | not started |
@@ -238,9 +238,11 @@ Full suite green on both cores (1038 tests).
   (low-byte) element keys (§18.1); private creators are recorded per dataset level and not
   emitted as ordinary attributes (§18.5); creatorless private data keeps a full-tag
   `{vr, Value}` unknown shape (§18.4); grouping is scoped per dataset level (sequence items
-  have their own creators). Applies identically across generators (cross-source gate stays
-  green). **Deferred:** registered private names (§18.2, requires creator-qualified
-  `lookupPrivateTag`) — currently uses numeric block-relative keys.
+  have their own creators). Registered private names (§18.2) are resolved via
+  `lookupPrivateTag` with the creator-qualified key `(gggg,"CREATOR",ee)` and used as the
+  nested key when known, meaningful (not "Unknown"), and non-colliding — e.g. SIEMENS CSA
+  HEADER (0029,1010) → `CSAImageHeaderInfo`; otherwise the numeric block-relative offset.
+  Applies identically across generators (cross-source gate stays green).
 - **D2c. Precision / raw retention (§16/§27)** — needs a **contract extension** to carry raw
   values (value events gain an optional raw payload; generators emit it). Default "inexact
   only": retain raw strings where Number conversion loses precision (large ints, DS). Its own

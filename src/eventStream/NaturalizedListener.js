@@ -1,5 +1,6 @@
 import { EventStreamListener } from "./EventStreamListener.js";
 import { lookupTagHex } from "../dicom.lookup.js";
+import { lookupPrivateTag } from "../dictionary.private.data.js";
 import addAccessors from "../utilities/addAccessors.js";
 import dicomJson from "../utilities/dicomJson.js";
 import log from "../log.js";
@@ -191,7 +192,7 @@ export class NaturalizedListener extends EventStreamListener {
                 group = { originalTagOffset: slot };
                 targetFrame.obj[groupKey] = group;
             }
-            group[hex2(offset)] = value;
+            group[privateKeyFor(tag, creator, offset, group)] = value;
             return;
         }
         // §18.4: no identifiable creator -> full tag key, unknown attribute shape.
@@ -282,6 +283,23 @@ function isPrivateTag(tag) {
 /** Two-hex-digit uppercase, e.g. 0x10 -> "10". */
 function hex2(n) {
     return n.toString(16).toUpperCase().padStart(2, "0");
+}
+
+/**
+ * Block-relative key for a private data element (§18.2): the registered private
+ * name when the (creator, offset) is known in the private dictionary and the
+ * name is meaningful and non-colliding; otherwise the numeric block-relative
+ * offset. Registered names stay scoped to the creator group.
+ */
+function privateKeyFor(tag, creator, offset, group) {
+    const numeric = hex2(offset);
+    const reg = lookupPrivateTag(
+        `(${tag.slice(0, 4)},"${creator}",${numeric})`
+    );
+    if (reg && reg.name && reg.name !== "Unknown" && !(reg.name in group)) {
+        return reg.name;
+    }
+    return numeric;
 }
 
 /** Shape a private data value with no VM info: scalar if one value, else array. */

@@ -308,18 +308,34 @@ describe("NaturalizedListener — private-tag grouping (§18)", () => {
     test("groups private data under <slot>:<creator>, with block-relative keys", () => {
         const l = new NaturalizedListener();
         l.startDataSet({});
-        scalar(l, "00290010", "LO", "SIEMENS CSA HEADER"); // creator, slot 0x10
-        scalar(l, "00291010", "LO", "csa-value"); // private data (0029,1010)
-        scalar(l, "00291011", "LO", "csa-value-2"); // private data (0029,1011)
+        // An unregistered creator -> numeric block-relative keys (§18.1/§18.3).
+        scalar(l, "00290010", "LO", "ACME_PRIVATE_1.0"); // creator, slot 0x10
+        scalar(l, "00291010", "LO", "acme-value"); // private data (0029,1010)
+        scalar(l, "00291011", "LO", "acme-value-2"); // private data (0029,1011)
         l.endDataSet();
 
-        expect(l.result["10:SIEMENS CSA HEADER"]).toEqual({
+        expect(l.result["10:ACME_PRIVATE_1.0"]).toEqual({
             originalTagOffset: 0x10,
-            "10": "csa-value",
-            "11": "csa-value-2"
+            "10": "acme-value",
+            "11": "acme-value-2"
         });
         // §18.5: the creator element is not emitted as an ordinary attribute
         expect("00290010" in l.result).toBe(false);
+    });
+
+    test("uses the registered private name when known (§18.2)", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        scalar(l, "00290010", "LO", "SIEMENS CSA HEADER"); // creator, slot 0x10
+        scalar(l, "00291010", "OB", "csa"); // (0029,1010) -> CSAImageHeaderInfo
+        scalar(l, "00291099", "LO", "x"); // (0029,1099) -> not registered, numeric
+        l.endDataSet();
+
+        const group = l.result["10:SIEMENS CSA HEADER"];
+        expect(group.CSAImageHeaderInfo).toBe("csa");
+        expect(group["99"]).toBe("x");
+        // registered names stay scoped to the creator group
+        expect("CSAImageHeaderInfo" in l.result).toBe(false);
     });
 
     test("private data without an identifiable creator keeps a full-tag unknown shape (§18.4)", () => {

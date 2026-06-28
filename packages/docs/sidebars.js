@@ -13,6 +13,7 @@ const sidebars = {
                 "architecture/overview",
                 "architecture/parser-package",
                 "architecture/lazy-core",
+                "architecture/event-stream",
                 "architecture/writer",
                 "architecture/dictionary",
                 "architecture/streaming"
@@ -26,6 +27,7 @@ const sidebars = {
                 "guides/reading",
                 "guides/writing-and-editing",
                 "guides/naturalized-datasets",
+                "guides/event-streams",
                 "guides/character-sets",
                 "guides/deflate"
             ]

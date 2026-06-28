@@ -36,6 +36,8 @@ Each slice is its own spec → plan → implement cycle. Dependency-ordered:
 | **E1** | **DICOMweb JSON writer (sink)** | A | **DONE** — `DicomWebJsonWriter`, JSON round-trip + end-to-end gate green |
 | E2 | Part 10 byte writer (passthrough via sourceSpan) | A | not started |
 | **F** | **Public source/sink API (§32)** | A–E1 | **DONE** — `DicomEventStream` + `Naturalized.from` / `DicomWebJson.from` |
+| **G** | **Cross-source equivalence matrix (§31)** | A–F | **DONE** — 30-fixture three-source (bytes/dict/DICOMweb JSON) naturalize-identically gate |
+| E2 | Part 10 byte writer (passthrough via sourceSpan) | A | not started (heavy; overlaps existing writer) |
 | E | Writers (Part 10 + DICOMweb) on event stream | A | not started |
 | F | Public source/sink API + compat wrappers | A–E | not started |
 | G | Cross-source equivalence suite (§31) | A–F | not started |

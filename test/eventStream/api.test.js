@@ -73,3 +73,42 @@ describe("source/sink API (§32)", () => {
         expect(types[types.length - 1]).toBe("endDataSet");
     });
 });
+
+describe("DicomEventStream.from — source auto-detection", () => {
+    test("detects a Part 10 byte buffer", async () => {
+        const fs = require("fs");
+        const path = require("path");
+        const full = path.join(
+            __dirname,
+            "..",
+            "..",
+            "packages/parser/testImages/CT1_UNC.explicit_little_endian.dcm"
+        );
+        const data = fs.readFileSync(full);
+        const buffer = data.buffer.slice(
+            data.byteOffset,
+            data.byteOffset + data.byteLength
+        );
+        const meta = await DicomEventStream.from(buffer).toNaturalized();
+        expect(typeof meta.SOPInstanceUID).toBe("string");
+    });
+
+    test("detects a DICOMweb JSON object", async () => {
+        const meta = await DicomEventStream.from({
+            "00100020": { vr: "LO", Value: ["12345"] }
+        }).toNaturalized();
+        expect(meta.PatientID).toBe("12345");
+    });
+
+    test("detects a parsed dataset ({ meta, dict })", async () => {
+        const meta = await DicomEventStream.from({
+            meta: {},
+            dict: { "00100020": { vr: "LO", Value: ["67890"] } }
+        }).toNaturalized();
+        expect(meta.PatientID).toBe("67890");
+    });
+
+    test("throws on an unrecognized source", () => {
+        expect(() => DicomEventStream.from(42)).toThrow();
+    });
+});

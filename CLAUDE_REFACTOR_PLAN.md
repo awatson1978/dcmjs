@@ -287,7 +287,9 @@ Full suite green on both cores (1038 tests).
   wraps a re-runnable source with `.fromPart10/.fromDicomWebJson/.fromDataSet` factories and
   `.process(listener)` / `.toNaturalized()` / `.toDicomWebJson()` / `.toDataSet()` /
   `.asyncIterable()`; plus §32 sink helpers `Naturalized.from(events)` /
-  `DicomWebJson.from(events)`. Sources are reusable (drive multiple sinks). Tests in
-  `test/eventStream/api.test.js` (5). Full suite green (1048 tests). Compat wrappers over
-  legacy `DicomMessage`/naturalize APIs remain a follow-up.
+  `DicomWebJson.from(events)`. Sources are reusable (drive multiple sinks). Adds an
+  auto-detecting `DicomEventStream.from(source)` (Part 10 bytes vs `{meta,dict}` dataset vs
+  DICOM JSON) and `.toPart10()` (slice E2). Tests in `test/eventStream/api.test.js`.
+  Deeper legacy compat wrappers (drop-in replacements at old `DicomMessage`/naturalize call
+  sites) remain an optional follow-up.
 - **G. Equivalence suite** — semantic-consistency matrix across all source formats (§31).

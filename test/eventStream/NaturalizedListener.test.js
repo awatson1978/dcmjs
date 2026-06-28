@@ -303,3 +303,49 @@ describe("NaturalizedListener — Person Name proxy (§17)", () => {
         expect(l.result.PatientName).toBeNull();
     });
 });
+
+describe("NaturalizedListener — private-tag grouping (§18)", () => {
+    test("groups private data under <slot>:<creator>, with block-relative keys", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        scalar(l, "00290010", "LO", "SIEMENS CSA HEADER"); // creator, slot 0x10
+        scalar(l, "00291010", "LO", "csa-value"); // private data (0029,1010)
+        scalar(l, "00291011", "LO", "csa-value-2"); // private data (0029,1011)
+        l.endDataSet();
+
+        expect(l.result["10:SIEMENS CSA HEADER"]).toEqual({
+            originalTagOffset: 0x10,
+            "10": "csa-value",
+            "11": "csa-value-2"
+        });
+        // §18.5: the creator element is not emitted as an ordinary attribute
+        expect("00290010" in l.result).toBe(false);
+    });
+
+    test("private data without an identifiable creator keeps a full-tag unknown shape (§18.4)", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        scalar(l, "00291020", "UN", "orphan"); // no creator declared for slot 0x10
+        l.endDataSet();
+
+        expect(l.result["00291020"]).toEqual({ vr: "UN", Value: ["orphan"] });
+    });
+
+    test("private grouping is scoped per dataset level (sequence items have their own creators)", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        scalar(l, "00290010", "LO", "ROOT CREATOR");
+        scalar(l, "00291010", "LO", "root");
+        l.startSequence("00400100", { vr: "SQ" }); // ScheduledProcedureStepSequence
+        l.startItem({});
+        scalar(l, "00290010", "LO", "ITEM CREATOR");
+        scalar(l, "00291010", "LO", "item");
+        l.endItem();
+        l.endSequence();
+        l.endDataSet();
+
+        expect(l.result["10:ROOT CREATOR"]["10"]).toBe("root");
+        const item = l.result.ScheduledProcedureStepSequence;
+        expect(item["10:ITEM CREATOR"]["10"]).toBe("item");
+    });
+});

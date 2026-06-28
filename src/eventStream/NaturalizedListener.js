@@ -108,19 +108,24 @@ export class NaturalizedListener extends EventStreamListener {
 
     _baseEndElement() {
         const frame = this._stack.pop();
-        const target = this._objectFrame().obj;
+        const targetFrame = this._objectFrame();
+
+        if (isPrivateTag(frame.tag)) {
+            this._placePrivate(targetFrame, frame);
+            return;
+        }
+
         const entry = lookupTagHex(frame.tag);
         const key = (entry && entry.name) || frame.tag;
-
         if (frame.binary !== undefined) {
-            target[key] = frame.binary;
+            targetFrame.obj[key] = frame.binary;
             return;
         }
         let shaped = this._shapeValues(frame, entry, key);
         if (frame.vr === "PN" && shaped !== null) {
             shaped = addPersonNameAccessors(shaped);
         }
-        target[key] = shaped;
+        targetFrame.obj[key] = shaped;
     }
 
     _baseStartSequence(tag, info = {}) {
@@ -139,10 +144,61 @@ export class NaturalizedListener extends EventStreamListener {
 
     _baseEndSequence() {
         const frame = this._stack.pop();
-        const target = this._objectFrame().obj;
+        const targetFrame = this._objectFrame();
+        const shaped = this._shapeSequence(frame, lookupTagHex(frame.tag));
+
+        if (isPrivateTag(frame.tag)) {
+            this._placePrivateValue(targetFrame, frame.tag, frame.vr, shaped);
+            return;
+        }
         const entry = lookupTagHex(frame.tag);
         const key = (entry && entry.name) || frame.tag;
-        target[key] = this._shapeSequence(frame, entry);
+        targetFrame.obj[key] = shaped;
+    }
+
+    // --- private-tag grouping (§18) -----------------------------------------
+
+    _placePrivate(targetFrame, frame) {
+        const elem = parseInt(frame.tag.slice(4, 8), 16);
+        // Private creator (gggg,00xx): record it for the block; do NOT emit it
+        // as an ordinary attribute (§18.5).
+        if (elem <= 0x00ff) {
+            const v =
+                frame.values && frame.values.length ? frame.values[0] : null;
+            if (v != null) {
+                targetFrame.creators = targetFrame.creators || {};
+                targetFrame.creators[elem] = String(v);
+            }
+            return;
+        }
+        const value =
+            frame.binary !== undefined
+                ? frame.binary
+                : privateShape(frame.values);
+        this._placePrivateValue(targetFrame, frame.tag, frame.vr, value);
+    }
+
+    _placePrivateValue(targetFrame, tag, vr, value) {
+        const elem = parseInt(tag.slice(4, 8), 16);
+        const slot = elem >> 8; // creator slot (high byte of the element)
+        const offset = elem & 0xff; // block-relative element (low byte)
+        const creator = targetFrame.creators && targetFrame.creators[slot];
+
+        if (creator) {
+            const groupKey = `${hex2(slot)}:${creator}`;
+            let group = targetFrame.obj[groupKey];
+            if (!group) {
+                group = { originalTagOffset: slot };
+                targetFrame.obj[groupKey] = group;
+            }
+            group[hex2(offset)] = value;
+            return;
+        }
+        // §18.4: no identifiable creator -> full tag key, unknown attribute shape.
+        targetFrame.obj[tag] = {
+            vr,
+            Value: Array.isArray(value) ? value : value == null ? [] : [value]
+        };
     }
 
     // --- cardinality shaping ------------------------------------------------
@@ -210,6 +266,30 @@ export class NaturalizedListener extends EventStreamListener {
         }
         return kept;
     }
+}
+
+/**
+ * A private tag has an odd group number and an element at or above 0x0010 (the
+ * first usable private creator slot). Group-length (0x0000) and reserved low
+ * elements fall through to standard handling.
+ */
+function isPrivateTag(tag) {
+    const group = parseInt(tag.slice(0, 4), 16);
+    const elem = parseInt(tag.slice(4, 8), 16);
+    return (group & 1) === 1 && elem >= 0x0010;
+}
+
+/** Two-hex-digit uppercase, e.g. 0x10 -> "10". */
+function hex2(n) {
+    return n.toString(16).toUpperCase().padStart(2, "0");
+}
+
+/** Shape a private data value with no VM info: scalar if one value, else array. */
+function privateShape(values) {
+    if (values.length === 0) {
+        return null;
+    }
+    return values.length === 1 ? values[0] : values.slice();
 }
 
 /**

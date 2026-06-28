@@ -31,7 +31,7 @@ Each slice is its own spec → plan → implement cycle. Dependency-ordered:
 | **C** | **DICOMweb JSON → generator** | A | **DONE** — `fromDicomWebJson`, source-agnostic structural gate green |
 | **D1** | **Naturalized value model (core)** | A, B, C | **DONE** — `NaturalizedListener`, generator-agnostic corpus gate green |
 | **D2a** | **Naturalized Person Name proxy (§17)** | D1 | **DONE** — `.Alphabetic` + `String()`→raw PN, reuses `pnAddValueAccessors` |
-| D2b | Naturalized private-tag grouping (§18) | D1 | not started |
+| **D2b** | **Naturalized private-tag grouping (§18)** | D1 | **DONE** — `<slot>:<creator>` groups, §18.1/3/4/5; registered names (§18.2) deferred |
 | D2c | Naturalized precision/raw retention (§16/§27) — needs contract extension | D1, A | not started |
 | **E1** | **DICOMweb JSON writer (sink)** | A | **DONE** — `DicomWebJsonWriter`, JSON round-trip + end-to-end gate green |
 | E2 | Part 10 byte writer (passthrough via sourceSpan) | A | not started |
@@ -233,9 +233,14 @@ Full suite green on both cores (1038 tests).
   non-enumerable so the cross-source corpus gate is unaffected. Resolved the spec's open §17
   question (component access IS supported for VM 1; toJSON serializes to the DICOM JSON array
   form). 1051 tests green both cores.
-- **D2b. Private-tag grouping (§18)** — group private attributes under
-  `"<creatorOffset>:<CREATOR>"` keys with block-relative element keys / registered names;
-  reuse `registerPrivatesModule`/`lookupPrivateTag`. Not started.
+- **D2b. Private-tag grouping (§18)** — DONE. In `NaturalizedListener`, private data is
+  grouped under `"<slot>:<CREATOR>"` keys with `originalTagOffset` and block-relative
+  (low-byte) element keys (§18.1); private creators are recorded per dataset level and not
+  emitted as ordinary attributes (§18.5); creatorless private data keeps a full-tag
+  `{vr, Value}` unknown shape (§18.4); grouping is scoped per dataset level (sequence items
+  have their own creators). Applies identically across generators (cross-source gate stays
+  green). **Deferred:** registered private names (§18.2, requires creator-qualified
+  `lookupPrivateTag`) — currently uses numeric block-relative keys.
 - **D2c. Precision / raw retention (§16/§27)** — needs a **contract extension** to carry raw
   values (value events gain an optional raw payload; generators emit it). Default "inexact
   only": retain raw strings where Number conversion loses precision (large ints, DS). Its own

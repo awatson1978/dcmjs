@@ -153,6 +153,37 @@ streaming work, while reusing `ValueRepresentation` for decoding.
 
 ---
 
+## D8. Slice B depth (raw-bytes Part 10 generator)
+
+**Question:** How deep should the bytes→events generator go?
+
+**Options:** Real walker reusing decode primitives · Reuse the lazy core's exact decode ·
+Thin adapter over the lazy core.
+
+**Answer:** **Real walker, reuse decode primitives.** A genuine bytes→events path and the
+streaming foundation, validated against the same corpus gate.
+
+## D9. Slice B approach (decode core is trapped)
+
+**Finding:** exploration revealed the decode core (`materializeElement`,
+`resolveVrInstance`, charset/ctx setup, deflate dual-buffer) is **closures trapped inside
+`readFileLazy`** — only `readFileLazy` is exported. Faithful "reuse primitives" therefore
+means re-deriving ~30–40% of the lazy core, which converges with extracting it.
+
+**Options:** Scoped walker now + extract core later · Extract shared decode core now ·
+Independent walker reproducing routing.
+
+**Answer:** **Scoped walker now, extract core later.** Ship the common path (explicit/
+implicit LE + big-endian, sequences, raw encapsulated fragments, defined-length binary,
+charset) reusing public primitives; **delegate** hard cases (deflate, undefined-length
+non-SQ / unknown-VR) to `fromDataSet(readFile(...))` for the whole file. The shared-core
+extraction ("one read core", roadmap goal) is a scheduled follow-up.
+
+**Implementation gotcha found during TDD:** dcmjs's `isBinary()` is true for *numeric* VRs
+(`FL/FD/SL/SS/UL/US/AT/UV`) which decode to **numbers**, not byte blobs; the byte-blob VRs
+(OB/OW/OF/OD) are not in `binaryVRs`. So the walker routes by the **decoded value type**
+(ArrayBuffer → binary sub-stream; else → `value()`), not by `isBinary()`.
+
 ## Grounding facts established during exploration
 
 - Parser element shape (confirmed): `tag`, `tagValue` (numeric), `vr`, `length`,

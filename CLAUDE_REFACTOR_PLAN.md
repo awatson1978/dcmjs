@@ -27,7 +27,7 @@ Each slice is its own spec → plan → implement cycle. Dependency-ordered:
 | # | Slice | Depends on | Status |
 |---|---|---|---|
 | **A** | **Event-stream contract** | — | **DONE** — `src/eventStream/`, 79 tests, corpus round-trip green |
-| B | Part 10 → event-stream generator | A | not started |
+| **B** | **Part 10 (raw bytes) → generator** | A | **DONE** — `fromPart10`, 31-fixture corpus gate green |
 | C | DICOMweb JSON → event-stream generator | A | not started |
 | D | Naturalized listener + value model | A, B | not started |
 | E | Writers (Part 10 + DICOMweb) on event stream | A | not started |
@@ -139,9 +139,42 @@ retention is **slice D** and is intentionally not compared in the slice-A gate.
 
 ---
 
-# Slices B–G — summaries (not yet planned in detail)
-- **B. Part 10 generator** — promote/harden the slice-A walker into the production Part 10
-  source; integrate with the lazy core read path.
+# Slice B — Part 10 (raw bytes) → event-stream generator  *(current)*
+
+**Goal:** a genuine bytes→events generator `fromPart10(buffer, listener, options)` over
+`@dcmjs/parser`'s offsets tree, reusing dcmjs's public decode primitives
+(`ValueRepresentation.read`, `ReadBufferStream`, `encodingMapping`,
+`DicomMessage.lookupTag`) plus faithful local copies of the small pure helpers
+(`resolveVrInstance`, `shapeReadValues`). Emits raw encapsulated fragments (§33), not
+frame-grouped buffers (frame grouping is naturalization, slice D).
+
+**Scope (decided):** common path handled directly — explicit/implicit LE + big-endian,
+sequences (defined + undefined length), encapsulated pixel data as raw fragments,
+defined-length binary as a one-fragment sub-stream, SpecificCharacterSet decoding.
+**Hard cases delegate** to the lazy core by falling back to
+`fromDataSet(DicomMessage.readFile(buffer, options))` for the whole file: deflate
+transfer syntax, and any per-element undefined-length non-SQ / `ParsedUnknownValue`
+case the walker can't faithfully decode (detected mid-walk → abort → delegate).
+
+**Follow-up (not slice B):** extract the trapped decode core out of `readFileLazy` into a
+shared module so the lazy reader and this walker share one decode path
+("one read core", roadmap goal). Tracked as a future slice.
+
+**Status — DONE.** `src/eventStream/fromPart10.js` (exposed as
+`dcmjs.eventStream.fromPart10`). Routes leaf elements by decoded value type (buffer →
+binary sub-stream; else `value()`) — not by `isBinary()`, which is true for numeric VRs.
+Tests in `test/eventStream/fromPart10.test.js`: a synthesized explicit-LE round-trip plus
+the 31-fixture corpus gate (non-binary exact, binary at concatenated-fragment-byte level,
+group-length + SpecificCharacterSet exempt). Deflate and hard undefined-length cases
+delegate. Full suite green on both cores (990 tests).
+
+**Verification:** corpus gate like slice A but from raw bytes —
+`fromPart10(buffer)` → `CollectorListener` vs `DicomMessage.readFile(buffer)`:
+non-binary tags exact (vr+Value, SQ-aware), binary tags compared at the
+concatenated-fragment-bytes level, `SpecificCharacterSet` (0008,0005) exempted (readFile
+rewrites it to ISO_IR 192 — a known eager-compat quirk the new path does not propagate).
+
+# Slices C–G — summaries (not yet planned in detail)
 - **C. DICOMweb JSON generator** — low-allocation visitor over parsed DICOMweb JSON (§24.1)
   emitting the same contract; canonicalize `InlineBinary`/`BulkDataURI` to binary events.
 - **D. Naturalized listener + value model** — the bulk of the metadata spec: VM cardinality

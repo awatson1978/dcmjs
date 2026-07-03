@@ -8,7 +8,8 @@ import { fileURLToPath } from "url";
 import {
     buildCatalog,
     catalogSource,
-    typesSource
+    typesSource,
+    jsonSchemaSource
 } from "./buildCatalog.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -24,6 +25,12 @@ try {
     mkdirSync(join(root, "types"), { recursive: true });
     writeFileSync(join(root, "types", "dcmjs-schema.d.ts"), typesSource(catalog));
     console.log("wrote types/dcmjs-schema.d.ts");
+    mkdirSync(join(root, "schema"), { recursive: true });
+    writeFileSync(
+        join(root, "schema", "naturalized.schema.json"),
+        jsonSchemaSource(catalog)
+    );
+    console.log("wrote schema/naturalized.schema.json");
 } catch (err) {
     console.error(`generate-schema FAILED: ${err.message}`);
     process.exit(1);

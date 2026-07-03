@@ -5,6 +5,7 @@
 import { mkdirSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
+import prettier from "prettier";
 import {
     buildCatalog,
     catalogSource,
@@ -17,9 +18,16 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 try {
     const catalog = buildCatalog();
     mkdirSync(join(root, "src", "schema"), { recursive: true });
+    // The catalog lives under src/, where the repo's prettier hooks reformat
+    // on commit — emit prettier-formatted output so regeneration is diff-clean.
+    const rulesPath = join(root, "src", "schema", "naturalizedRules.js");
+    const prettierConfig = prettier.resolveConfig.sync(rulesPath) || {};
     writeFileSync(
-        join(root, "src", "schema", "naturalizedRules.js"),
-        catalogSource(catalog)
+        rulesPath,
+        prettier.format(catalogSource(catalog), {
+            ...prettierConfig,
+            filepath: rulesPath
+        })
     );
     console.log("wrote src/schema/naturalizedRules.js");
     mkdirSync(join(root, "types"), { recursive: true });

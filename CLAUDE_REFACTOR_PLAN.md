@@ -41,6 +41,12 @@ Each slice is its own spec → plan → implement cycle. Dependency-ordered:
 | E | Writers (Part 10 + DICOMweb) on event stream | A | not started |
 | F | Public source/sink API + compat wrappers | A–E | not started |
 | G | Cross-source equivalence suite (§31) | A–F | not started |
+| **H** | **Conformance validation layer** | D1, D22-schema | **proposed** — Review Round 1 (D20); needs planning pass |
+| **I** | **Curation / normalization layer** (dicom-curate) | D1, D2b, D2c, E2, F, H | **proposed** — Review Round 1 (D21/D25); needs planning pass |
+
+Slices **H** and **I** are new scope from the first external review (Steve Pieper); see
+`CLAUDE_REFACTOR_ANALYSIS.md` **Review Round 1 (D16–D25)**. They are deliberately outside the
+A–G core line and each needs its own brainstorm → design → plan cycle (§ "Slices H & I" below).
 
 ---
 
@@ -296,6 +302,69 @@ Full suite green on both cores (1038 tests).
 
 ---
 
+# Slices H & I — Conformance & Curation  *(proposed — Review Round 1)*
+
+New scope surfaced by the first external review of the Architecture Proposal (Steve Pieper).
+Full reasoning + drafted answers: `CLAUDE_REFACTOR_ANALYSIS.md` **Review Round 1 (D16–D25)**.
+Both are **outside the A–G core** and gated on the naturalized model + the machine-readable
+schema. Neither is confirmed scope yet; each gets its own brainstorm → design → plan cycle.
+
+**Prerequisite that both share — the schema (D22).** Component 1's prose spec must be joined by
+a **machine-readable schema** of the naturalized representation: generated TypeScript types
+(`PatientID: string`, `ImageType: string[]`) *and* a JSON-Schema-style conformance schema, both
+derived from the same VR/VM cardinality rules (§5/§12) so they cannot drift. The schema is the
+definition of "supported" in 1.0; H validates against it, I is versioned independently of it.
+
+## Slice H — Conformance validation layer  *(proposed, D20)*
+
+**Goal:** a validator that checks DICOM data against the D22 schema + the standard and emits
+**structured diagnostics** (warning/error) rather than throwing. It is **just another event-stream
+listener** (the hub model) — one more sink, no new path. Reuses the cardinality-violation
+diagnostic channel already built in D12 (`listener.violations`), generalized from "VM violation"
+to "any non-conformance."
+
+**Scope sketch:** define the conformance schema (D22) → validator listener over `DicomEventStream`
+→ structured diagnostic model (tag, VR, declared vs. observed, failed rule) → a **redacted
+non-conformance serializer** (structure only, values stripped) safe to paste into an issue,
+optionally prompting the user to share the offending sample → wire into the slice G corpus so
+"supported" is measured, not asserted.
+
+**Depends on:** D1 (naturalized model), D22 (schema). **Feeds:** the dicompare oracle (D19) and
+the phantom-generator corpus.
+
+## Slice I — Curation / normalization layer via `dicom-curate`  *(proposed, D21/D25)*
+
+**Goal:** an **opt-in, separately-versioned** transform layer for loss-*correcting* operations —
+de-identification (PS3.15E), private→standard remapping, UID hashing, identity mapping — kept
+**out of the preserve-first core** so it can never reintroduce §3.1 source-dependent drift.
+
+**Key finding (D25):** `github.com/clintools/dicom-curate` is not a competing implementation —
+it is **already a dcmjs read-modify-write consumer** (`dcmjs ^0.51.1`): async-read →
+`naturalizeDataset` → lodash mutate per a `TCurationSpecification` → `denaturalizeDataset` →
+manual private-tag restore → `DicomDict.write` → stream sink. Pinned to legacy dcmjs, it
+currently **works around the exact defects 1.0 fixes** (proxy/VM-collapse shape → D1;
+private-creator loss → D2b; raw-value drop on RMW → D2c; separate metaheader handling → D5).
+Its whole value proposition — "change a few tags, keep the rest byte-unchanged" — **is** the D16
+per-element-passthrough requirement, which it cannot fully honor on legacy dcmjs today.
+
+**Integration approach:** adopt its rule engine, migrate it onto the new contract.
+- Adopt `TCurationSpecification` + PS3.15E profiles + CSV mapping + UID hashing as the curation
+  rule catalog (don't rebuild).
+- **Migrate it off legacy `naturalizeDataset`/`denaturalizeDataset` + `DicomDict.write` onto the
+  event-stream sources/sinks + the D1 model** — which lets it delete its four workarounds.
+- It should **supersede** dcmjs's existing `data/anonymizer`, not stack a third de-id path.
+- It becomes the **flagship migration/equivalence consumer** for F/R1 and G, paired with the
+  dicompare oracle (D19) as one clinical-tools verification trio (same ecosystem — a governance +).
+
+**Open before starting:** license/governance compat; depend on rule *semantics* (it is pre-1.0,
+"APIs may change") rather than pinning its current API; confirm de-id/curation is wanted in 1.0
+scope at all (it is loss-correction, deliberately opt-in).
+
+**Depends on:** D1, D2b, D2c, E2 (writer), F (public API), H (validation). Highest-integration,
+last in order.
+
+---
+
 # Remaining Items — Each Needs Its Own Planning Pass
 
 The core architecture (slices A–G, D1–D2c, E1–E2, F, §15.4) is complete, fully bidirectional,
@@ -338,6 +407,11 @@ still the highest-risk remaining change.
 **Scope sketch:** extract a `decodeElement` core module → repoint `readFileLazy` at it (prove
 the 1059 read tests + dual-core gate stay green) → repoint `fromPart10` at it → delete the
 delegation paths → confirm deflate + undefined-length now decode natively.
+**Structural risk note (2026-07-03, from the codebase graph):** the parser's recursive-descent
+core has three import cycles — `parseDicomDataSet ↔ readDicomElement{Explicit,Implicit} ↔
+readSequenceElement{Explicit,Implicit}` (`packages/parser/src/`). Inherent to sequence
+recursion, but any core-extraction refactor that touches these modules must preserve or
+deliberately break the cycles (e.g. via an injected recursion callback), not trip over them.
 
 ### R4. §15.4 low-allocation micro-tuning (optional)
 **Why a planning pass:** scale is already validated (100k items ~76 ms; 500-deep ~16 ms) and

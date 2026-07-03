@@ -9,11 +9,18 @@
             "import": "./build/dcmjs.es.js",
             "require": "./build/dcmjs.js"
         },
-        "./dictionary": "./generate/dictionary.mjs"
+        "./dictionary": "./generate/dictionary.mjs",
+        "./schema": {
+            "types": "./types/dcmjs-schema.d.ts",
+            "import": "./src/schema/naturalizedRules.js"
+        }
     },
     "files": [
         "build",
         "generate/dictionary.mjs",
+        "src/schema",
+        "types/dcmjs-schema.d.ts",
+        "schema/naturalized.schema.json",
         "README.md",
         "License.txt"
     ],

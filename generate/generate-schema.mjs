@@ -5,7 +5,11 @@
 import { mkdirSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
-import { buildCatalog, catalogSource } from "./buildCatalog.mjs";
+import {
+    buildCatalog,
+    catalogSource,
+    typesSource
+} from "./buildCatalog.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -17,6 +21,9 @@ try {
         catalogSource(catalog)
     );
     console.log("wrote src/schema/naturalizedRules.js");
+    mkdirSync(join(root, "types"), { recursive: true });
+    writeFileSync(join(root, "types", "dcmjs-schema.d.ts"), typesSource(catalog));
+    console.log("wrote types/dcmjs-schema.d.ts");
 } catch (err) {
     console.error(`generate-schema FAILED: ${err.message}`);
     process.exit(1);

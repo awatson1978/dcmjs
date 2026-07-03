@@ -574,3 +574,54 @@ pinning to its current API; **don't-duplicate** — it should supersede dcmjs's 
 
 **Not yet binding** — this proposes dicom-curate as the concrete engine behind slices H and I,
 which are themselves still-unconfirmed new scope (D20/D21). Confirm those, then this follows.
+*(Confirmed 2026-07-03 — see D26.)*
+
+## D26. Scope confirmation — H and I are in; implementation order (user decision, 2026-07-03)
+
+**Question:** Are slices H and I confirmed 1.0 scope, and where does implementation start?
+
+**Decision:**
+- **H and I are in scope.** Rationale (user): both are *optional sinks* over the event stream —
+  they add no risk to the preserve-first core, so there is no reason to hold them pending
+  review bandwidth. Steve is a collaborator and subject-matter expert, but he is busy and
+  cannot be expected to drive the entire specification; the working mode is **draft on a
+  separate branch and proceed**, folding his feedback in as review rounds arrive rather than
+  blocking on it. D20/D21/D25 are now binding.
+- **Implementation starts with D22 (the machine-readable schema)** — the shared prerequisite
+  gating both H and I, the proposal's own "controlling document" step, and the one item that
+  needs nothing external. D18's mechanical rename can ride along.
+- **Branch:** `dcmjs-unified-schema` (off `dcmjs-unified-comments`).
+- Still tracked as open inputs, not blockers: Steve's confirmation of the D16 reading
+  (element/body-level passthrough), and the dicom-curate license/governance check before
+  slice I consumes its rule engine.
+
+## D27. D22 design decisions — rule catalog as the one source of truth (2026-07-03)
+
+Full design: `docs/superpowers/specs/2026-07-03-d22-naturalized-schema-design.md`.
+Four decisions, each chosen from explicit options (user-selected):
+
+1. **TS granularity — one flat interface.** A single generated `NaturalizedDataset` with all
+   5,165 standard keywords as optional, VM-correctly-typed properties. Rejected: per-VR
+   branded types (fights plain-object semantics); IOD-aware per-SOP-class types (needs
+   Part 3 tables the packed dictionary doesn't have — can layer on later).
+2. **Schema subject — rule catalog as source of truth.** The normative artifact is a
+   machine-readable rule catalog (tag → VR/VM + shared per-VR format table + envelope
+   rules), generated from the packed dictionary; the `.d.ts` and a literal JSON-Schema
+   document are derived projections; slice H's validator consumes the catalog directly,
+   streaming. Rejected: literal JSON Schema as primary (can't express VM patterns like
+   `3-3n` or original-encoding length caps without custom keywords, and is built for
+   materialized-document validation, not element-by-element streams); two independently
+   generated artifacts (two encodings of the same rules = the drift D22 exists to prevent).
+3. **Rule depth — VR-format depth.** Structural (VR/VM/shape) plus per-VR Part 5 value
+   constraints (DA/TM/DT patterns, IS ≤ 12 / DS ≤ 16, UI charset, AS format). Rejected:
+   structural-only (validator couldn't flag malformed dates/UIDs); defined-terms depth
+   (needs Part 3/16 acquisition — out of scope).
+4. **Distribution — `dcmjs/schema` subpath export.** Honest opt-in; dcmjs's first published
+   types. Rejected: top-level `"types"` field (falsely implies the whole API is typed;
+   collides with consumers' hand-written `declare module 'dcmjs'` — dicom-curate has one);
+   repo-only artifacts (no consumer benefit).
+
+Testing contract: code-agreement gate (NaturalizedListener output over the fixture corpus
+must satisfy the catalog — the seed of slice H), tsc gate, determinism gate (regenerate →
+diff-clean in CI). Documentation deliverables include the docs guide page **and** a PR
+description that documents the public API surface (user requirement).

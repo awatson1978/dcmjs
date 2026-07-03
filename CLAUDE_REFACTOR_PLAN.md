@@ -41,12 +41,14 @@ Each slice is its own spec → plan → implement cycle. Dependency-ordered:
 | E | Writers (Part 10 + DICOMweb) on event stream | A | not started |
 | F | Public source/sink API + compat wrappers | A–E | not started |
 | G | Cross-source equivalence suite (§31) | A–F | not started |
-| **H** | **Conformance validation layer** | D1, D22-schema | **proposed** — Review Round 1 (D20); needs planning pass |
-| **I** | **Curation / normalization layer** (dicom-curate) | D1, D2b, D2c, E2, F, H | **proposed** — Review Round 1 (D21/D25); needs planning pass |
+| **H** | **Conformance validation layer** | D1, D22-schema | **in scope** — confirmed 2026-07-03 (D26); needs planning pass |
+| **I** | **Curation / normalization layer** (dicom-curate) | D1, D2b, D2c, E2, F, H | **in scope** — confirmed 2026-07-03 (D26); needs planning pass |
 
-Slices **H** and **I** are new scope from the first external review (Steve Pieper); see
-`CLAUDE_REFACTOR_ANALYSIS.md` **Review Round 1 (D16–D25)**. They are deliberately outside the
-A–G core line and each needs its own brainstorm → design → plan cycle (§ "Slices H & I" below).
+Slices **H** and **I** came out of the first external review (Steve Pieper); see
+`CLAUDE_REFACTOR_ANALYSIS.md` **Review Round 1 (D16–D25)** and the scope confirmation (**D26**).
+They are deliberately outside the A–G core line — both are optional sinks over the event stream —
+and each gets its own brainstorm → design → plan cycle (§ "Slices H & I" below). Work is drafted
+on the `dcmjs-unified-schema` branch, D22 (schema) first, without blocking on reviewer bandwidth.
 
 ---
 
@@ -302,12 +304,13 @@ Full suite green on both cores (1038 tests).
 
 ---
 
-# Slices H & I — Conformance & Curation  *(proposed — Review Round 1)*
+# Slices H & I — Conformance & Curation  *(in scope — confirmed 2026-07-03, D26)*
 
-New scope surfaced by the first external review of the Architecture Proposal (Steve Pieper).
-Full reasoning + drafted answers: `CLAUDE_REFACTOR_ANALYSIS.md` **Review Round 1 (D16–D25)**.
-Both are **outside the A–G core** and gated on the naturalized model + the machine-readable
-schema. Neither is confirmed scope yet; each gets its own brainstorm → design → plan cycle.
+Scope surfaced by the first external review of the Architecture Proposal (Steve Pieper).
+Full reasoning + drafted answers: `CLAUDE_REFACTOR_ANALYSIS.md` **Review Round 1 (D16–D25)**;
+scope confirmed in **D26** (both are optional sinks, so they proceed without blocking on
+reviewer bandwidth). Both are **outside the A–G core** and gated on the naturalized model +
+the machine-readable schema. Each gets its own brainstorm → design → plan cycle; D22 first.
 
 **Prerequisite that both share — the schema (D22).** Component 1's prose spec must be joined by
 a **machine-readable schema** of the naturalized representation: generated TypeScript types
@@ -357,8 +360,8 @@ per-element-passthrough requirement, which it cannot fully honor on legacy dcmjs
   dicompare oracle (D19) as one clinical-tools verification trio (same ecosystem — a governance +).
 
 **Open before starting:** license/governance compat; depend on rule *semantics* (it is pre-1.0,
-"APIs may change") rather than pinning its current API; confirm de-id/curation is wanted in 1.0
-scope at all (it is loss-correction, deliberately opt-in).
+"APIs may change") rather than pinning its current API. Scope itself is confirmed (D26) — it is
+loss-correction, deliberately opt-in.
 
 **Depends on:** D1, D2b, D2c, E2 (writer), F (public API), H (validation). Highest-integration,
 last in order.

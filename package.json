@@ -32,7 +32,7 @@
         "node": ">=22.13"
     },
     "scripts": {
-        "prepare": "husky",
+        "prepare": "husky || true",
         "install:update-lockfile": "pnpm install --no-frozen-lockfile",
         "test": "jest --testTimeout 60000 .",
         "build": "rollup -c",
@@ -65,7 +65,7 @@
         "@babel/plugin-transform-runtime": "7.23.7",
         "@babel/preset-env": "7.29.5",
         "@babel/register": "7.23.7",
-        "@dcmjs/parser": "workspace:*",
+        "@dcmjs/parser": "file:packages/parser",
         "@eslint/js": "9.39.4",
         "@rollup/plugin-babel": "6.1.0",
         "@rollup/plugin-commonjs": "28.0.9",

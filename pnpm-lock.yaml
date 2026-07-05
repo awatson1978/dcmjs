@@ -43,7 +43,7 @@ importers:
         specifier: 7.23.7
         version: 7.23.7(@babel/core@7.23.7)
       '@dcmjs/parser':
-        specifier: workspace:*
+        specifier: file:packages/parser
         version: link:packages/parser
       '@eslint/js':
         specifier: 9.39.4

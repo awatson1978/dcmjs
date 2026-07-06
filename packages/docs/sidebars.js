@@ -27,6 +27,8 @@ const sidebars = {
                 "guides/reading",
                 "guides/writing-and-editing",
                 "guides/naturalized-datasets",
+                "guides/schema",
+                "guides/fhir",
                 "guides/event-streams",
                 "guides/character-sets",
                 "guides/deflate"

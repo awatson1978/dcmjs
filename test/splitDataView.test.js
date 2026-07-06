@@ -118,4 +118,93 @@ describe("SplitDataView", () => {
             expect(view.getUint16(7, false)).toBe((8 << 8) | 9);
         });
     });
+
+    describe("consume — consumeListener contract", () => {
+        /**
+         * Build a view with three distinct-size chunks so we can verify
+         * the listener receives correct per-chunk arguments:
+         *   chunk 0: logical bytes [0, 10)
+         *   chunk 1: logical bytes [10, 25)
+         *   chunk 2: logical bytes [25, 40)
+         */
+        function buildThreeChunks() {
+            const view = new SplitDataView();
+            view.addBuffer(new Uint8Array(10).fill(1).buffer); // chunk 0
+            view.addBuffer(new Uint8Array(15).fill(2).buffer); // chunk 1
+            view.addBuffer(new Uint8Array(15).fill(3).buffer); // chunk 2
+            return view;
+        }
+
+        it("calls listener once per released chunk with (chunkIndex, logicalOffset, byteLength)", () => {
+            const view = buildThreeChunks();
+            const calls = [];
+            view.consumeListener = (chunkIndex, logicalOffset, byteLength) => {
+                calls.push({ chunkIndex, logicalOffset, byteLength });
+            };
+
+            // consume(10): consumeOffset=10 >= end of chunk 0 (10) → releases chunk 0
+            // consumeOffset=10 < end of chunk 1 (25) → stops
+            view.consume(10);
+            expect(calls).toHaveLength(1);
+            expect(calls[0]).toEqual({
+                chunkIndex: 0,
+                logicalOffset: 0,
+                byteLength: 10
+            });
+
+            // consume(30): consumeOffset=30 >= end of chunk 1 (25) → releases chunk 1
+            // consumeOffset=30 < end of chunk 2 (40) → stops
+            view.consume(30);
+            expect(calls).toHaveLength(2);
+            expect(calls[1]).toEqual({
+                chunkIndex: 1,
+                logicalOffset: 10,
+                byteLength: 15
+            });
+
+            // consume(40): consumeOffset=40 >= end of chunk 2 (40) → releases chunk 2
+            view.consume(40);
+            expect(calls).toHaveLength(3);
+            expect(calls[2]).toEqual({
+                chunkIndex: 2,
+                logicalOffset: 25,
+                byteLength: 15
+            });
+        });
+
+        it("never passes a negative byteLength to the listener", () => {
+            const view = buildThreeChunks();
+            const badCalls = [];
+            view.consumeListener = (chunkIndex, logicalOffset, byteLength) => {
+                if (
+                    byteLength < 0 ||
+                    chunkIndex < 0 ||
+                    logicalOffset < 0
+                ) {
+                    badCalls.push({ chunkIndex, logicalOffset, byteLength });
+                }
+            };
+
+            // Release all three chunks in one call.
+            view.consume(40);
+            expect(badCalls).toHaveLength(0);
+        });
+
+        it("is not called for chunks not yet fully consumed", () => {
+            const view = new SplitDataView();
+            view.addBuffer(new Uint8Array(20).fill(0).buffer); // chunk 0: [0, 20)
+            view.addBuffer(new Uint8Array(20).fill(0).buffer); // chunk 1: [20, 40)
+
+            const calls = [];
+            view.consumeListener = (...args) => calls.push(args);
+
+            // consuming mid-chunk does NOT release it
+            view.consume(19);
+            expect(calls).toHaveLength(0);
+
+            // consuming exactly to the end releases it
+            view.consume(20);
+            expect(calls).toHaveLength(1);
+        });
+    });
 });

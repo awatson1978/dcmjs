@@ -1,5 +1,3 @@
-import { DicomMessage } from "../DicomMessage.js";
-import { fromDataSet } from "./fromDataSet.js";
 import {
     resolveVrInstance,
     decodeElementValues,
@@ -22,8 +20,8 @@ import {
  * ready-to-use metaWindow (original buffer) and bodyWindow (inflated body).
  * Undefined-length non-SQ elements (classifyElement "eagerWindow") are decoded
  * per-element via decodeCore.decodeWithEagerReadTag.  Tokenizer-rejected files
- * fall back to DicomMessage.readFile (slice J stage 4c will remove this last
- * delegation path after empirical corpus verification).
+ * propagate the error directly (empirical corpus check confirmed no file needs
+ * eager fallback — slice J stage 4c).
  *
  * Documented behavior deltas vs the old fromPart10 (both are DELIBERATE
  * convergence on eager DicomMessage.readFile semantics):
@@ -55,10 +53,10 @@ export async function fromPart10(buffer, listener, options = {}) {
             options
         ));
     } catch (e) {
-        // Tokenizer-rejected file: let the lazy core decide (it delegates to
-        // eager and throws the same way).  Slice J stage 4c will remove this
-        // last delegation path after empirical corpus verification.
-        return delegate(buffer, listener, options, e);
+        // Empirical check (slice J stage 4c) confirmed: every corpus file either
+        // passes seedReadContext or is also rejected by DicomMessage.readFile —
+        // no file requires a whole-file fallback here.  Propagate directly.
+        throw e;
     }
 
     const policy = {
@@ -118,20 +116,6 @@ export async function fromPart10(buffer, listener, options = {}) {
     }
 
     listener.endDataSet();
-}
-
-/** Re-emit the whole file via the slice-A path over the lazy core's decode. */
-function delegate(buffer, listener, options, parseError) {
-    let dict;
-    try {
-        dict = DicomMessage.readFile(toArrayBuffer(buffer), options);
-    } catch (e) {
-        if (parseError) {
-            throw parseError;
-        }
-        throw e;
-    }
-    return fromDataSet({ meta: dict.meta, dict: dict.dict }, listener);
 }
 
 /**
@@ -280,14 +264,4 @@ function toUint8Array(buffer) {
         return buffer;
     }
     return new Uint8Array(buffer);
-}
-
-function toArrayBuffer(buffer) {
-    if (buffer instanceof ArrayBuffer) {
-        return buffer.slice(0);
-    }
-    return buffer.buffer.slice(
-        buffer.byteOffset,
-        buffer.byteOffset + buffer.byteLength
-    );
 }

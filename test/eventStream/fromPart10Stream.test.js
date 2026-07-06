@@ -378,3 +378,22 @@ describe("fromPart10Stream — options threading (forceStoreRaw)", () => {
         expect(streamListener._rawValues.some(v => v !== undefined)).toBe(true);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Test 6: Invalid input rejection (TypeError)
+// ---------------------------------------------------------------------------
+
+describe("fromPart10Stream — invalid input rejection", () => {
+    test.each([
+        ["plain number", 42],
+        ["plain object", {}],
+        ["string", "not a buffer"],
+        ["null", null],
+        ["undefined", undefined]
+    ])("%s: rejects with TypeError", async (_label, invalidInput) => {
+        const listener = new CollectorListener();
+        await expect(
+            fromPart10Stream(invalidInput, listener)
+        ).rejects.toThrow(TypeError);
+    });
+});

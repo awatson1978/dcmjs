@@ -69,12 +69,31 @@ Synchronous structural/value callbacks keep allocation low; backpressure is
 applied out of band (`setDrain`/`awaitDrain`) and awaited only at defined
 checkpoints — top-level element boundaries and binary-fragment emission.
 
+## Shared decode core
+
+`fromPart10` and the lazy reader (`readFileLazy`) share a common decode module,
+`src/core/decodeCore.js`. Its contract is two read-only inputs:
+
+- **window** — `{arrayBuffer, baseOffset, syntax, littleEndian, implicit, decoder}`:
+  a fully-resolved byte region. `fromPart10` and `readFileLazy` each construct a
+  *meta window* (original buffer, explicit LE) and a *body window* (post-inflate body,
+  negotiated transfer syntax) and pass the appropriate one to each decode call.
+- **policy** — `{forceStoreRaw, noCopy, ignoreErrors}`: decode options threaded from
+  the caller's options.
+
+The module is stateless; it exports `resolveVrInstance`, `decodeElementValues`,
+`resolveCharacterSet`, `decodeWithEagerReadTag`, `seedReadContext`, and related helpers.
+`fromPart10` handles deflate and undefined-length elements natively through this shared
+core — it no longer whole-file delegates to the lazy reader. `fromPart10Stream` (slice K)
+will consume the same `window`/`policy` contract.
+
 ## Relationship to the read/write cores
 
 The event layer sits *on top of* the existing cores; it does not replace them:
 
-- Generators reuse the [lazy read core](./lazy-core.md) and the
-  [parser package](./parser-package.md) for decoding.
+- `fromPart10` uses `decodeCore` directly (see above); `fromDataSet` walks an
+  already-decoded dataset tree (typically from `readFileLazy`, which also consumes
+  `decodeCore`) and the [parser package](./parser-package.md).
 - The Part 10 writer layers over the canonical [writer](./writer.md)
   (`DicomDict.write`). Byte-identical Part 10 round-tripping (incl. verbatim
   compressed pixel data) is a deliberate non-goal of the event/naturalized path

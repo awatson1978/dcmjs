@@ -45,7 +45,7 @@ Each slice is its own spec → plan → implement cycle. Dependency-ordered:
 | **F** | **Public source/sink API (§32)** | A–E1 | **DONE** — `DicomEventStream` + `Naturalized.from` / `DicomWebJson.from` |
 | **G** | **Cross-source equivalence matrix (§31)** | A–F | **DONE** — 30-fixture three-source (bytes/dict/DICOMweb JSON) naturalize-identically gate |
 | **FHIR** | **FHIR sink** (`@dcmjs/fhir`, `toFhir()`) | D1, F | **DONE** — merged PR #4 + worked-examples guide; consumed downstream (honeycomb DICOM→FHIR mapping collapsed onto it) |
-| **J** | **One read core** (= plan-R3) — extract `src/core/decodeCore.js` from `LazyDicomReader`; repoint `readFileLazy` + `fromPart10`; delete `fromPart10`'s delegation paths | A, B | **APPROVED 2026-07-06 — active.** Phase 1, 5 stages (extract → repoint lazy → repoint fromPart10 → delete delegation (3 sub-slices) → docs). Gate per stage: `pnpm test` + `DCMJS_CORE=eager pnpm test` (~1128); design decisions D-A/D-B/D-D |
+| **J** | **One read core** (= plan-R3) — extract `src/core/decodeCore.js` from `LazyDicomReader`; repoint `readFileLazy` + `fromPart10`; delete `fromPart10`'s delegation paths | A, B | **DONE** — `src/core/decodeCore.js` extracted (8f77614), lazy + fromPart10 repointed; fromPart10 delegation removed; deflate and undefined-length now native. 1249 tests both cores. |
 | **K** | **Streaming Part 10 source** (= roadmap-R6) — `fromPart10Stream`, chunked bounded-memory, full 15-verb vocabulary | J, A | **APPROVED 2026-07-06 — queued behind J.** Phase 2, 7 stages (R6.0 `SplitDataView.consume` bugfix → skeleton → incremental FMI → defined-length loop → undefined-length delimiter state machine → streaming deflate via `pako.Inflate` → 37-byte/1024-byte chunk equivalence + bounded-memory + backpressure gates; R6.7 `AsyncDicomReader` re-platform is stretch/deferrable). Decisions D-C/D-E (noCopy forced off) |
 | **H** | **Conformance validation layer** | D1, D22 | **in scope** — confirmed 2026-07-03 (D26); needs planning pass |
 | **I** | **Curation / normalization layer** (dicom-curate) | D1, D2b, D2c, E2, F, H | **in scope** — confirmed 2026-07-03 (D26); needs planning pass |
@@ -185,7 +185,7 @@ case the walker can't faithfully decode (detected mid-walk → abort → delegat
 
 **Follow-up (not slice B):** extract the trapped decode core out of `readFileLazy` into a
 shared module so the lazy reader and this walker share one decode path
-("one read core", roadmap goal). Tracked as a future slice.
+("one read core", roadmap goal). Done as Slice J.
 
 **Status — DONE.** `src/eventStream/fromPart10.js` (exposed as
 `dcmjs.eventStream.fromPart10`). Routes leaf elements by decoded value type (buffer →
@@ -193,7 +193,7 @@ binary sub-stream; else `value()`) — not by `isBinary()`, which is true for nu
 Tests in `test/eventStream/fromPart10.test.js`: a synthesized explicit-LE round-trip plus
 the 31-fixture corpus gate (non-binary exact, binary at concatenated-fragment-byte level,
 group-length + SpecificCharacterSet exempt). Deflate and hard undefined-length cases
-delegate. Full suite green on both cores (990 tests).
+delegated at the time of B; both are now native (see Slice J). Full suite green on both cores (990 tests).
 
 **Verification:** corpus gate like slice A but from raw bytes —
 `fromPart10(buffer)` → `CollectorListener` vs `DicomMessage.readFile(buffer)`:
@@ -411,14 +411,15 @@ gate against the existing passthrough writer; decide whether it supersedes or su
 `DicomDict.write`.
 
 ### R3. "One read core" extraction (decouple slice B from the lazy core)
-> **PROMOTED — 2026-07-06.** Planning pass complete; approved as **Slice J** (see
-> Decomposition table) together with roadmap-R6 as **Slice K** (streaming source,
-> `fromPart10Stream`). Scope: dcmjs-only, on `dcmjs-unified-comments`; per-stage gate
-> `pnpm test` + `DCMJS_CORE=eager pnpm test`; one revertable commit per stage.
+> **DONE (Slice J) — 2026-07-06.** `src/core/decodeCore.js` is the shared module: callers
+> pass a `window` (`{arrayBuffer, baseOffset, syntax, littleEndian, implicit, decoder}`) and a
+> `policy` (`{forceStoreRaw, noCopy, ignoreErrors}`). Both `readFileLazy` and `fromPart10`
+> consume it; `fromPart10` now handles deflate + undefined-length natively with zero whole-file
+> delegation. 1249 tests green both cores.
 
-**Why a planning pass:** `fromPart10` currently **delegates** deflate and hard
+**Why a planning pass:** `fromPart10` previously **delegated** deflate and hard
 undefined-length / unknown-VR cases to the lazy core (`readFileLazy`), because the decode
-primitives are closures trapped inside it (see D9). The roadmap's "one read core" goal is to
+primitives were closures trapped inside it (see D9). The roadmap's "one read core" goal is to
 extract `materializeElement`/`resolveVrInstance`/charset/ctx-setup into a shared module used
 by **both** the lazy reader and `fromPart10`, removing the delegation. This is a refactor of
 the 56KB `src/lazy/LazyDicomReader.js` core — guarded by 1128 tests + the corpus gates, but

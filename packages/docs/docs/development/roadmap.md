@@ -41,6 +41,11 @@ Status as of 2026-06-10 — executed through step 6, version 1.0.0-beta.0 (NOT p
 | R7 deletions | PARTIAL — see R7 section; eager core kept as escape hatch for beta | fd526c3 |
 | R8 gates | All standing gates green (see R8) | — |
 
+Additional work since 2026-06-10: the event-stream layer (slices A–G and J, tracked in
+`CLAUDE_REFACTOR_PLAN.md`) is complete. `src/core/decodeCore.js` is now the shared decode
+module consumed by both `readFileLazy` and `fromPart10`; `fromPart10`'s whole-file delegation
+to the lazy reader is removed. The `AsyncDicomReader` re-platform (R6) remains deferred.
+
 Remaining for 1.0 final / 1.x: the full R6 streaming re-platform of
 AsyncDicomReader onto the tokenizer; deleting the eager read loop once the beta
 soak is over; the packaging subpath split and TypeScript surface; and the four

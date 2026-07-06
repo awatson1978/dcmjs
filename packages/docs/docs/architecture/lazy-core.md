@@ -50,7 +50,12 @@ produced up front. There is no behavioral cliff, only deferred work.
 
 ## Materialization: windowed streams over the existing VR classes
 
-The VR classes were not rewritten. `ReadBufferStream` supports
+The decode primitives — `resolveVrInstance`, `decodeElementValues`,
+`resolveCharacterSet`, `decodeWithEagerReadTag`, `seedReadContext` and helpers —
+live in `src/core/decodeCore.js` (extracted in slice J). The lazy reader and
+`fromPart10` both import from that module; see the [event-stream
+architecture](./event-stream.md#shared-decode-core) page for the `window`/`policy`
+contract. The VR classes were not rewritten. `ReadBufferStream` supports
 `{ start, stop }` windows over a buffer, so materializing an element is
 (`materializeElement`):
 

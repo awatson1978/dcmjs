@@ -53,6 +53,7 @@ import utilities from "./utilities/index.js";
 import eventStream from "./eventStream/index.js";
 import sr from "./sr/index.js";
 import * as constants from "./constants/dicom.js";
+import * as fhirSink from "@dcmjs/fhir";
 
 import { cleanTags, getTagsNameToEmpty } from "./anonymizer.js";
 
@@ -102,12 +103,34 @@ const anonymizer = {
     getTagsNameToEmpty
 };
 
+// FHIR sink (@dcmjs/fhir) plus a Part 10 convenience that composes the
+// parser and naturalizer — turns a .dcm ArrayBuffer straight into FHIR.
+const fhir = {
+    ...fhirSink,
+    /**
+     * Parse a DICOM Part 10 ArrayBuffer and map it to FHIR resources.
+     * @param {ArrayBuffer} arrayBuffer
+     * @param {Object} [options] - toFhir options; options.readOptions is
+     *   passed through to DicomMessage.readFile
+     * @returns {{ patient: Object|null, imagingStudy: Object|null }}
+     */
+    fromPart10(arrayBuffer, options = {}) {
+        const dicomDict = DicomMessage.readFile(
+            arrayBuffer,
+            options.readOptions || {}
+        );
+        const dataset = DicomMetaDictionary.naturalizeDataset(dicomDict.dict);
+        return fhirSink.toFhir(dataset, options);
+    }
+};
+
 const dcmjs = {
     adapters,
     constants,
     data,
     derivations,
     eventStream,
+    fhir,
     normalizers,
     sr,
     utilities,
@@ -129,6 +152,7 @@ export {
     data,
     derivations,
     eventStream,
+    fhir,
     normalizers,
     sr,
     utilities,

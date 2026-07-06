@@ -478,19 +478,39 @@ export async function fromPart10Stream(input, listener, options = {}) {
         return absEnd <= stream.endOffset;
     }
 
-    // ---- Undefined-length structural end-finders (byte skip, no emission) ----
+    // ---- Undefined-length structural end-finders (element-aware skip, no emission) ----
     //
-    // The only undefined-length non-SQ elements dcmjs decodes cleanly via the
-    // eager reader (classifyElement "eagerWindow") are the ones the offsets
-    // parser routes through readSequenceItemsImplicit — explicit VR UN of
-    // undefined length, and private implicit undefined-length elements (whose
-    // items the parser clears). Those end at the sequence delimiter FFFE,E0DD,
-    // NOT at an item delimiter. findItemDelimitationItem (FFFE,E00D) applies to
-    // the remaining undefined-length non-SQ VRs (e.g. OB), but the eager reader
-    // reads those to their declared length and throws — identically in buffered
-    // fromPart10 — so no equivalent decode exists to bound. These scanners
-    // therefore mirror the parser's sequence walk (FFFE,E0DD) with nested
-    // item-delimiter (FFFE,E00D) handling.
+    // DICOM PS3.5 permits undefined length (0xFFFFFFFF) ONLY for SQ elements,
+    // items, and encapsulated pixel data.  The only non-SQ undefined-length
+    // element dcmjs decodes cleanly via the eager reader (classifyElement
+    // "eagerWindow") is explicit-VR UN of undefined length (and private implicit
+    // undefined-length elements), which the offsets parser routes through
+    // readSequenceItemsImplicit.  These end at the SEQUENCE delimiter
+    // FFFE,E0DD, NOT at an item delimiter.
+    //
+    // For non-conformant text VRs (UT/UC/UR) with undefined length, the two
+    // paths DELIBERATELY diverge (empirically verified; pinned in the K4 test
+    // suite):
+    //   buffered fromPart10 — readEncodedString clamps the 0xFFFFFFFF read to
+    //     the actual buffer size, bleeds past any FFFE,E00D delimiter and
+    //     returns a garbage string containing all remaining bytes (no throw);
+    //     any element following the delimiter is silently consumed into the
+    //     string value.
+    //   fromPart10Stream — emitUndefinedLeaf's skipUndefinedSequence sees the
+    //     non-FFFE value bytes as malformed (not FFFE,E0DD / FFFE,E000), stops
+    //     the window at the value start; the body loop then re-parses the value
+    //     bytes as a DICOM element, producing a truncation throw.
+    //   This loud-failure divergence is DELIBERATE: stream fails loudly on
+    //   non-conformant data that buffered silently mishandles.
+    //
+    // For binary VRs (OB/OW/etc.) with undefined length, both paths throw
+    // (buffered: "Item tag not found after undefined binary length"; stream:
+    // similar truncation), so no path-divergence arises there.
+    //
+    // These scanners mirror the parser's sequence walk (FFFE,E0DD) with nested
+    // item-delimiter (FFFE,E00D) handling.  skipUndefinedItem is
+    // ELEMENT-AWARE — it steps whole element headers/values via
+    // skipOneElementEnd — not a 2-byte byte-scan like findItemDelimitationItem.
 
     /**
      * Skip an undefined-length sequence's items, returning

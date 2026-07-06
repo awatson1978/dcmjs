@@ -1305,6 +1305,54 @@ describe("fromPart10Stream — K4: encapsulated pixel data streams natively", ()
 });
 
 // ---------------------------------------------------------------------------
+// K4 Test 18b: Encapsulated pixel-data startElement length — stream vs buffered
+//
+// DELIBERATE DELTA: fromPart10Stream emits startElement({ length: 0xFFFFFFFF })
+// for encapsulated pixel data (the on-wire undefined length).  Buffered
+// fromPart10 emits the parser's computed content span (e.g. 164406 for
+// CT1_UNC.fragmented_bot_jpeg_ls.80.dcm) because it knows the full file before
+// emitting.  The stream MUST emit 0xFFFFFFFF up-front so that binaryFragment
+// events can arrive before the input is complete (Test 19); emitting the
+// computed span would require buffering the entire encapsulated element first,
+// defeating fragment streaming.
+//
+// CollectorListener drops the length field; this test uses a tiny inline
+// listener that records startElement options to assert the stream's value.
+// ---------------------------------------------------------------------------
+
+/** Listener that records every startElement call as { tag, length }. */
+class StartElementCapture extends CollectorListener {
+    constructor() {
+        super();
+        this.startEls = [];
+    }
+    _baseStartElement(tag, info = {}) {
+        this.startEls.push({ tag, length: info.length });
+        super._baseStartElement(tag, info);
+    }
+}
+
+describe("fromPart10Stream — K4: encapsulated startElement length is 0xFFFFFFFF (delta from buffered)", () => {
+    test("stream emits on-wire 0xFFFFFFFF for encapsulated pixel-data element", async () => {
+        const buffer = readBuffer(FIXTURE_ENCAP_BOT);
+
+        const listener = new StartElementCapture();
+        await fromPart10Stream(buffer.slice(0), listener);
+
+        // Find the pixel-data startElement event.
+        const pixelEl = listener.startEls.find(e => e.tag === "7FE00010");
+        expect(pixelEl).toBeDefined();
+        // Stream emits the on-wire 0xFFFFFFFF (= 4294967295) — the computed
+        // span is unknown at emission time (fragment streaming requires emitting
+        // startElement before reading the closing delimiter).
+        expect(pixelEl.length).toBe(0xffffffff);
+        // Note: buffered fromPart10 emits the parser's computed span (the actual
+        // byte count between startElement and the closing FFFE,E0DD) — a
+        // gate-invisible delta because CollectorListener ignores this field.
+    });
+});
+
+// ---------------------------------------------------------------------------
 // K4 Test 19: Encapsulated fragments arrive BEFORE input completes
 //
 // The key streaming gate for fragments: a binaryFragment event must be
@@ -1538,6 +1586,117 @@ describe("fromPart10Stream — K4: undefined-length non-SQ leaf (eagerWindow)", 
         expect(streamListener._elLengths).toEqual(bufferedListener._elLengths);
         expect(phases).toContain("native");
         expect(phases).not.toContain("tailFallback");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// K4 Test 22b: Undefined-length text VR (UT) with FFFE,E00D terminator —
+//              KNOWINGLY-ACCEPTED DIVERGENCE (stream throws; buffered: garbage)
+//
+// DICOM PS3.5 only permits undefined length for SQ, items, and encapsulated
+// pixel data.  A UT (or UC/UR) element with length 0xFFFFFFFF is non-conformant.
+// The two paths handle it differently (empirically verified, pinned here):
+//
+//   buffered fromPart10 — readEncodedString clamps the 0xFFFFFFFF read to the
+//     buffer end, consuming ALL remaining bytes (delimiter + trailing elements)
+//     as the UT string.  Returns successfully with garbage value; trailing
+//     elements after the FFFE,E00D are silently lost.
+//
+//   fromPart10Stream — emitUndefinedLeaf's skipUndefinedSequence sees the
+//     non-FFFE value bytes as malformed (not FFFE,E0DD / FFFE,E000) and stops
+//     immediately; the body loop then re-parses the value bytes as a DICOM
+//     element, producing a truncation throw.
+//
+// This is a DELIBERATE loud-failure divergence: stream fails loudly on input
+// that buffered silently mishandles.  The test pins actual observed behavior
+// so the divergence is explicit and reviewable rather than accidental.
+// ---------------------------------------------------------------------------
+
+/**
+ * Build an Explicit-LE Part 10 file whose body is a single explicit-VR UT
+ * element with undefined length (12-byte long form), followed by `valueBytes`,
+ * an FFFE,E00D item delimiter, and a trailing (0008,0060) CS "CT" element.
+ * This structure is non-conformant per PS3.5 (undefined length is only
+ * permitted for SQ/items/encapsulated pixel data).
+ */
+function buildUndefinedLengthUtFile(valueBytes) {
+    const tsStr = "1.2.840.10008.1.2.1\0"; // Explicit Little Endian
+
+    const fmiOB = new DicomWriter();
+    fmiOB.elemLong(0x0002, 0x0001, "OB", new Uint8Array([0, 1]));
+    const fmiTS = new DicomWriter();
+    fmiTS.elemStd(
+        0x0002, 0x0010, "UI",
+        new Uint8Array(tsStr.split("").map(c => c.charCodeAt(0)))
+    );
+    const restFmiLen = fmiOB.toUint8Array().length + fmiTS.toUint8Array().length;
+    const glBytes = new Uint8Array(4);
+    new DataView(glBytes.buffer).setUint32(0, restFmiLen, true);
+    const fmiGL = new DicomWriter();
+    fmiGL.elemStd(0x0002, 0x0000, "UL", glBytes);
+
+    const body = new DicomWriter();
+    // UT long-form header: tag(4) + VR(2) + reserved(2) + length(4) = 12 bytes.
+    body.u16(0x0008); body.u16(0x0104); // (0008,0104) CodeMeaning
+    body.ascii("UT");
+    body.u16(0);           // reserved
+    body.u32(0xffffffff);  // undefined length — non-conformant for UT
+    // value bytes (text content before the delimiter)
+    body._push(valueBytes);
+    // FFFE,E00D item delimiter (NOT E0DD sequence delimiter)
+    body.u16(0xfffe); body.u16(0xe00d); body.u32(0);
+    // Trailing element: (0008,0060) CS "CT"
+    body.u16(0x0008); body.u16(0x0060);
+    body.ascii("CS"); body.u16(2); body.ascii("CT");
+
+    const file = new DicomWriter();
+    file.zeros(128);
+    file.ascii("DICM");
+    file._push(fmiGL.toUint8Array());
+    file._push(fmiOB.toUint8Array());
+    file._push(fmiTS.toUint8Array());
+    file._push(body.toUint8Array());
+    return file.toArrayBuffer();
+}
+
+describe("fromPart10Stream — K4: undefined-length UT with E00D delimiter (divergence)", () => {
+    test("buffered returns garbage; stream throws truncation (knowingly-accepted divergence)", async () => {
+        // Value bytes: "hello" (5 bytes).  Non-FFFE bytes guarantee skipUndefinedSequence
+        // stops at value-start, causing the body loop to re-parse them as a DICOM
+        // element with a garbage length → truncation throw.
+        const VALUE = new Uint8Array([0x68, 0x65, 0x6c, 0x6c, 0x6f]); // "hello"
+        const buffer = buildUndefinedLengthUtFile(VALUE);
+
+        // ---- buffered path: does NOT throw; returns garbage ----
+        // readEncodedString clamps the 0xFFFFFFFF read to the buffer boundary,
+        // consuming all remaining bytes (delimiter + trailing CS element) as the
+        // UT string.  The trailing (0008,0060) CS element is lost.
+        const bufferedListener = new CollectorListener();
+        await expect(
+            fromPart10(buffer.slice(0), bufferedListener)
+        ).resolves.toBeUndefined();
+
+        const utEntry = bufferedListener.result.dict["00080104"];
+        expect(utEntry).toBeDefined();
+        expect(utEntry.vr).toBe("UT");
+        // The garbage value bleeds past the E00D delimiter and contains the
+        // delimiter bytes and trailing element bytes.
+        const utValue = utEntry.Value[0];
+        expect(typeof utValue).toBe("string");
+        // Confirm bleed: value includes bytes from the FFFE,E00D delimiter.
+        // \xfe\xff = þÿ (or equivalent depending on TextDecoder), \r = 0x0D, à = 0xE0.
+        expect(utValue.length).toBeGreaterThan(VALUE.length); // includes delimiter + CS bytes
+        // Trailing (0008,0060) CS element is silently consumed into the UT value.
+        expect(bufferedListener.result.dict["00080060"]).toBeUndefined();
+
+        // ---- stream path: DOES throw (loud failure on non-conformant data) ----
+        // emitUndefinedLeaf stops at value-start (malformed item scan), then the
+        // body loop re-parses the value bytes as a DICOM element.  The garbage
+        // element declares a length larger than the remaining bytes → truncation.
+        const streamListener = new CollectorListener();
+        await expect(
+            fromPart10Stream(buffer.slice(0), streamListener)
+        ).rejects.toThrow(/truncated/);
     });
 });
 

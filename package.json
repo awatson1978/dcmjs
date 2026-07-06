@@ -9,11 +9,18 @@
             "import": "./build/dcmjs.es.js",
             "require": "./build/dcmjs.js"
         },
-        "./dictionary": "./generate/dictionary.mjs"
+        "./dictionary": "./generate/dictionary.mjs",
+        "./schema": {
+            "types": "./types/dcmjs-schema.d.ts",
+            "import": "./src/schema/naturalizedRules.js"
+        }
     },
     "files": [
         "build",
         "generate/dictionary.mjs",
+        "src/schema",
+        "types/dcmjs-schema.d.ts",
+        "schema/naturalized.schema.json",
         "README.md",
         "License.txt"
     ],
@@ -25,7 +32,7 @@
         "node": ">=22.13"
     },
     "scripts": {
-        "prepare": "husky",
+        "prepare": "husky || true",
         "install:update-lockfile": "pnpm install --no-frozen-lockfile",
         "test": "jest --testTimeout 60000 .",
         "build": "rollup -c",
@@ -36,6 +43,8 @@
         "format:check": "prettier --check \"src/**/*.js\" \"test/**/*.js\"",
         "lint": "eslint --fix \"src/**/*.js\" \"test/**/*.js\"",
         "generate-dictionary": "node generate/generate-dictionary.js",
+        "generate-schema": "node generate/generate-schema.mjs",
+        "check:types": "tsc --noEmit --strict types/checks/consumer.ts",
         "pack-dictionary": "node generate/pack_dicom.mjs",
         "bench:dictionary": "bun run generate/bench-dictionary-load.mjs",
         "bench:parser": "node --expose-gc packages/parser/bench/parse-gate.cjs",
@@ -56,7 +65,8 @@
         "@babel/plugin-transform-runtime": "7.23.7",
         "@babel/preset-env": "7.29.5",
         "@babel/register": "7.23.7",
-        "@dcmjs/parser": "workspace:*",
+        "@dcmjs/fhir": "file:packages/fhir",
+        "@dcmjs/parser": "file:packages/parser",
         "@eslint/js": "9.39.4",
         "@rollup/plugin-babel": "6.1.0",
         "@rollup/plugin-commonjs": "28.0.9",
@@ -77,6 +87,7 @@
         "lint-staged": "13.3.0",
         "prettier": "2.8.8",
         "rollup": "4.60.3",
+        "typescript": "^6.0.3",
         "xml2js": "0.6.2"
     },
     "dependencies": {
@@ -108,6 +119,14 @@
     "jest": {
         "setupFilesAfterEnv": [
             "<rootDir>/jest.setup.js"
+        ],
+        "transform": {
+            "\\.m?js$": "babel-jest"
+        },
+        "moduleFileExtensions": [
+            "js",
+            "mjs",
+            "json"
         ]
     }
 }

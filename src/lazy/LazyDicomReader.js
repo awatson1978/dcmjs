@@ -1,19 +1,18 @@
-import pako from "pako";
-import { parseDicom } from "@dcmjs/parser";
-import { ReadBufferStream } from "../BufferStream.js";
-import {
-    EXPLICIT_BIG_ENDIAN,
-    EXPLICIT_LITTLE_ENDIAN,
-    IMPLICIT_LITTLE_ENDIAN,
-    VM_DELIMITER,
-    TagHex,
-    encodingMapping
-} from "../constants/dicom.js";
+import { EXPLICIT_LITTLE_ENDIAN, TagHex } from "../constants/dicom.js";
 import { DicomDict } from "../DicomDict.js";
-import { DicomMessage, singleVRs } from "../DicomMessage.js";
-import { Tag } from "../Tag.js";
+import { DicomMessage } from "../DicomMessage.js";
 import { ValueRepresentation } from "../ValueRepresentation.js";
 import { log } from "../log.js";
+import {
+    resolveVrInstance,
+    shapeReadValues,
+    retainRaw,
+    decodeElementValues,
+    decodeWithEagerReadTag,
+    classifyElement,
+    resolveCharacterSet as coreResolveCharacterSet,
+    seedReadContext
+} from "../core/decodeCore.js";
 
 /**
  * Lazy read core (docs roadmap R1+R2).
@@ -116,28 +115,6 @@ const META_GROUP = 0x0002;
 /** Parser key of the item delimitation pseudo-element (FFFE,E00D) that the
  * tokenizer stores inside undefined-length sequence item dataSets. */
 const ITEM_DELIMITER_KEY = "xfffee00d";
-
-/**
- * Inflater callback for parseDicom (deflate transfer syntax,
- * 1.2.840.10008.1.2.1.99). Needed because the parser's built-in node
- * branch requires a Buffer (it calls byteArray.copy), but readFileLazy
- * normalizes input to a plain Uint8Array.
- *
- * Contract (same as the published dicom-parser): return the original
- * header bytes [0, position) followed by the inflated data set - the
- * parser continues the dataset ByteStream at `position` of the returned
- * buffer. Dataset element offsets then index into this header+inflated
- * buffer (whose header prefix is byte-identical to the original input),
- * while meta element offsets index the original (compressed) buffer - the
- * materialization context carries both.
- */
-function pakoInflater(byteArray, position) {
-    const inflated = pako.inflateRaw(byteArray.subarray(position));
-    const fullByteArray = new Uint8Array(position + inflated.length);
-    fullByteArray.set(byteArray.subarray(0, position), 0);
-    fullByteArray.set(inflated, position);
-    return fullByteArray;
-}
 
 function isMetaElement(el) {
     return el.tagValue >>> 16 === META_GROUP;
@@ -378,223 +355,62 @@ function toUint8Array(buffer) {
 }
 
 /**
- * Resolves the ValueRepresentation instance for a parser element,
- * replicating DicomMessage._readTag's VR resolution rules
- * (src/DicomMessage.js, explicit + implicit branches).
- *
- * Meta (group 0002) elements are always explicit little endian.
- */
-function resolveVrInstance(el, ctx, isMeta) {
-    const implicit = ctx.implicit && !isMeta;
-
-    if (!implicit) {
-        const vrType = el.vr;
-        if (vrType === "UN") {
-            const tag = new Tag(el.tagValue);
-            const elementData = DicomMessage.lookupTag(tag);
-            if (elementData && elementData.vr) {
-                // UN with a known dictionary VR: eager re-parses the value
-                // as the dictionary VR via ParsedUnknownValue.
-                return ValueRepresentation.parseUnknownVr(elementData.vr);
-            }
-        }
-        return ValueRepresentation.createByTypeString(vrType);
-    }
-
-    // Implicit VR: dictionary lookup with _readTag's fallback rules.
-    const tag = new Tag(el.tagValue);
-    const elementData = DicomMessage.lookupTag(tag);
-    let vrType;
-    if (elementData) {
-        vrType = elementData.vr;
-    } else if (el.hadUndefinedLength) {
-        // eager: length == UNDEFINED_LENGTH (the parser corrects element
-        // .length for undefined-length elements, so use the flag)
-        vrType = "SQ";
-    } else if (tag.isPixelDataTag()) {
-        vrType = "OW";
-    } else if (tag.isPrivateCreator()) {
-        vrType = "LO";
-    } else {
-        // (_readTag also has a `vrType == "xs"` arm here, but vrType is
-        // always undefined at that point in the eager code - unreachable.)
-        vrType = "UN";
-    }
-    return ValueRepresentation.createByTypeString(vrType);
-}
-
-/**
- * True when resolveVrInstance produced a ParsedUnknownValue (UN element with
- * a known dictionary VR): those are per-call instances, while every plain VR
- * resolves to the shared VRinstances singleton.
- */
-function isParsedUnknownVr(vrInstance) {
-    return (
-        vrInstance !== ValueRepresentation.createByTypeString(vrInstance.type)
-    );
-}
-
-/**
- * NARROW FALLBACK: eagerly re-reads a single element by running
- * DicomMessage._readTag over a window covering the element's full span
- * [startOffset, endOffset) - header, value, items and delimiters. This
- * delegates the rare shapes the structural paths below do not cover (see
- * call sites) to the exact eager code, so results are byte-equivalent by
- * construction - including eager's error behavior for malformed framing.
- *
- * Values produced here may contain nested item dicts of EAGER entries,
- * whose assignments the dirt tracking cannot see - the owning lazy entry
- * (when there is one) is flagged `_untrackedNested` so
- * isCleanForPassthrough denies it.
- */
-function materializeWithEagerReadTag(ctx, el, isMeta, entry) {
-    if (entry) {
-        entry._untrackedNested = true;
-    }
-    const syntax = isMeta ? EXPLICIT_LITTLE_ENDIAN : ctx.syntax;
-    const littleEndian = isMeta ? true : ctx.littleEndian;
-    const arrayBuffer = isMeta ? ctx.metaArrayBuffer : ctx.arrayBuffer;
-    const baseOffset = isMeta ? ctx.metaBaseOffset : ctx.baseOffset;
-    const start = baseOffset + el.startOffset;
-    const stop = baseOffset + el.endOffset;
-    const stream = new ReadBufferStream(arrayBuffer, littleEndian, {
-        start,
-        stop,
-        // eager's body stream carries noCopy; its meta stream comes from
-        // stream.more(), which drops it
-        noCopy: isMeta ? false : ctx.noCopy
-    });
-    if (!isMeta && ctx.decoder) {
-        stream.setDecoder(ctx.decoder);
-    }
-    const readInfo = DicomMessage._readTag(stream, syntax, {
-        untilTag: null,
-        includeUntilTagValue: false,
-        forceStoreRaw: ctx.forceStoreRaw
-    });
-    return { values: readInfo.values, rawValues: readInfo.rawValues };
-}
-
-/**
- * Verbatim replication of DicomMessage._readTag's value-shaping block
- * (src/DicomMessage.js:380-402): string VM splitting, the SQ and OW/OB
- * passthroughs and the array-or-push fallback (which yields
- * `_rawValue: [undefined]` for non-raw-storing VRs like UN/OF/OD - a quirk
- * the lazy core must reproduce).
- */
-function shapeReadValues(vr, rawValue, value) {
-    let values = [];
-    let rawValues = [];
-    if (!vr.isBinary() && singleVRs.indexOf(vr.type) == -1) {
-        rawValues = rawValue;
-        values = value;
-        if (typeof value === "string") {
-            const delimiterChar = String.fromCharCode(VM_DELIMITER);
-            rawValues = vr.dropPadByte(rawValue.split(delimiterChar));
-            values = vr.dropPadByte(value.split(delimiterChar));
-        }
-    } else if (vr.type == "SQ") {
-        rawValues = rawValue;
-        values = value;
-    } else if (vr.type == "OW" || vr.type == "OB") {
-        rawValues = rawValue;
-        values = value;
-    } else {
-        Array.isArray(value) ? (values = value) : values.push(value);
-        Array.isArray(rawValue)
-            ? (rawValues = rawValue)
-            : rawValues.push(rawValue);
-    }
-    return { values, rawValues };
-}
-
-/**
- * Replicates ValueRepresentation.read's raw-value retention rule
- * (src/ValueRepresentation.js:213-215) for values produced outside vr.read.
- */
-function retainRaw(ctx, vr, producedValue) {
-    return vr.storeRaw() || ctx.forceStoreRaw ? producedValue : undefined;
-}
-
-/**
  * Materializes one element's { values, rawValues } from its byte window.
  *
- * Routing:
- *  - plain SQ -> structural wrap of the tokenizer's items (no byte scan);
- *  - encapsulated pixel data -> frame assembly from the tokenizer's
+ * Routing (via classifyElement):
+ *  - "sequence"     -> structural wrap of the tokenizer's items (no byte scan);
+ *  - "encapsulated" -> frame assembly from the tokenizer's
  *    fragments/basicOffsetTable (no byte scan);
- *  - other undefined-length elements (UN-as-implicit-SQ, ParsedUnknownValue
- *    with undefined length, delimiter-scanned values) -> eager re-read of
- *    the element span, byte-equivalent by construction;
- *  - everything else -> faithful replication of the value phase of
- *    DicomMessage._readTag (src/DicomMessage.js:342-402): the same vr.read
- *    call, the same binary VM splitting, the same value shaping.
+ *  - "eagerWindow"  -> decodeWithEagerReadTag (byte-equivalent eager fallback);
+ *  - "value"        -> decodeElementValues (faithful value-phase replication).
  */
 function materializeElement(ctx, el, vrInstance, isMeta, entry) {
-    // identity check: a ParsedUnknownValue with dictionary VR "SQ" is a
-    // per-call instance, not the shared SQ singleton, and must keep eager's
-    // ParsedUnknownValue.read path (window read below / fallback).
-    if (vrInstance === ValueRepresentation.createByTypeString("SQ")) {
+    const window = isMeta
+        ? {
+              arrayBuffer: ctx.metaArrayBuffer,
+              baseOffset: ctx.metaBaseOffset,
+              syntax: EXPLICIT_LITTLE_ENDIAN,
+              littleEndian: true,
+              implicit: false,
+              decoder: null
+          }
+        : {
+              arrayBuffer: ctx.arrayBuffer,
+              baseOffset: ctx.baseOffset,
+              syntax: ctx.syntax,
+              littleEndian: ctx.littleEndian,
+              implicit: ctx.implicit,
+              decoder: ctx.decoder
+          };
+    const policy = {
+        forceStoreRaw: ctx.forceStoreRaw,
+        noCopy: isMeta ? false : ctx.noCopy,
+        ignoreErrors: ctx.ignoreErrors
+    };
+
+    const kind = classifyElement(el, vrInstance);
+    if (kind === "sequence") {
         return materializeSequence(ctx, el, vrInstance, isMeta, entry);
     }
-    if (el.hadUndefinedLength) {
-        if (el.encapsulatedPixelData && !isParsedUnknownVr(vrInstance)) {
-            return materializeEncapsulatedPixelData(
-                ctx,
-                el,
-                vrInstance,
-                isMeta,
-                entry
-            );
+    if (kind === "encapsulated") {
+        return materializeEncapsulatedPixelData(
+            ctx,
+            el,
+            vrInstance,
+            isMeta,
+            entry
+        );
+    }
+    if (kind === "eagerWindow") {
+        // _untrackedNested bookkeeping stays with the caller (decodeWithEagerReadTag
+        // is side-effect-free with respect to the lazy entry).
+        if (entry) {
+            entry._untrackedNested = true;
         }
-        // UN parsed as implicit SQ by the tokenizer, ParsedUnknownValue with
-        // undefined length, delimiter-scanned values: eager interprets these
-        // through BinaryRepresentation's encapsulated branch (treating the
-        // first item as a BOT), which throws on most real-world sequences -
-        // delegate to the eager code for byte-identical values AND errors.
-        return materializeWithEagerReadTag(ctx, el, isMeta, entry);
+        return decodeWithEagerReadTag(window, el, policy);
     }
-
-    const syntax = isMeta ? EXPLICIT_LITTLE_ENDIAN : ctx.syntax;
-    const littleEndian = isMeta ? true : ctx.littleEndian;
-    const vr = vrInstance;
-    const length = el.length;
-    const arrayBuffer = isMeta ? ctx.metaArrayBuffer : ctx.arrayBuffer;
-    const baseOffset = isMeta ? ctx.metaBaseOffset : ctx.baseOffset;
-    const start = baseOffset + el.dataOffset;
-    const stream = new ReadBufferStream(arrayBuffer, littleEndian, {
-        start,
-        stop: start + length,
-        // eager's body stream carries noCopy (getBuffer then returns
-        // Uint8Array instead of ArrayBuffer); its meta stream comes from
-        // stream.more(), which drops it
-        noCopy: isMeta ? false : ctx.noCopy
-    });
-    if (!isMeta && ctx.decoder) {
-        stream.setDecoder(ctx.decoder);
-    }
-    const readOptions = { forceStoreRaw: ctx.forceStoreRaw };
-
-    if (vr.isBinary() && length > vr.maxLength && !vr.noMultiple) {
-        const values = [];
-        const rawValues = [];
-        const times = length / vr.maxLength;
-        let i = 0;
-        while (i++ < times) {
-            const { rawValue, value } = vr.read(
-                stream,
-                vr.maxLength,
-                syntax,
-                readOptions
-            );
-            rawValues.push(rawValue);
-            values.push(value);
-        }
-        return { values, rawValues };
-    }
-    const { rawValue, value } =
-        vr.read(stream, length, syntax, readOptions) || {};
-    return shapeReadValues(vr, rawValue, value);
+    // "value"
+    return decodeElementValues(window, el, vrInstance, policy);
 }
 
 /**
@@ -626,7 +442,32 @@ function materializeSequence(ctx, el, vrInstance, isMeta, entry) {
         // The tokenizer treated the element as opaque (e.g. defined-length
         // private SQ in implicit syntax, or a dictionary/peek mismatch):
         // re-read the span with the eager code.
-        return materializeWithEagerReadTag(ctx, el, isMeta, entry);
+        if (entry) {
+            entry._untrackedNested = true;
+        }
+        const w = isMeta
+            ? {
+                  arrayBuffer: ctx.metaArrayBuffer,
+                  baseOffset: ctx.metaBaseOffset,
+                  syntax: EXPLICIT_LITTLE_ENDIAN,
+                  littleEndian: true,
+                  implicit: false,
+                  decoder: null
+              }
+            : {
+                  arrayBuffer: ctx.arrayBuffer,
+                  baseOffset: ctx.baseOffset,
+                  syntax: ctx.syntax,
+                  littleEndian: ctx.littleEndian,
+                  implicit: ctx.implicit,
+                  decoder: ctx.decoder
+              };
+        const p = {
+            forceStoreRaw: ctx.forceStoreRaw,
+            noCopy: isMeta ? false : ctx.noCopy,
+            ignoreErrors: ctx.ignoreErrors
+        };
+        return decodeWithEagerReadTag(w, el, p);
     }
 
     const values = [];
@@ -705,7 +546,9 @@ function wrapSequenceItem(ctx, item, parentEntry) {
                 true
             );
         } else {
-            const vrInstance = resolveVrInstance(el, childCtx, false);
+            // childCtx.implicit carries the body implicit flag; the imported
+            // resolveVrInstance(el, window) uses window.implicit directly.
+            const vrInstance = resolveVrInstance(el, childCtx);
             entry = createLazyEntry(childCtx, el, vrInstance, false, cleanTag);
         }
         dict[cleanTag] = entry;
@@ -766,7 +609,32 @@ function materializeEncapsulatedPixelData(ctx, el, vrInstance, isMeta, entry) {
         // Delegate to the eager code for byte-identical behavior.
         const fragmentStarts = new Set(fragments.map(f => f.offset));
         if (!bot.every(offset => fragmentStarts.has(offset))) {
-            return materializeWithEagerReadTag(ctx, el, isMeta, entry);
+            if (entry) {
+                entry._untrackedNested = true;
+            }
+            const w = isMeta
+                ? {
+                      arrayBuffer: ctx.metaArrayBuffer,
+                      baseOffset: ctx.metaBaseOffset,
+                      syntax: EXPLICIT_LITTLE_ENDIAN,
+                      littleEndian: true,
+                      implicit: false,
+                      decoder: null
+                  }
+                : {
+                      arrayBuffer: ctx.arrayBuffer,
+                      baseOffset: ctx.baseOffset,
+                      syntax: ctx.syntax,
+                      littleEndian: ctx.littleEndian,
+                      implicit: ctx.implicit,
+                      decoder: ctx.decoder
+                  };
+            const p = {
+                forceStoreRaw: ctx.forceStoreRaw,
+                noCopy: isMeta ? false : ctx.noCopy,
+                ignoreErrors: ctx.ignoreErrors
+            };
+            return decodeWithEagerReadTag(w, el, p);
         }
         frames = [];
         for (let i = 0; i < bot.length; i++) {
@@ -1003,66 +871,42 @@ function createLazyEntry(
 }
 
 /**
- * Resolves the dataset decoder from SpecificCharacterSet (00080005) with
- * the exact eager semantics of DicomMessage._read (src/DicomMessage.js:77-105):
- * encodingMapping lookup, warn-or-throw per ignoreErrors for unsupported or
- * multiple charsets, and the entry Value rewritten to ["ISO_IR 192"] while
- * _rawValue keeps the original.
- *
- * Returns the seed state for the 00080005 entry, or null if absent.
- * Sets ctx.decoder as a side effect.
+ * Thin wrapper around the core resolveCharacterSet that applies the
+ * decoder side-effect to ctx (mutating ctx.decoder) and returns the same
+ * shape the old local function returned: { vrInstance, originalValues,
+ * seedState } or null.  The core version is side-effect-free; this wrapper
+ * bridges the two conventions so every call site in the lazy reader is
+ * unchanged.
  */
 function resolveCharacterSet(ctx, csEl, ignoreErrors) {
     if (!csEl) {
         return null;
     }
-    const vrInstance = resolveVrInstance(csEl, ctx, false);
-    // Read with the default (latin1) decoder, exactly like the eager loop
-    // does before it reaches the setDecoder call.
-    const { values, rawValues } = materializeElement(
-        ctx,
-        csEl,
-        vrInstance,
-        false
-    );
-
-    if (values.length > 0) {
-        let coding = values[0];
-        coding = coding.replace(/[_ ]/g, "-").toLowerCase();
-        if (coding in encodingMapping) {
-            coding = encodingMapping[coding];
-            ctx.decoder = new TextDecoder(coding);
-        } else if (ignoreErrors) {
-            log.warn(
-                `Unsupported character set: ${coding}, using default character set`
-            );
-        } else {
-            throw Error(`Unsupported character set: ${coding}`);
-        }
+    // Build a body window from ctx (charset elements are always body elements).
+    const window = {
+        arrayBuffer: ctx.arrayBuffer,
+        baseOffset: ctx.baseOffset,
+        syntax: ctx.syntax,
+        littleEndian: ctx.littleEndian,
+        implicit: ctx.implicit,
+        decoder: ctx.decoder
+    };
+    const policy = {
+        forceStoreRaw: ctx.forceStoreRaw,
+        noCopy: ctx.noCopy,
+        ignoreErrors
+    };
+    const result = coreResolveCharacterSet(window, csEl, policy);
+    if (!result) {
+        return null;
     }
-    if (values.length > 1) {
-        if (ignoreErrors) {
-            log.warn(
-                "Using multiple character sets is not supported, proceeding with just the first character set",
-                values
-            );
-        } else {
-            throw Error(
-                `Using multiple character sets is not supported: ${values}`
-            );
-        }
-    }
-
+    // Apply the resolved decoder back onto the mutable ctx (side effect that
+    // the old local function applied directly).
+    ctx.decoder = result.decoder;
     return {
-        vrInstance,
-        // the values as stored in the file, BEFORE the ISO_IR 192 rewrite
-        // (consumed by the charsetPassthroughSafe computation)
-        originalValues: values,
-        seedState: {
-            // change SpecificCharacterSet to UTF-8 (eager quirk, kept)
-            values: ["ISO_IR 192"],
-            rawValues
-        }
+        vrInstance: result.vrInstance,
+        originalValues: result.originalValues,
+        seedState: result.seedState
     };
 }
 
@@ -1151,29 +995,21 @@ export function readFileLazy(buffer, options = {}) {
         }
     }
 
+    // toUint8Array is kept local (byteArray is needed for the meta-group
+    // length byte read and for metaSourceByteArray in the writer seam).
     const byteArray = toUint8Array(buffer);
-    const parseOptions = {
-        untilTag:
-            untilState && !untilState.isMeta ? untilState.parserKey : undefined,
-        inflater: pakoInflater,
-        // Implicit-VR framing: without a dictionary the tokenizer guesses
-        // SQ-ness by peeking for an FFFE,E000 item tag at the value start,
-        // which misframes defined-length elements whose first value bytes
-        // mimic an item tag. Inject the SAME dictionary VR resolution
-        // eager's _readTag implicit branch uses (the parser package itself
-        // stays dictionary-free); undefined for unknown tags keeps the peek
-        // heuristic as the fallback, mirroring eager's own fallback rules.
-        vrCallback: parserTag => {
-            const elementData = DicomMessage.lookupTag(
-                new Tag(parseInt(parserTag.slice(1), 16))
-            );
-            return elementData ? elementData.vr : undefined;
-        }
-    };
 
-    let dataSet;
+    // seedReadContext handles parseDicom + inflater + vrCallback + window
+    // construction; the inflater, vrCallback, and syntax normalization are
+    // no longer duplicated here.
+    let seedResult;
     try {
-        dataSet = parseDicom(byteArray, parseOptions);
+        seedResult = seedReadContext(byteArray, {
+            untilTag:
+                untilState && !untilState.isMeta
+                    ? untilState.parserKey
+                    : undefined
+        });
     } catch {
         // The tokenizer rejected the stream (truncated file, declared
         // lengths overrunning the buffer, VRs it predates like UV/SV/OV,
@@ -1184,6 +1020,7 @@ export function readFileLazy(buffer, options = {}) {
         // eager's.
         return readFileWithEagerCore(buffer, options);
     }
+    const { dataSet, metaWindow, bodyWindow } = seedResult;
 
     const elements = dataSet.elements;
 
@@ -1237,16 +1074,37 @@ export function readFileLazy(buffer, options = {}) {
         return readFileWithEagerCore(buffer, options);
     }
 
+    // Read the raw (unnormalized) TransferSyntaxUID for _lazyWriteContext.sourceSyntax.
+    // seedReadContext already normalised the syntax into bodyWindow.syntax; we
+    // re-decode the meta element here only to preserve the on-disk UID string
+    // (e.g. the deflated syntax UID 1.2.840.10008.1.2.1.99 must be stored
+    // verbatim even though sourceByteArray holds the inflated body).
+    const tsVrInstance = resolveVrInstance(tsEl, metaWindow);
+    const tsPolicy = {
+        forceStoreRaw: false,
+        noCopy: false,
+        ignoreErrors: false
+    };
+    const tsState = decodeElementValues(
+        metaWindow,
+        tsEl,
+        tsVrInstance,
+        tsPolicy
+    );
+    const mainSyntax = tsState.values[0];
+
     // Per-dataset materialization context. Body element offsets index into
     // dataSet.byteArray, which is the input buffer - or, for the deflated
     // transfer syntax, the header + inflated body buffer the inflater
     // returned. Meta (group 0002) element offsets always index into the
     // ORIGINAL input buffer, so the context carries both windows.
+    // bodyWindow from seedReadContext already carries the normalised syntax,
+    // endianness and implicitness — no need to recompute them here.
     const ctx = {
-        arrayBuffer: dataSet.byteArray.buffer,
-        baseOffset: dataSet.byteArray.byteOffset || 0,
-        metaArrayBuffer: byteArray.buffer,
-        metaBaseOffset: byteArray.byteOffset || 0,
+        arrayBuffer: bodyWindow.arrayBuffer,
+        baseOffset: bodyWindow.baseOffset,
+        metaArrayBuffer: metaWindow.arrayBuffer,
+        metaBaseOffset: metaWindow.baseOffset,
         // _sourceSpan buffers (writer seam): body element offsets index
         // dataSet.byteArray (header + inflated body for the deflated
         // syntax), meta element offsets index the original input buffer
@@ -1255,9 +1113,9 @@ export function readFileLazy(buffer, options = {}) {
         // lazy entry of the enclosing SQ element (nested dirt tracking);
         // null at the top level, set per item by wrapSequenceItem
         parentEntry: null,
-        syntax: EXPLICIT_LITTLE_ENDIAN,
-        littleEndian: true,
-        implicit: false,
+        syntax: bodyWindow.syntax,
+        littleEndian: bodyWindow.littleEndian,
+        implicit: bodyWindow.implicit,
         decoder: null,
         forceStoreRaw: !!forceStoreRaw,
         noCopy: !!noCopy,
@@ -1277,14 +1135,6 @@ export function readFileLazy(buffer, options = {}) {
             ) || null,
         onMaterialize
     };
-
-    // Transfer syntax: materialized eagerly (it drives every other read).
-    const tsVrInstance = resolveVrInstance(tsEl, ctx, true);
-    const tsState = materializeElement(ctx, tsEl, tsVrInstance, true);
-    const mainSyntax = tsState.values[0];
-    ctx.syntax = DicomMessage._normalizeSyntax(mainSyntax);
-    ctx.littleEndian = ctx.syntax !== EXPLICIT_BIG_ENDIAN;
-    ctx.implicit = ctx.syntax === IMPLICIT_LITTLE_ENDIAN;
 
     // Character set: resolved once per dataset (eager swaps the decoder
     // when the read loop passes 00080005; tag ordering guarantees every
@@ -1356,7 +1206,12 @@ export function readFileLazy(buffer, options = {}) {
                 el = { ...el, endOffset: dataSet.byteArray.length };
                 omitSpan = true;
             }
-            const vrInstance = resolveVrInstance(el, ctx, isMeta);
+            // metaWindow/bodyWindow carry the correct implicit flag for each
+            // region; the imported resolveVrInstance(el, window) uses window.implicit.
+            const vrInstance = resolveVrInstance(
+                el,
+                isMeta ? metaWindow : bodyWindow
+            );
             entry = createLazyEntry(
                 ctx,
                 el,

@@ -85,6 +85,63 @@ pnpm add dcmjs@dev   # latest code merged to master
 
 The same versions can be installed with `npm install` or Yarn in **your** project; those clients are fine for consuming the published package. **Building this repository** is pnpm-only (see below).
 
+## FHIR Sink (`dcmjs.fhir`)
+
+The `@dcmjs/fhir` workspace package maps DICOM Part 10 elements into FHIR
+R4B resources — deliberately simple: the DICOM patient module becomes a
+`Patient`, the study/series/instance hierarchy becomes an `ImagingStudy`.
+Standard FHIR only; resource ids, storage references, and `meta.tag`s are
+the consumer's job.
+
+```javascript
+// One call from a .dcm ArrayBuffer to FHIR:
+const { patient, imagingStudy } = dcmjs.fhir.fromPart10(arrayBuffer);
+
+// Or from an already-naturalized dataset:
+const dicomDict = dcmjs.data.DicomMessage.readFile(arrayBuffer);
+const dataset = dcmjs.data.DicomMetaDictionary.naturalizeDataset(dicomDict.dict);
+const { patient, imagingStudy } = dcmjs.fhir.toFhir(dataset);
+
+// Many instances of one study -> a collection Bundle
+// (one Patient + one aggregated ImagingStudy, instances grouped by series):
+const bundle = dcmjs.fhir.toBundle([dataset1, dataset2, dataset3]);
+
+// Attach a subject reference the caller resolved:
+dcmjs.fhir.toFhir(dataset, {
+    subject: { reference: "Patient/123", display: "Doe, John" }
+});
+```
+
+API surface (all also importable from `@dcmjs/fhir` inside this repo):
+
+| Function | Input | Output |
+| --- | --- | --- |
+| `fromPart10(arrayBuffer, options?)` | Part 10 ArrayBuffer | `{ patient, imagingStudy }` |
+| `toFhir(dataset, options?)` | naturalized dataset | `{ patient, imagingStudy }` |
+| `toBundle(datasets, options?)` | naturalized dataset array (one study) | FHIR `Bundle` (`type: collection`) |
+| `patientFromDataset(dataset)` | naturalized dataset | FHIR `Patient` or `null` |
+| `imagingStudyFromDataset(dataset, options?)` | naturalized dataset | FHIR `ImagingStudy` or `null` |
+| `imagingStudyFromDatasets(datasets, options?)` | naturalized dataset array | one aggregated `ImagingStudy` or `null` |
+
+Options: `fhirVersion` (`'R4'`/`'R4B'`, default `'R4B'` — anything else
+throws), `subject` (FHIR Reference for `ImagingStudy.subject`),
+`readOptions` (`fromPart10` only, passed to `DicomMessage.readFile`).
+
+Mapping notes (per the IHE Radiology MADO mapping):
+
+- `Patient`: `PatientID` -> MR identifier, `PatientName` (PN) -> `HumanName`,
+  `PatientBirthDate` -> ISO `birthDate`, `PatientSex` -> `gender` plus
+  US Core `birthsex` / `sex-for-clinical-use` extensions.
+- `ImagingStudy`: `StudyInstanceUID` -> `urn:dicom:uid` identifier
+  (`urn:oid:` value), `AccessionNumber` -> ACSN identifier,
+  `StudyDate`/`Time` -> `started`, series `Modality` -> DCM ontology coding
+  (with a study-level modality union), `SeriesNumber`/`InstanceNumber`
+  (IS) emitted as numbers, `SOPClassUID` -> `urn:ietf:rfc:3986` sopClass.
+- Absent elements are omitted entirely — no empty strings or nulls in the
+  output (permissive in, strict out).
+
+Tests: `pnpm exec jest packages/fhir`.
+
 ## For Developers
 
 Building and testing this repository requires **[pnpm](https://pnpm.io/)** and **Node.js 22.13 or newer** (pnpm 11 and this repo’s tooling expect that baseline; Rollup’s dependency chain expects a modern `crypto` global). CI runs tests on Node 22 and 24, and runs the production Rollup build on Node 24. The pnpm version is pinned under `packageManager` in `package.json`. Enable [Corepack](https://nodejs.org/api/corepack.html) (`corepack enable`) and use pnpm for every install and script:

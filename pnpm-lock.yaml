@@ -42,6 +42,9 @@ importers:
       '@babel/register':
         specifier: 7.23.7
         version: 7.23.7(@babel/core@7.23.7)
+      '@dcmjs/fhir':
+        specifier: file:packages/fhir
+        version: link:packages/fhir
       '@dcmjs/parser':
         specifier: file:packages/parser
         version: link:packages/parser
@@ -145,6 +148,8 @@ importers:
       '@docusaurus/types':
         specifier: 3.10.1
         version: 3.10.1(@swc/core@1.15.40)(postcss@8.5.15)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+
+  packages/fhir: {}
 
   packages/parser: {}
 

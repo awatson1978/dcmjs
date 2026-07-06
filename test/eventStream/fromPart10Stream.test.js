@@ -397,3 +397,172 @@ describe("fromPart10Stream — invalid input rejection", () => {
         ).rejects.toThrow(TypeError);
     });
 });
+
+// ---------------------------------------------------------------------------
+// K2 Test 7: FMI events arrive before input is complete (streaming gate)
+//
+// This is the key RED test for K2: the K1 placeholder buffers all bytes
+// before emitting any events, so the test fails with K1.  K2's incremental
+// FMI parser emits startFileMetaInformation / endFileMetaInformation while
+// the body bytes are still blocked behind a gate promise.
+// ---------------------------------------------------------------------------
+
+/**
+ * A minimal EventStreamListener subclass that records which top-level
+ * bracket events have been delivered.  Only the names we care about for
+ * the gate check are tracked; all other callbacks are no-ops.
+ */
+class BracketTrackingListener {
+    constructor() {
+        this.received = [];
+    }
+    startDataSet() {
+        this.received.push("startDataSet");
+    }
+    endDataSet() {
+        this.received.push("endDataSet");
+    }
+    startFileMetaInformation() {
+        this.received.push("startFileMetaInformation");
+    }
+    endFileMetaInformation() {
+        this.received.push("endFileMetaInformation");
+    }
+    // EventStreamListener contract — no-ops for the gate check
+    startElement() {}
+    endElement() {}
+    value() {}
+    startBinary() {}
+    binaryFragment() {}
+    endBinary() {}
+    startSequence() {}
+    endSequence() {}
+    startItem() {}
+    endItem() {}
+    awaitDrain() {}
+}
+
+describe("fromPart10Stream — K2: FMI events before input completes", () => {
+    test(
+        "startFileMetaInformation + endFileMetaInformation arrive while body is gated",
+        async () => {
+            const buffer = readBuffer(FIXTURE_ELE);
+            const bytes = new Uint8Array(buffer);
+
+            // CT1_UNC.explicit_little_endian.dcm FMI ends at ~334 bytes.
+            // Yielding the first 400 bytes covers the entire FMI group.
+            const FMI_SAFE_BOUNDARY = 400;
+
+            let unblockBody;
+            const bodyGate = new Promise(resolve => {
+                unblockBody = resolve;
+            });
+
+            async function* gatingIterable() {
+                // Chunk 1: covers preamble + FMI
+                yield bytes.slice(0, FMI_SAFE_BOUNDARY);
+                // Block until the test releases the gate
+                await bodyGate;
+                // Chunk 2: rest of the file
+                yield bytes.slice(FMI_SAFE_BOUNDARY);
+            }
+
+            const listener = new BracketTrackingListener();
+            const parsePromise = fromPart10Stream(gatingIterable(), listener);
+
+            // Yield control to let the parse run.  Using a chain of resolved
+            // promises (setTimeout is flaky in a heavily loaded CI environment,
+            // so we use process.nextTick + a short setTimeout instead).
+            await new Promise(resolve => setImmediate(resolve));
+            await new Promise(resolve => setTimeout(resolve, 20));
+
+            // K2 assertion: FMI bracket events must have been delivered
+            // BEFORE the body gate is released.
+            expect(listener.received).toContain("startFileMetaInformation");
+            expect(listener.received).toContain("endFileMetaInformation");
+
+            // Release the body gate and let the parse finish.
+            unblockBody();
+            await parsePromise;
+        }
+    );
+});
+
+// ---------------------------------------------------------------------------
+// K2 Test 8: No-meta-length fixture equivalence through the stream path
+//
+// test/no-meta-length-test.dcm lacks (0002,0000) FileMetaInformationGroupLength.
+// The stream path must handle the fallback (stop-on-group-change) correctly
+// and produce events equivalent to the buffered fromPart10 path.
+// ---------------------------------------------------------------------------
+
+const FIXTURE_NO_META_LEN = "test/no-meta-length-test.dcm";
+
+describe("fromPart10Stream — K2: no-group-length FMI fixture", () => {
+    test.each([
+        ["single chunk", buffer => buffer],
+        ["37-byte chunks", buffer => chunked(buffer, 37)]
+    ])(
+        "%s: events deep-equal buffered fromPart10",
+        async (_label, toInput) => {
+            const buffer = readBuffer(FIXTURE_NO_META_LEN);
+            const expected = await runBuffered(buffer.slice(0));
+            const actual = await runStream(toInput(buffer.slice(0)));
+
+            const problems = [];
+            compareSection(
+                expected.meta || {},
+                actual.meta || {},
+                "meta",
+                problems
+            );
+            compareSection(
+                expected.dict || {},
+                actual.dict || {},
+                "dict",
+                problems
+            );
+            expect(problems).toEqual([]);
+        }
+    );
+});
+
+// ---------------------------------------------------------------------------
+// K2 Test 9: Raw-dataset / DICM-less error parity
+//
+// A byte array that is neither a valid Part 10 file (no DICM marker, no 0002
+// group) nor a parseable raw DICOM dataset must fail with an error of the
+// same class as buffered fromPart10.  Exact message parity with @dcmjs/parser
+// is not required (documented delta: early detection in fromPart10Stream may
+// produce a different message; see task-K2-report.md).
+// ---------------------------------------------------------------------------
+
+describe("fromPart10Stream — K2: raw-dataset / DICM-less error parity", () => {
+    test("completely invalid bytes: same error class as buffered fromPart10", async () => {
+        // 64 zero bytes — not a valid DICOM file, not starting with 0002 group.
+        const badBytes = new Uint8Array(64).buffer;
+
+        let bufferedError;
+        try {
+            const listener = new CollectorListener();
+            await fromPart10(badBytes, listener);
+        } catch (e) {
+            bufferedError = e;
+        }
+
+        let streamError;
+        try {
+            const listener = new CollectorListener();
+            await fromPart10Stream(badBytes, listener);
+        } catch (e) {
+            streamError = e;
+        }
+
+        // Both must throw
+        expect(bufferedError).toBeDefined();
+        expect(streamError).toBeDefined();
+
+        // Same error class
+        expect(streamError.constructor).toBe(bufferedError.constructor);
+    });
+});

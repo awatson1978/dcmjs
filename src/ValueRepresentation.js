@@ -65,8 +65,8 @@ function toWindows(inputArray, size) {
 
 let DicomMessage, Tag, DicomMetaDictionary;
 
-var binaryVRs = ["FL", "FD", "SL", "SS", "UL", "US", "AT"],
-    length32VRs = ["OB", "OW", "OF", "SQ", "UC", "UR", "UT", "UN", "OD"],
+var binaryVRs = ["FL", "FD", "SL", "SS", "UL", "US", "AT", "UV"],
+    length32VRs = ["OB", "OW", "OF", "SQ", "UC", "UR", "UT", "UN", "OD", "UV"],
     singleVRs = ["SQ", "OF", "OW", "OB", "UN"];
 
 class ValueRepresentation {
@@ -741,6 +741,12 @@ class NumericStringRepresentation extends AsciiStringRepresentation {
     }
 }
 
+// DS/IS parsing hardening — https://github.com/dcmjs-org/dcmjs/security/advisories/GHSA-px68-xx5g-48q5
+function finiteParsedNumberOrNull(parsed) {
+    const n = Number(parsed);
+    return Number.isFinite(n) ? n : null;
+}
+
 class DecimalString extends NumericStringRepresentation {
     constructor() {
         super("DS");
@@ -750,8 +756,14 @@ class DecimalString extends NumericStringRepresentation {
 
     applyFormatting(value) {
         const formatNumber = numberStr => {
-            let returnVal = numberStr.trim().replace(/[^0-9.\\\-+e]/gi, "");
-            return returnVal === "" ? null : Number(returnVal);
+            if (numberStr === null || numberStr === undefined) {
+                return null;
+            }
+            const returnVal = String(numberStr)
+                .trim()
+                .replace(/[^0-9.\\\-+e]/gi, "");
+            if (returnVal === "") return null;
+            return finiteParsedNumberOrNull(returnVal);
         };
 
         if (Array.isArray(value)) {
@@ -889,8 +901,16 @@ class IntegerString extends NumericStringRepresentation {
 
     applyFormatting(value) {
         const formatNumber = numberStr => {
-            let returnVal = numberStr.trim().replace(/[^0-9.\\\-+e]/gi, "");
-            return returnVal === "" ? null : Number(returnVal);
+            if (numberStr === null || numberStr === undefined) {
+                return null;
+            }
+            const trimmed = String(numberStr).trim();
+            if (trimmed === "") return null;
+            // PS3.5: base-10 integer only (no decimal point, no exponent).
+            if (!/^[+-]?\d+$/.test(trimmed)) {
+                return null;
+            }
+            return finiteParsedNumberOrNull(trimmed);
         };
 
         if (Array.isArray(value)) {
@@ -1359,6 +1379,29 @@ class UnsignedLong extends ValueRepresentation {
     }
 }
 
+class Unsigned64BitVeryLong extends ValueRepresentation {
+    constructor() {
+        super("UV");
+        this.maxLength = 8;
+        this.padByte = PADDING_NULL;
+        this.fixed = true;
+        this.defaultValue = 0;
+    }
+
+    readBytes(stream) {
+        return stream.readBigUint64();
+    }
+
+    writeBytes(stream, value, writeOptions) {
+        return super.writeBytes(
+            stream,
+            value,
+            super.write(stream, "BigUint64", value),
+            writeOptions
+        );
+    }
+}
+
 class UniqueIdentifier extends AsciiStringRepresentation {
     constructor() {
         super("UI");
@@ -1527,7 +1570,8 @@ let VRinstances = {
     UN: new UnknownValue(),
     UR: new UniversalResource(),
     US: new UnsignedShort(),
-    UT: new UnlimitedText()
+    UT: new UnlimitedText(),
+    UV: new Unsigned64BitVeryLong()
 };
 
 export { ValueRepresentation };

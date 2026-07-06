@@ -267,6 +267,16 @@ export class AsyncDicomReader {
             // current tag can be cleared.
             stream.consume();
             const tagInfo = this.readTagHeader(options);
+
+            // Stop when the requested tag boundary is reached.  readTagHeader()
+            // has already consumed the 4-byte tag but nothing beyond it, so
+            // stream.offset now points at the first byte after the tag (i.e.
+            // the VR field for explicit-LE).  Callers that need the start
+            // offset of the tag itself should subtract 4 from stream.offset.
+            if (tagInfo.isUntilTag) {
+                break;
+            }
+
             const { tag, tagObj, length } = tagInfo;
 
             if (tag === TagHex.ItemDelimitationEnd) {
@@ -627,7 +637,7 @@ export class AsyncDicomReader {
 
         if (untilTag && untilTag === tag) {
             if (!includeUntilTagValue) {
-                return { tag, tagObj, vr: 0, values: 0, untilTag: true };
+                return { tag, tagObj, vr: 0, values: 0, isUntilTag: true };
             }
         }
 
@@ -748,9 +758,17 @@ export class AsyncDicomReader {
                     throw Error(`Unsupported character set: ${coding}`);
                 }
             }
+            // Normalize to UTF-8 in the stored value, matching the synchronous
+            // DicomMessage path which always rewrites SpecificCharacterSet to
+            // ISO_IR 192 after decoding (dcmjs always re-encodes output as UTF-8).
+            //
+            // TODO: the original charset value should also be preserved:
+            // it is needed for bulk data decoding.
+            values = ["ISO_IR 192"];
         }
 
-        values.forEach(value => listener.value(value));
+        const valuesForListener = Array.isArray(values) ? values : [values];
+        valuesForListener.forEach(value => listener.value(value));
         return values;
     }
 }

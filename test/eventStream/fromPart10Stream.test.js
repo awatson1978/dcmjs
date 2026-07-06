@@ -928,6 +928,44 @@ function buildSyntheticSQFile() {
     return file.toArrayBuffer();
 }
 
+/**
+ * Build a synthesized Part 10 file (Explicit Little Endian) whose body
+ * contains only a zero-length top-level SQ (length = 0, no items).
+ * This is a boundary case: parseSqItems must exit immediately on an empty range.
+ */
+function buildSyntheticZeroLengthSQFile() {
+    const tsStr = "1.2.840.10008.1.2.1\0"; // ELE
+
+    const fmiOB = new DicomWriter();
+    fmiOB.elemLong(0x0002, 0x0001, "OB", new Uint8Array([0, 1]));
+
+    const fmiTS = new DicomWriter();
+    fmiTS.elemStd(
+        0x0002, 0x0010, "UI",
+        new Uint8Array(tsStr.split("").map(c => c.charCodeAt(0)))
+    );
+
+    const restFmiLen =
+        fmiOB.toUint8Array().length + fmiTS.toUint8Array().length;
+    const glBytes = new Uint8Array(4);
+    new DataView(glBytes.buffer).setUint32(0, restFmiLen, true);
+    const fmiGL = new DicomWriter();
+    fmiGL.elemStd(0x0002, 0x0000, "UL", glBytes);
+
+    const body = new DicomWriter();
+    body.elemStd(0x0008, 0x0060, "CS", new Uint8Array([0x43, 0x54])); // "CT"
+    body.elemLong(0x0008, 0x1115, "SQ", new Uint8Array(0)); // zero-length SQ
+
+    const file = new DicomWriter();
+    file.zeros(128);
+    file.ascii("DICM");
+    file._push(fmiGL.toUint8Array());
+    file._push(fmiOB.toUint8Array());
+    file._push(fmiTS.toUint8Array());
+    file._push(body.toUint8Array());
+    return file.toArrayBuffer();
+}
+
 describe("fromPart10Stream — K3: synthesized defined-length SQ equivalence", () => {
     test(
         "SQ with two defined-length items (37-byte chunks): events match buffered",
@@ -954,6 +992,216 @@ describe("fromPart10Stream — K3: synthesized defined-length SQ equivalence", (
             compareSection(expected.meta || {}, actual.meta || {}, "meta", problems);
             compareSection(expected.dict || {}, actual.dict || {}, "dict", problems);
             expect(problems).toEqual([]);
+        }
+    );
+
+    // K3 Minor: zero-length top-level SQ boundary (Test 13 extension)
+    test(
+        "zero-length top-level SQ (single chunk): events match buffered",
+        async () => {
+            const buffer = buildSyntheticZeroLengthSQFile();
+            const expected = await runBuffered(buffer.slice(0));
+            const actual = await runStream(buffer.slice(0));
+
+            const problems = [];
+            compareSection(expected.meta || {}, actual.meta || {}, "meta", problems);
+            compareSection(expected.dict || {}, actual.dict || {}, "dict", problems);
+            expect(problems).toEqual([]);
+        }
+    );
+
+    test(
+        "zero-length top-level SQ (37-byte chunks): events match buffered",
+        async () => {
+            const buffer = buildSyntheticZeroLengthSQFile();
+            const expected = await runBuffered(buffer.slice(0));
+            const actual = await runStream(chunked(buffer.slice(0), 37));
+
+            const problems = [];
+            compareSection(expected.meta || {}, actual.meta || {}, "meta", problems);
+            compareSection(expected.dict || {}, actual.dict || {}, "dict", problems);
+            expect(problems).toEqual([]);
+        }
+    );
+});
+
+// ---------------------------------------------------------------------------
+// K3 Test 14: Explicit-big-endian corpus equivalence + native-path assertion
+//
+// CT1_UNC.explicit_big_endian.dcm uses Explicit Big Endian transfer syntax.
+// Both single-chunk and 37-byte-chunked streaming must produce events identical
+// to the buffered reference, and options.onPhase must report 'native' (the
+// file contains only defined-length elements — no tail-fallback required).
+// ---------------------------------------------------------------------------
+
+const FIXTURE_EBE =
+    "packages/parser/testImages/CT1_UNC.explicit_big_endian.dcm";
+
+describe("fromPart10Stream — K3: explicit-big-endian corpus equivalence (native path)", () => {
+    test.each([
+        ["single chunk",    buf => buf],
+        ["37-byte chunks",  buf => chunked(buf, 37)]
+    ])(
+        "%s: events deep-equal buffered + onPhase='native'",
+        async (_label, toInput) => {
+            const buffer = readBuffer(FIXTURE_EBE);
+            const expected = await runBuffered(buffer.slice(0));
+            const phases   = [];
+            const actual   = await runStream(toInput(buffer.slice(0)), {
+                onPhase: p => phases.push(p)
+            });
+
+            const problems = [];
+            compareSection(expected.meta || {}, actual.meta || {}, "meta", problems);
+            compareSection(expected.dict || {}, actual.dict || {}, "dict", problems);
+            expect(problems).toEqual([]);
+
+            // This corpus file contains only defined-length elements; the K3
+            // incremental body loop must handle it without tail-fallback.
+            expect(phases).toContain("native");
+            expect(phases).not.toContain("tailFallback");
+            expect(phases).not.toContain("deflate");
+        }
+    );
+});
+
+// ---------------------------------------------------------------------------
+// K3 Test 15: Implicit-little-endian corpus equivalence + native-path assertion
+//
+// CT1_UNC.implicit_little_endian.dcm uses Implicit Little Endian transfer
+// syntax (no VR bytes in the body).  The stream must decode it equivalently
+// to the buffered path (dictionary-driven VR resolution + data-peek for
+// dictionary-unknown SQ elements), and onPhase must report 'native'.
+// ---------------------------------------------------------------------------
+
+const FIXTURE_ILE =
+    "packages/parser/testImages/CT1_UNC.implicit_little_endian.dcm";
+
+describe("fromPart10Stream — K3: implicit-little-endian corpus equivalence (native path)", () => {
+    test.each([
+        ["single chunk",    buf => buf],
+        ["37-byte chunks",  buf => chunked(buf, 37)]
+    ])(
+        "%s: events deep-equal buffered + onPhase='native'",
+        async (_label, toInput) => {
+            const buffer = readBuffer(FIXTURE_ILE);
+            const expected = await runBuffered(buffer.slice(0));
+            const phases   = [];
+            const actual   = await runStream(toInput(buffer.slice(0)), {
+                onPhase: p => phases.push(p)
+            });
+
+            const problems = [];
+            compareSection(expected.meta || {}, actual.meta || {}, "meta", problems);
+            compareSection(expected.dict || {}, actual.dict || {}, "dict", problems);
+            expect(problems).toEqual([]);
+
+            expect(phases).toContain("native");
+            expect(phases).not.toContain("tailFallback");
+            expect(phases).not.toContain("deflate");
+        }
+    );
+});
+
+// ---------------------------------------------------------------------------
+// K3 Test 16: Implicit SQ-detection divergence — data-peek parity
+//
+// The buffered parser (readDicomElementImplicit.js isSequence()) peeks at the
+// first 4 value bytes of a dictionary-unknown, non-private implicit element:
+// if they are an item tag (FFFE,E000) or sequence delimiter (FFFE,E0DD) the
+// element is treated as an implicit SQ.  fromPart10Stream must mirror this.
+//
+// Synthesized file uses tag (2222,2222) — even group, not in any standard
+// DICOM dictionary — so both paths use the peek heuristic, not a VR lookup.
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a minimal Implicit Little Endian Part 10 file whose body contains
+ * exactly one element with the given tag and raw value bytes.
+ */
+function buildImplicitBodyFile(tagGroup, tagElement, valueBytes) {
+    const ILE_TS = "1.2.840.10008.1.2\0";
+
+    const fmiOB = new DicomWriter();
+    fmiOB.elemLong(0x0002, 0x0001, "OB", new Uint8Array([0, 1]));
+
+    const fmiTS = new DicomWriter();
+    fmiTS.elemStd(
+        0x0002, 0x0010, "UI",
+        new Uint8Array(ILE_TS.split("").map(c => c.charCodeAt(0)))
+    );
+
+    const restFmiLen =
+        fmiOB.toUint8Array().length + fmiTS.toUint8Array().length;
+    const glBytes = new Uint8Array(4);
+    new DataView(glBytes.buffer).setUint32(0, restFmiLen, true);
+    const fmiGL = new DicomWriter();
+    fmiGL.elemStd(0x0002, 0x0000, "UL", glBytes);
+
+    // Implicit body element: tag (LE uint16 × 2) + 4-byte LE length + value
+    const bodyElem = new DicomWriter();
+    bodyElem.u16(tagGroup);
+    bodyElem.u16(tagElement);
+    bodyElem.u32(valueBytes.length);
+    bodyElem._push(valueBytes instanceof Uint8Array ? valueBytes : new Uint8Array(valueBytes));
+
+    const file = new DicomWriter();
+    file.zeros(128);
+    file.ascii("DICM");
+    file._push(fmiGL.toUint8Array());
+    file._push(fmiOB.toUint8Array());
+    file._push(fmiTS.toUint8Array());
+    file._push(bodyElem.toUint8Array());
+    return file.toArrayBuffer();
+}
+
+describe("fromPart10Stream — K3: implicit SQ-detection data-peek parity", () => {
+    // Positive case: value starts with FFFE,E000 (item tag) — treat as SQ.
+    // Both buffered (via isSequence() peek) and stream (via mirrored peek)
+    // must emit an SQ with one empty item.
+    test(
+        "dictionary-unknown implicit element: value starts with item tag → SQ matches buffered",
+        async () => {
+            // One empty item: FFFE,E000 (LE) + length=0
+            const itemBytes = new Uint8Array([
+                0xfe, 0xff, 0x00, 0xe0, // FFFE,E000 item tag (LE)
+                0x00, 0x00, 0x00, 0x00  // item length = 0
+            ]);
+            const buffer = buildImplicitBodyFile(0x2222, 0x2222, itemBytes);
+
+            const expected = await runBuffered(buffer.slice(0));
+            const actual   = await runStream(buffer.slice(0));
+
+            const problems = [];
+            compareSection(expected.meta || {}, actual.meta || {}, "meta", problems);
+            compareSection(expected.dict || {}, actual.dict || {}, "dict", problems);
+            expect(problems).toEqual([]);
+
+            // Sanity: both sides must actually have the element
+            expect(expected.dict["22222222"]).toBeDefined();
+            expect(actual.dict["22222222"]).toBeDefined();
+        }
+    );
+
+    // Negative case: value does NOT start with an item tag — emit UN leaf.
+    // Both paths must agree without the peek heuristic firing.
+    test(
+        "dictionary-unknown implicit element: value NOT item tag → UN leaf matches buffered",
+        async () => {
+            // Arbitrary non-item bytes (first byte 0x41 ≠ 0xfe)
+            const leafBytes = new Uint8Array([0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48]);
+            const buffer = buildImplicitBodyFile(0x2222, 0x2222, leafBytes);
+
+            const expected = await runBuffered(buffer.slice(0));
+            const actual   = await runStream(buffer.slice(0));
+
+            const problems = [];
+            compareSection(expected.meta || {}, actual.meta || {}, "meta", problems);
+            compareSection(expected.dict || {}, actual.dict || {}, "dict", problems);
+            expect(problems).toEqual([]);
+
+            expect(expected.dict["22222222"]).toBeDefined();
+            expect(actual.dict["22222222"]).toBeDefined();
         }
     );
 });

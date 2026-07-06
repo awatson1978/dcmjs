@@ -631,7 +631,35 @@ export async function fromPart10Stream(input, listener, options = {}) {
                 implicit: bodyImplicit,
                 decoder: null
             };
-            const vrInstance = resolveVrInstance(elLike, dummyWin);
+            let vrInstance = resolveVrInstance(elLike, dummyWin);
+
+            // Mirror readDicomElementImplicit.js isSequence() data-peek for
+            // implicit-VR nested elements (same logic as the top-level loop).
+            if (
+                bodyImplicit &&
+                vrInstance.type !== "SQ" &&
+                (elGroup & 1) === 0 &&
+                valueLength >= 4
+            ) {
+                await stream.ensureAvailable(4);
+                if (stream.isAvailable(4, false)) {
+                    const peekGroup = stream.view.getUint16(
+                        valueStartAbs,
+                        true
+                    );
+                    const peekElem = stream.view.getUint16(
+                        valueStartAbs + 2,
+                        true
+                    );
+                    if (
+                        peekGroup === 0xfffe &&
+                        (peekElem === 0xe000 || peekElem === 0xe0dd)
+                    ) {
+                        vrInstance =
+                            ValueRepresentation.createByTypeString("SQ");
+                    }
+                }
+            }
 
             if (vrInstance.type === "SQ") {
                 // Nested defined-length SQ: recurse
@@ -793,7 +821,35 @@ export async function fromPart10Stream(input, listener, options = {}) {
             implicit: bodyImplicit,
             decoder: null
         };
-        const vrInstance = resolveVrInstance(elLike, dummyWin);
+        let vrInstance = resolveVrInstance(elLike, dummyWin);
+
+        // Mirror readDicomElementImplicit.js isSequence() data-peek:
+        // For implicit-VR datasets the dictionary alone may not identify an
+        // unknown element as SQ.  When the element is non-private and its first
+        // 4 value bytes are an item tag (FFFE,E000) or sequence delimiter
+        // (FFFE,E0DD), treat it as an implicit SQ — exactly the heuristic used
+        // by the buffered parser.  K3 boundary: hadUndefinedLength is always
+        // false here (undefined-length already triggered tail-fallback above),
+        // so only the !isPrivate branch of the original condition applies.
+        if (
+            bodyImplicit &&
+            vrInstance.type !== "SQ" &&
+            (elGroup & 1) === 0 &&
+            valueLength >= 4
+        ) {
+            await stream.ensureAvailable(4);
+            if (stream.isAvailable(4, false)) {
+                // Item/delimiter tags are always stored little-endian.
+                const peekGroup = stream.view.getUint16(valueStartAbs, true);
+                const peekElem = stream.view.getUint16(valueStartAbs + 2, true);
+                if (
+                    peekGroup === 0xfffe &&
+                    (peekElem === 0xe000 || peekElem === 0xe0dd)
+                ) {
+                    vrInstance = ValueRepresentation.createByTypeString("SQ");
+                }
+            }
+        }
 
         // --- Route by element type ---
         if (vrInstance.type === "SQ") {

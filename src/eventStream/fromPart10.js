@@ -11,7 +11,8 @@ import { fromDataSet } from "./fromDataSet.js";
 import {
     resolveVrInstance,
     decodeElementValues,
-    resolveCharacterSet
+    resolveCharacterSet,
+    decodeWithEagerReadTag
 } from "../core/decodeCore.js";
 
 /**
@@ -99,70 +100,57 @@ export async function fromPart10(buffer, listener, options = {}) {
         decoder: null
     };
 
-    // A control-flow signal used to bail out to whole-file delegation when a
-    // per-element hard case is reached.
-    const HARD = Symbol("hard-case");
+    listener.startDataSet({ transferSyntaxUID: syntax });
 
-    try {
-        listener.startDataSet({ transferSyntaxUID: syntax });
+    const elements = dataSet.elements;
+    const keys = Object.keys(elements).filter(k => k !== "xfffee00d");
+    const metaKeys = keys.filter(k => isMetaKey(k));
+    const bodyKeys = keys.filter(k => !isMetaKey(k));
 
-        const elements = dataSet.elements;
-        const keys = Object.keys(elements).filter(k => k !== "xfffee00d");
-        const metaKeys = keys.filter(k => isMetaKey(k));
-        const bodyKeys = keys.filter(k => !isMetaKey(k));
-
-        if (metaKeys.length) {
-            listener.startFileMetaInformation();
-            for (const key of metaKeys) {
-                emitElement(
-                    listener,
-                    metaWindow,
-                    bodyWindow,
-                    policy,
-                    elements[key],
-                    true,
-                    HARD,
-                    null
-                );
-            }
-            listener.endFileMetaInformation();
-        }
-
-        // Resolve the dataset decoder from SpecificCharacterSet (00080005).
-        // resolveCharacterSet uses eager semantics: throws for unsupported
-        // charsets when ignoreErrors=false (DELIBERATE convergence on eager),
-        // degrades to null decoder when ignoreErrors=true.
-        // The ISO_IR 192 seedState in the result is intentionally discarded:
-        // the event stream emits SpecificCharacterSet as-in-file (corpus gate
-        // exempts that tag from equivalence checking).
-        const csResult = resolveCharacterSet(
-            bodyWindow,
-            elements.x00080005,
-            policy
-        );
-        const decoder = csResult?.decoder ?? null;
-
-        for (const key of bodyKeys) {
+    if (metaKeys.length) {
+        listener.startFileMetaInformation();
+        for (const key of metaKeys) {
             emitElement(
                 listener,
                 metaWindow,
                 bodyWindow,
                 policy,
                 elements[key],
-                false,
-                HARD,
-                decoder
+                true,
+                null
             );
-            await listener.awaitDrain();
         }
-
-        listener.endDataSet();
-    } catch (signal) {
-        if (signal === HARD) {
-            return delegate(buffer, listener, options);
-        }
-        throw signal;
+        listener.endFileMetaInformation();
     }
+
+    // Resolve the dataset decoder from SpecificCharacterSet (00080005).
+    // resolveCharacterSet uses eager semantics: throws for unsupported
+    // charsets when ignoreErrors=false (DELIBERATE convergence on eager),
+    // degrades to null decoder when ignoreErrors=true.
+    // The ISO_IR 192 seedState in the result is intentionally discarded:
+    // the event stream emits SpecificCharacterSet as-in-file (corpus gate
+    // exempts that tag from equivalence checking).
+    const csResult = resolveCharacterSet(
+        bodyWindow,
+        elements.x00080005,
+        policy
+    );
+    const decoder = csResult?.decoder ?? null;
+
+    for (const key of bodyKeys) {
+        emitElement(
+            listener,
+            metaWindow,
+            bodyWindow,
+            policy,
+            elements[key],
+            false,
+            decoder
+        );
+        await listener.awaitDrain();
+    }
+
+    listener.endDataSet();
 }
 
 /** Re-emit the whole file via the slice-A path over the lazy core's decode. */
@@ -194,7 +182,6 @@ function emitElement(
     policy,
     el,
     isMeta,
-    HARD,
     decoder
 ) {
     const tag = cleanTag(el);
@@ -230,7 +217,6 @@ function emitElement(
                     policy,
                     itemElements[key],
                     isMeta,
-                    HARD,
                     itemDecoder
                 );
             }
@@ -252,9 +238,18 @@ function emitElement(
         return;
     }
 
-    // Other undefined-length cases are hard: delegate the whole file.
+    // Undefined-length non-SQ elements (classifyElement "eagerWindow"): re-read
+    // the element span via the eager reader, exactly as the lazy core does via
+    // materializeWithEagerReadTag.  This eliminates the whole-file delegation
+    // that previously occurred here (slice J stage 4a).
     if (el.hadUndefinedLength) {
-        throw HARD;
+        const { values, rawValues } = decodeWithEagerReadTag(
+            window,
+            el,
+            policy
+        );
+        emitValues(listener, tag, vrInstance, el, values, rawValues);
+        return;
     }
 
     // Decode the value(s) with the core primitives, then route by the DECODED
@@ -267,7 +262,11 @@ function emitElement(
         vrInstance,
         policy
     );
+    emitValues(listener, tag, vrInstance, el, values, rawValues);
+}
 
+/** Route decoded {values, rawValues} to binary or scalar listener events. */
+function emitValues(listener, tag, vrInstance, el, values, rawValues) {
     if (values.some(isBufferLike)) {
         listener.startElement(tag, { vr: vrInstance.type, length: el.length });
         listener.startBinary({ encapsulated: false });

@@ -179,6 +179,12 @@ const FIXTURES = [
     ...discoverFixtures(TEST_DIR, n => /\.(dcm|dicom|lei)$/i.test(n))
 ].map(full => [path.relative(REPO_ROOT, full), full]);
 
+// Deflate-specific fixtures for slice J4b gate.
+const DEFLATE_FIXTURES = discoverFixtures(
+    path.join(PARSER_IMAGES_DIR, "deflate"),
+    n => !n.toLowerCase().endsWith(".md")
+).map(full => [path.relative(REPO_ROOT, full), full]);
+
 function readBuffer(full) {
     const data = fs.readFileSync(full);
     return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
@@ -266,6 +272,53 @@ function compareEntry(a, b, where, problems) {
     }
     deepCompare(av, bv, `${where}.Value`, problems);
 }
+
+// --- slice J4b: deflate transfer syntax decoded natively --------------------
+
+describe("fromPart10 — deflate native (slice J4b)", () => {
+    test.each(DEFLATE_FIXTURES)(
+        "%s — native decode (no readFile delegation)",
+        async (_rel, full) => {
+            let source;
+            try {
+                source = DicomMessage.readFile(readBuffer(full));
+            } catch {
+                return; // skip files both cores reject
+            }
+
+            let readFileCallCount = 0;
+            const readFileSpy = jest.spyOn(DicomMessage, "readFile");
+            try {
+                const listener = new CollectorListener();
+                await fromPart10(readBuffer(full), listener);
+                // Capture before mockRestore (mockRestore clears mock.calls).
+                readFileCallCount = readFileSpy.mock.calls.length;
+
+                const problems = [];
+                compareSection(
+                    source.meta || {},
+                    listener.result.meta || {},
+                    "meta",
+                    problems
+                );
+                compareSection(
+                    source.dict || {},
+                    listener.result.dict || {},
+                    "dict",
+                    problems
+                );
+                expect(problems).toEqual([]);
+            } finally {
+                readFileSpy.mockRestore();
+            }
+            // RED before fix: deflate files delegated to readFile (1+ calls).
+            // GREEN after fix: seedReadContext handles inflation natively.
+            expect(readFileCallCount).toBe(0);
+        }
+    );
+});
+
+// --- corpus gate: raw bytes -> events, equivalent to readFile ---------------
 
 describe("fromPart10 — corpus round-trip equivalence (raw bytes -> events)", () => {
     test.each(FIXTURES)("%s", async (_rel, full) => {

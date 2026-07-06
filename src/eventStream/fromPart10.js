@@ -1,22 +1,15 @@
-import { parseDicom } from "@dcmjs/parser";
 import { DicomMessage } from "../DicomMessage.js";
-import { Tag } from "../Tag.js";
-import {
-    EXPLICIT_LITTLE_ENDIAN,
-    EXPLICIT_BIG_ENDIAN,
-    IMPLICIT_LITTLE_ENDIAN,
-    DEFLATED_EXPLICIT_LITTLE_ENDIAN
-} from "../constants/dicom.js";
 import { fromDataSet } from "./fromDataSet.js";
 import {
     resolveVrInstance,
     decodeElementValues,
     resolveCharacterSet,
-    decodeWithEagerReadTag
+    decodeWithEagerReadTag,
+    seedReadContext
 } from "../core/decodeCore.js";
 
 /**
- * fromPart10 — slice B: a genuine raw-bytes Part 10 -> event-stream generator.
+ * fromPart10 — a genuine raw-bytes Part 10 -> event-stream generator.
  *
  * Walks @dcmjs/parser's offsets tree in source order and emits the event-stream
  * contract, decoding each element with decodeCore primitives (resolveVrInstance,
@@ -24,9 +17,13 @@ import {
  * as RAW fragments (§33); frame grouping is naturalization (slice D).
  * Defined-length binary is one fragment.
  *
- * Hard cases delegate to the lazy core for the whole file (byte-equivalent by
- * construction): deflate transfer syntax, and any per-element undefined-length
- * non-SQ / unknown-VR case the common-path walker can't faithfully decode.
+ * Parsing is delegated to decodeCore.seedReadContext which runs @dcmjs/parser
+ * with the pako inflater (transparent for non-deflate syntax) and returns
+ * ready-to-use metaWindow (original buffer) and bodyWindow (inflated body).
+ * Undefined-length non-SQ elements (classifyElement "eagerWindow") are decoded
+ * per-element via decodeCore.decodeWithEagerReadTag.  Tokenizer-rejected files
+ * fall back to DicomMessage.readFile (slice J stage 4c will remove this last
+ * delegation path after empirical corpus verification).
  *
  * Documented behavior deltas vs the old fromPart10 (both are DELIBERATE
  * convergence on eager DicomMessage.readFile semantics):
@@ -45,59 +42,29 @@ import {
 export async function fromPart10(buffer, listener, options = {}) {
     const byteArray = toUint8Array(buffer);
 
-    let dataSet;
+    // seedReadContext parses with @dcmjs/parser (inflater enabled for deflate),
+    // extracts the transfer syntax, and returns ready-to-use windows where
+    // metaWindow indexes the original (possibly compressed) buffer and
+    // bodyWindow indexes the (possibly inflated) body buffer.  This replaces
+    // the direct parseDicom call + manual window construction and eliminates
+    // the deflate early-return delegation path (slice J stage 4b).
+    let dataSet, syntax, metaWindow, bodyWindow;
     try {
-        dataSet = parseDicom(byteArray, {
-            vrCallback: parserTag => {
-                const ed = DicomMessage.lookupTag(
-                    new Tag(parseInt(parserTag.slice(1), 16))
-                );
-                return ed ? ed.vr : undefined;
-            }
-        });
+        ({ dataSet, syntax, metaWindow, bodyWindow } = seedReadContext(
+            byteArray,
+            options
+        ));
     } catch (e) {
         // Tokenizer-rejected file: let the lazy core decide (it delegates to
-        // eager and throws the same way).
+        // eager and throws the same way).  Slice J stage 4c will remove this
+        // last delegation path after empirical corpus verification.
         return delegate(buffer, listener, options, e);
     }
-
-    // metaWindow: original input buffer, always explicit little endian.
-    // Meta element offsets always index the original (possibly compressed)
-    // buffer; we construct this before reading the transfer syntax so the TS
-    // element can be decoded without a separate stream setup.
-    const metaWindow = {
-        arrayBuffer: byteArray.buffer,
-        baseOffset: byteArray.byteOffset || 0,
-        syntax: EXPLICIT_LITTLE_ENDIAN,
-        littleEndian: true,
-        implicit: false,
-        decoder: null
-    };
 
     const policy = {
         forceStoreRaw: !!options.forceStoreRaw,
         noCopy: false,
         ignoreErrors: !!options.ignoreErrors
-    };
-
-    const syntax = DicomMessage._normalizeSyntax(
-        transferSyntaxOf(dataSet, metaWindow, policy)
-    );
-    if (syntax === DEFLATED_EXPLICIT_LITTLE_ENDIAN) {
-        // Deflate dual-buffer handling is trapped in the lazy core; delegate.
-        return delegate(buffer, listener, options);
-    }
-
-    // bodyWindow: post-parse buffer with negotiated syntax/endianness/
-    // implicitness. decoder starts null; resolved after SpecificCharacterSet
-    // is read below.
-    const bodyWindow = {
-        arrayBuffer: dataSet.byteArray.buffer,
-        baseOffset: dataSet.byteArray.byteOffset || 0,
-        syntax,
-        littleEndian: syntax !== EXPLICIT_BIG_ENDIAN,
-        implicit: syntax === IMPLICIT_LITTLE_ENDIAN,
-        decoder: null
     };
 
     listener.startDataSet({ transferSyntaxUID: syntax });
@@ -292,21 +259,6 @@ function isBufferLike(v) {
 }
 
 // --- misc -------------------------------------------------------------------
-
-/**
- * Read the transfer syntax UID from the dataset using core decode primitives.
- * The TS element lives in group 0002 (always explicit little endian), so
- * metaWindow is the correct window.
- */
-function transferSyntaxOf(dataSet, metaWindow, policy) {
-    const el = dataSet.elements.x00020010;
-    if (!el) {
-        return EXPLICIT_LITTLE_ENDIAN;
-    }
-    const vrInstance = resolveVrInstance(el, metaWindow);
-    const { values } = decodeElementValues(metaWindow, el, vrInstance, policy);
-    return values[0] || EXPLICIT_LITTLE_ENDIAN;
-}
 
 function fragmentBuffer(window, f) {
     const start = window.baseOffset + f.position;

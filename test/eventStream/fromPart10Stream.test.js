@@ -411,10 +411,16 @@ describe("fromPart10Stream — invalid input rejection", () => {
  * A minimal EventStreamListener subclass that records which top-level
  * bracket events have been delivered.  Only the names we care about for
  * the gate check are tracked; all other callbacks are no-ops.
+ *
+ * Also resolves `fmiComplete` promise when endFileMetaInformation is called,
+ * allowing tests to await deterministically instead of using flaky timers.
  */
 class BracketTrackingListener {
     constructor() {
         this.received = [];
+        this.fmiComplete = new Promise(resolve => {
+            this._resolveFmiComplete = resolve;
+        });
     }
     startDataSet() {
         this.received.push("startDataSet");
@@ -427,6 +433,8 @@ class BracketTrackingListener {
     }
     endFileMetaInformation() {
         this.received.push("endFileMetaInformation");
+        // Signal that FMI parsing is complete, allowing deterministic test gating.
+        this._resolveFmiComplete();
     }
     // EventStreamListener contract — no-ops for the gate check
     startElement() {}
@@ -470,11 +478,14 @@ describe("fromPart10Stream — K2: FMI events before input completes", () => {
             const listener = new BracketTrackingListener();
             const parsePromise = fromPart10Stream(gatingIterable(), listener);
 
-            // Yield control to let the parse run.  Using a chain of resolved
-            // promises (setTimeout is flaky in a heavily loaded CI environment,
-            // so we use process.nextTick + a short setTimeout instead).
-            await new Promise(resolve => setImmediate(resolve));
-            await new Promise(resolve => setTimeout(resolve, 20));
+            // Await completion of FMI parsing deterministically.
+            // The listener resolves fmiComplete when endFileMetaInformation is called.
+            // Use a generous timeout that FAILS the test rather than passing vacuously
+            // if FMI parsing stalls.
+            const fmiTimeout = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("FMI parsing timeout")), 10000)
+            );
+            await Promise.race([listener.fmiComplete, fmiTimeout]);
 
             // K2 assertion: FMI bracket events must have been delivered
             // BEFORE the body gate is released.

@@ -26,36 +26,8 @@ import { ReadBufferStream } from "../BufferStream.js";
 import { fromPart10 } from "./fromPart10.js";
 import { EXPLICIT_LITTLE_ENDIAN } from "../constants/dicom.js";
 import { DicomMessage } from "../DicomMessage.js";
+import { ValueRepresentation } from "../ValueRepresentation.js";
 import { resolveVrInstance, decodeElementValues } from "../core/decodeCore.js";
-
-// ---------------------------------------------------------------------------
-// VR classification
-// ---------------------------------------------------------------------------
-
-/**
- * VRs that use the 12-byte extended-length element header (4-byte tag +
- * 2-byte VR code + 2-byte reserved + 4-byte length) instead of the standard
- * 8-byte header (4-byte tag + 2-byte VR + 2-byte length).
- *
- * Authoritative source: DICOM PS3.5 Table 7.1-2 and
- * ValueRepresentation.js `length32VRs`.  OL/OV/SV are later additions
- * (PS3.5 2023c) included for forward compatibility.
- */
-const LENGTH32_VRS = new Set([
-    "OB",
-    "OW",
-    "OF",
-    "OD",
-    "SQ",
-    "UC",
-    "UR",
-    "UT",
-    "UN",
-    "OL",
-    "OV",
-    "SV",
-    "UV"
-]);
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -257,7 +229,10 @@ export async function fromPart10Stream(input, listener, options = {}) {
 
         // Length: 2 bytes (standard VR) or 2 reserved + 4 bytes (extended VR)
         let valueLength;
-        if (LENGTH32_VRS.has(vrStr)) {
+        // Resolve VR instance to determine header framing via isLength32()
+        // createByTypeString handles invalid VR strings by falling back to UN.
+        const vrForHeader = ValueRepresentation.createByTypeString(vrStr);
+        if (vrForHeader.isLength32()) {
             // Extended form: need 2 more bytes (reserved) + 4 bytes (length32)
             await stream.ensureAvailable(6);
             if (!stream.isAvailable(6, false)) break; // truncated
@@ -300,11 +275,13 @@ export async function fromPart10Stream(input, listener, options = {}) {
         // elLike: the minimal shape decodeCore.resolveVrInstance and
         // decodeCore.decodeElementValues require.
         //   vr        — VR string (e.g. "UI", "UL", "OB")
+        //   tagValue  — numeric tag (group << 16) | element, for UN dictionary lookup
         //   dataOffset — byte offset of value within the window.arrayBuffer
         //   length    — value byte count
         //   hadUndefinedLength — always false for FMI elements (PS3.5 §7.1)
         const elLike = {
             vr: vrStr,
+            tagValue: (elGroup << 16) | elElement,
             dataOffset: 0,
             length: valueLength,
             hadUndefinedLength: false

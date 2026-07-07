@@ -1,31 +1,41 @@
 import { parseDicom } from "@dcmjs/parser";
-import { ReadBufferStream } from "../BufferStream.js";
-import { ValueRepresentation } from "../ValueRepresentation.js";
 import { DicomMessage } from "../DicomMessage.js";
 import { Tag } from "../Tag.js";
 import {
     EXPLICIT_LITTLE_ENDIAN,
     EXPLICIT_BIG_ENDIAN,
     IMPLICIT_LITTLE_ENDIAN,
-    DEFLATED_EXPLICIT_LITTLE_ENDIAN,
-    VM_DELIMITER,
-    encodingMapping
+    DEFLATED_EXPLICIT_LITTLE_ENDIAN
 } from "../constants/dicom.js";
 import { fromDataSet } from "./fromDataSet.js";
+import {
+    resolveVrInstance,
+    decodeElementValues,
+    resolveCharacterSet
+} from "../core/decodeCore.js";
 
 /**
  * fromPart10 — slice B: a genuine raw-bytes Part 10 -> event-stream generator.
  *
  * Walks @dcmjs/parser's offsets tree in source order and emits the event-stream
- * contract, decoding each element with dcmjs's public primitives
- * (ReadBufferStream + ValueRepresentation.read) plus faithful copies of the
- * small pure helpers (resolveVrInstance, shapeReadValues). Encapsulated pixel
- * data is emitted as RAW fragments (§33); frame grouping is naturalization
- * (slice D). Defined-length binary is one fragment.
+ * contract, decoding each element with decodeCore primitives (resolveVrInstance,
+ * decodeElementValues, resolveCharacterSet). Encapsulated pixel data is emitted
+ * as RAW fragments (§33); frame grouping is naturalization (slice D).
+ * Defined-length binary is one fragment.
  *
  * Hard cases delegate to the lazy core for the whole file (byte-equivalent by
  * construction): deflate transfer syntax, and any per-element undefined-length
  * non-SQ / unknown-VR case the common-path walker can't faithfully decode.
+ *
+ * Documented behavior deltas vs the old fromPart10 (both are DELIBERATE
+ * convergence on eager DicomMessage.readFile semantics):
+ *   1. shapeReadValues convergence: multi-value shaping now follows the eager
+ *      singleVRs branch structure (core import) instead of allowMultiple()+
+ *      alignRaw. Output is byte-equivalent for all standard VR types.
+ *   2. Charset error policy: resolveCharacterSet (top-level and per-item) now
+ *      throws on unsupported/multiple charsets when ignoreErrors=false, where
+ *      the old resolveDecoder silently returned null. ignoreErrors=true still
+ *      degrades to null decoder (core handles it internally).
  *
  * @param {ArrayBuffer|Uint8Array} buffer
  * @param {import("./EventStreamListener").EventStreamListener} listener
@@ -50,20 +60,43 @@ export async function fromPart10(buffer, listener, options = {}) {
         return delegate(buffer, listener, options, e);
     }
 
-    const syntax = DicomMessage._normalizeSyntax(transferSyntaxOf(dataSet));
+    // metaWindow: original input buffer, always explicit little endian.
+    // Meta element offsets always index the original (possibly compressed)
+    // buffer; we construct this before reading the transfer syntax so the TS
+    // element can be decoded without a separate stream setup.
+    const metaWindow = {
+        arrayBuffer: byteArray.buffer,
+        baseOffset: byteArray.byteOffset || 0,
+        syntax: EXPLICIT_LITTLE_ENDIAN,
+        littleEndian: true,
+        implicit: false,
+        decoder: null
+    };
+
+    const policy = {
+        forceStoreRaw: !!options.forceStoreRaw,
+        noCopy: false,
+        ignoreErrors: !!options.ignoreErrors
+    };
+
+    const syntax = DicomMessage._normalizeSyntax(
+        transferSyntaxOf(dataSet, metaWindow, policy)
+    );
     if (syntax === DEFLATED_EXPLICIT_LITTLE_ENDIAN) {
         // Deflate dual-buffer handling is trapped in the lazy core; delegate.
         return delegate(buffer, listener, options);
     }
 
-    const ctx = {
+    // bodyWindow: post-parse buffer with negotiated syntax/endianness/
+    // implicitness. decoder starts null; resolved after SpecificCharacterSet
+    // is read below.
+    const bodyWindow = {
         arrayBuffer: dataSet.byteArray.buffer,
-        baseOffset: dataSet.byteArray.byteOffset,
+        baseOffset: dataSet.byteArray.byteOffset || 0,
         syntax,
         littleEndian: syntax !== EXPLICIT_BIG_ENDIAN,
         implicit: syntax === IMPLICIT_LITTLE_ENDIAN,
-        forceStoreRaw: !!options.forceStoreRaw,
-        ignoreErrors: !!options.ignoreErrors
+        decoder: null
     };
 
     // A control-flow signal used to bail out to whole-file delegation when a
@@ -81,14 +114,45 @@ export async function fromPart10(buffer, listener, options = {}) {
         if (metaKeys.length) {
             listener.startFileMetaInformation();
             for (const key of metaKeys) {
-                emitElement(listener, ctx, elements[key], true, HARD);
+                emitElement(
+                    listener,
+                    metaWindow,
+                    bodyWindow,
+                    policy,
+                    elements[key],
+                    true,
+                    HARD,
+                    null
+                );
             }
             listener.endFileMetaInformation();
         }
 
-        const decoder = resolveDecoder(ctx, elements.x00080005);
+        // Resolve the dataset decoder from SpecificCharacterSet (00080005).
+        // resolveCharacterSet uses eager semantics: throws for unsupported
+        // charsets when ignoreErrors=false (DELIBERATE convergence on eager),
+        // degrades to null decoder when ignoreErrors=true.
+        // The ISO_IR 192 seedState in the result is intentionally discarded:
+        // the event stream emits SpecificCharacterSet as-in-file (corpus gate
+        // exempts that tag from equivalence checking).
+        const csResult = resolveCharacterSet(
+            bodyWindow,
+            elements.x00080005,
+            policy
+        );
+        const decoder = csResult?.decoder ?? null;
+
         for (const key of bodyKeys) {
-            emitElement(listener, ctx, elements[key], false, HARD, decoder);
+            emitElement(
+                listener,
+                metaWindow,
+                bodyWindow,
+                policy,
+                elements[key],
+                false,
+                HARD,
+                decoder
+            );
             await listener.awaitDrain();
         }
 
@@ -115,23 +179,55 @@ function delegate(buffer, listener, options, parseError) {
     return fromDataSet({ meta: dict.meta, dict: dict.dict }, listener);
 }
 
-function emitElement(listener, ctx, el, isMeta, HARD, decoder) {
+/**
+ * Emit a single element (or subtree) into the listener.
+ *
+ * `decoder` is the current-scope TextDecoder (null if no charset in effect).
+ * For body elements it is merged into a copy of bodyWindow before passing to
+ * decodeElementValues so the body window itself stays immutable — enabling
+ * per-item decoder scoping in sequences without shared-state mutation.
+ */
+function emitElement(
+    listener,
+    metaWindow,
+    bodyWindow,
+    policy,
+    el,
+    isMeta,
+    HARD,
+    decoder
+) {
     const tag = cleanTag(el);
-    const vr = resolveVrInstance(el, ctx, isMeta);
+    // Select the correct window for this element's scope and attach the
+    // current decoder. metaWindow.decoder is always null (meta is always
+    // decoded with the default latin1 decoder).
+    const window = isMeta
+        ? metaWindow
+        : decoder
+        ? { ...bodyWindow, decoder }
+        : bodyWindow;
+    const vrInstance = resolveVrInstance(el, window);
 
     // Plain sequence (defined or undefined length).
-    if (vr.type === "SQ" && el.items) {
-        listener.startSequence(tag, { vr: vr.type, length: el.length });
+    if (vrInstance.type === "SQ" && el.items) {
+        listener.startSequence(tag, { vr: vrInstance.type, length: el.length });
         for (const item of el.items) {
             listener.startItem({ length: item.length });
             const itemElements = (item.dataSet && item.dataSet.elements) || {};
+            // Per-item charset resolution: resolveCharacterSet throws for
+            // unsupported charsets when ignoreErrors=false (convergence on
+            // eager); degrades to null decoder (outer decoder used) when
+            // ignoreErrors=true (handled internally by the core).
             const itemDecoder =
-                resolveDecoder(ctx, itemElements.x00080005) || decoder;
+                resolveCharacterSet(bodyWindow, itemElements.x00080005, policy)
+                    ?.decoder ?? decoder;
             for (const key of Object.keys(itemElements)) {
                 if (key === "xfffee00d") continue;
                 emitElement(
                     listener,
-                    ctx,
+                    metaWindow,
+                    bodyWindow,
+                    policy,
                     itemElements[key],
                     isMeta,
                     HARD,
@@ -146,10 +242,10 @@ function emitElement(listener, ctx, el, isMeta, HARD, decoder) {
 
     // Encapsulated pixel data -> raw fragments.
     if (el.encapsulatedPixelData && el.fragments) {
-        listener.startElement(tag, { vr: vr.type, length: el.length });
+        listener.startElement(tag, { vr: vrInstance.type, length: el.length });
         listener.startBinary({ encapsulated: true });
         for (const f of el.fragments) {
-            listener.binaryFragment(fragmentBuffer(ctx, f));
+            listener.binaryFragment(fragmentBuffer(bodyWindow, f));
         }
         listener.endBinary();
         listener.endElement();
@@ -161,21 +257,19 @@ function emitElement(listener, ctx, el, isMeta, HARD, decoder) {
         throw HARD;
     }
 
-    // Decode the value(s) with the same primitives readFile uses, then route by
-    // the DECODED type: byte-blob VRs (OB/OW/OF/OD/UN) produce ArrayBuffers and
-    // go to the binary sub-stream; everything else (incl. numeric "binary" VRs
-    // like SL/US which decode to numbers) goes to value().
-    const stream = elementStream(ctx, el, isMeta, decoder);
-    const { values, rawValues } = decodeValues(
-        vr,
-        stream,
-        el.length,
-        readSyntax(ctx, isMeta),
-        ctx
+    // Decode the value(s) with the core primitives, then route by the DECODED
+    // type: byte-blob VRs (OB/OW/OF/OD/UN) produce ArrayBuffers and go to the
+    // binary sub-stream; everything else (incl. numeric "binary" VRs like
+    // SL/US which decode to numbers) goes to value().
+    const { values, rawValues } = decodeElementValues(
+        window,
+        el,
+        vrInstance,
+        policy
     );
 
     if (values.some(isBufferLike)) {
-        listener.startElement(tag, { vr: vr.type, length: el.length });
+        listener.startElement(tag, { vr: vrInstance.type, length: el.length });
         listener.startBinary({ encapsulated: false });
         for (const buf of values) {
             listener.binaryFragment(buf);
@@ -185,7 +279,7 @@ function emitElement(listener, ctx, el, isMeta, HARD, decoder) {
         return;
     }
 
-    listener.startElement(tag, { vr: vr.type, length: el.length });
+    listener.startElement(tag, { vr: vrInstance.type, length: el.length });
     let index = 0;
     for (const v of values) {
         listener.value(v, { index, rawValue: rawValues[index] });
@@ -194,156 +288,30 @@ function emitElement(listener, ctx, el, isMeta, HARD, decoder) {
     listener.endElement();
 }
 
-/**
- * Mirror materializeElement's value phase: numeric multi-read loop + shaping.
- * Returns { values, rawValues } in parallel; rawValues carry source strings for
- * precision-preserving retention (§16/§27).
- */
-function decodeValues(vr, stream, length, syntax, ctx) {
-    const opts = { forceStoreRaw: ctx.forceStoreRaw };
-    if (vr.isBinary() && vr.maxLength && length > vr.maxLength) {
-        const values = [];
-        const rawValues = [];
-        const times = length / vr.maxLength;
-        for (let i = 0; i < times; i++) {
-            const r = vr.read(stream, vr.maxLength, syntax, opts);
-            values.push(r.value);
-            rawValues.push(r.rawValue);
-        }
-        return { values, rawValues };
-    }
-    const result = vr.read(stream, length, syntax, opts) || {};
-    return shapeReadValues(vr, result.value, result.rawValue);
-}
-
 function isBufferLike(v) {
     return v instanceof ArrayBuffer || ArrayBuffer.isView(v);
 }
 
-// --- decode helpers (faithful copies of the lazy core's pure helpers) -------
-
-function resolveVrInstance(el, ctx, isMeta) {
-    const implicit = ctx.implicit && !isMeta;
-    if (!implicit) {
-        const vrType = el.vr;
-        if (vrType === "UN") {
-            const ed = DicomMessage.lookupTag(new Tag(el.tagValue));
-            if (ed && ed.vr) {
-                return ValueRepresentation.parseUnknownVr(ed.vr);
-            }
-        }
-        return ValueRepresentation.createByTypeString(vrType);
-    }
-    const tag = new Tag(el.tagValue);
-    const ed = DicomMessage.lookupTag(tag);
-    let vrType;
-    if (ed) {
-        vrType = ed.vr;
-    } else if (el.hadUndefinedLength) {
-        vrType = "SQ";
-    } else if (tag.isPixelDataTag()) {
-        vrType = "OW";
-    } else if (tag.isPrivateCreator()) {
-        vrType = "LO";
-    } else {
-        vrType = "UN";
-    }
-    return ValueRepresentation.createByTypeString(vrType);
-}
-
-function shapeReadValues(vr, value, rawValue) {
-    if (vr.allowMultiple() && typeof value === "string") {
-        const delim = String.fromCharCode(VM_DELIMITER);
-        const values = vr.dropPadByte(value.split(delim));
-        const rawValues =
-            typeof rawValue === "string"
-                ? vr.dropPadByte(rawValue.split(delim))
-                : alignRaw(values, rawValue);
-        return { values, rawValues };
-    }
-    const values = Array.isArray(value) ? value : [value];
-    return { values, rawValues: alignRaw(values, rawValue) };
-}
-
-/** Align a (possibly scalar) rawValue to the shaped values array, by position. */
-function alignRaw(values, rawValue) {
-    if (Array.isArray(rawValue)) {
-        return rawValue;
-    }
-    if (values.length === 1) {
-        return [rawValue];
-    }
-    return values.map(() => undefined);
-}
-
-function resolveDecoder(ctx, csEl) {
-    if (!csEl) {
-        return null;
-    }
-    const stream = elementStream(ctx, csEl, false, null);
-    const vr = ValueRepresentation.createByTypeString(csEl.vr || "CS");
-    const { value } = vr.read(stream, csEl.length, EXPLICIT_LITTLE_ENDIAN, {
-        forceStoreRaw: false
-    });
-    const first = Array.isArray(value) ? value[0] : value;
-    if (!first) {
-        return null;
-    }
-    const coding = String(first).replace(/[_ ]/g, "-").toLowerCase();
-    if (coding in encodingMapping) {
-        return new TextDecoder(encodingMapping[coding]);
-    }
-    return null;
-}
-
-// --- byte-window helpers ----------------------------------------------------
-
-function elementStream(ctx, el, isMeta, decoder) {
-    const start = ctx.baseOffset + el.dataOffset;
-    const stream = new ReadBufferStream(
-        ctx.arrayBuffer,
-        readLittleEndian(ctx, isMeta),
-        {
-            start,
-            stop: start + el.length
-        }
-    );
-    if (!isMeta && decoder) {
-        stream.setDecoder(decoder);
-    }
-    return stream;
-}
-
-function fragmentBuffer(ctx, f) {
-    const start = ctx.baseOffset + f.position;
-    return ctx.arrayBuffer.slice(start, start + f.length);
-}
-
-function readSyntax(ctx, isMeta) {
-    return isMeta ? EXPLICIT_LITTLE_ENDIAN : ctx.syntax;
-}
-
-function readLittleEndian(ctx, isMeta) {
-    return isMeta ? true : ctx.littleEndian;
-}
-
 // --- misc -------------------------------------------------------------------
 
-function transferSyntaxOf(dataSet) {
+/**
+ * Read the transfer syntax UID from the dataset using core decode primitives.
+ * The TS element lives in group 0002 (always explicit little endian), so
+ * metaWindow is the correct window.
+ */
+function transferSyntaxOf(dataSet, metaWindow, policy) {
     const el = dataSet.elements.x00020010;
     if (!el) {
         return EXPLICIT_LITTLE_ENDIAN;
     }
-    const start = dataSet.byteArray.byteOffset + el.dataOffset;
-    const stream = new ReadBufferStream(dataSet.byteArray.buffer, true, {
-        start,
-        stop: start + el.length
-    });
-    const vr = ValueRepresentation.createByTypeString("UI");
-    const { value } = vr.read(stream, el.length, EXPLICIT_LITTLE_ENDIAN, {
-        forceStoreRaw: false
-    });
-    return Array.isArray(value) ? value[0] : value;
+    const vrInstance = resolveVrInstance(el, metaWindow);
+    const { values } = decodeElementValues(metaWindow, el, vrInstance, policy);
+    return values[0] || EXPLICIT_LITTLE_ENDIAN;
+}
+
+function fragmentBuffer(window, f) {
+    const start = window.baseOffset + f.position;
+    return window.arrayBuffer.slice(start, start + f.length);
 }
 
 function cleanTag(el) {

@@ -99,6 +99,42 @@ The event layer sits *on top of* the existing cores; it does not replace them:
   compressed pixel data) is a deliberate non-goal of the event/naturalized path
   and remains served by the lazy read + passthrough writer.
 
+## Streaming source gates (slice K)
+
+`fromPart10Stream` — the incremental, chunk-fed streaming source — is held to
+the same contract as `fromPart10` by a formal gate suite
+(`test/eventStream/streamEquivalence.test.js`):
+
+- **Corpus × chunking equivalence.** Every fixture is streamed at chunk sizes
+  1, 37, 1024, and whole-file; the `CollectorListener` result must be deep-equal
+  to the buffered `fromPart10` result. One-byte chunks are the ultimate
+  byte-boundary torture test. Known-reject fixtures (e.g. `sample-op.lei`) must
+  reject consistently across both sources.
+- **Raw-event-level parity.** Five representative fixtures (plain ELE, explicit
+  BE, implicit LE, deflate, encapsulated) are replayed through a
+  `RecordingListener` and the full event sequence is compared verbatim between
+  sources. The one documented delta is DELTA-A: encapsulated pixel-data
+  `startElement.length` is `0xFFFFFFFF` (stream) vs a computed span (buffered);
+  this is normalized by name in the gate and pinned in code.
+- **Synthesized EBE SQ.** An in-test Explicit Big Endian file with a
+  defined-length sequence validates that FFFE-family item/delimiter tags and their
+  lengths are read in the body transfer-syntax byte order (big-endian for EBE),
+  matching the buffered `fromPart10` behavior (Tag.readTag → readUint16 which
+  honors `isLittleEndian`).
+- **Bounded memory — encapsulated.** A 24 × 256 KB synthetic encapsulated file
+  is streamed with a drain gate; peak retained bytes must stay below
+  `(1 fragment + 1 chunk + slack)` and final retention must approach zero.
+- **Bounded memory — deflate.** A synthetic deflate body is streamed; both the
+  inflated `bodyStream` and the raw `stream` peaks must stay bounded.
+- **Backpressure.** A controllable `drainBlocker` placed before `fromPart10Stream`
+  starts proves that the body loop does not race ahead: no element N+2 event
+  arrives while the drain is blocked after element N. Release resumes to
+  completion without timeout.
+- **Truncation — loud, not silent.** Seven truncation phases (mid-preamble,
+  mid-FMI, mid-element-header, mid-value, mid-fragment, mid-deflate-stream, empty
+  input) each reject with an error; none hang. A per-phase 5-second hang safety
+  net is the backstop.
+
 ## Source-agnostic equivalence
 
 Because all sources emit the same contract, the naturalized object is identical

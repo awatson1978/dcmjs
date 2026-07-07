@@ -503,9 +503,16 @@ export async function fromPart10Stream(input, listener, options = {}) {
         decoder: null
     };
 
-    // Byte-order helpers for body elements (tag, VR, length, item tags).
+    // Byte-order helpers for body elements (tag, VR, length).
     // Use `bsrc` (bodyStream for deflate, stream for everything else) so that
     // these helpers operate in the correct offset space.
+    //
+    // FFFE-family item/delimiter tags (FFFE,E000 / FFFE,E00D / FFFE,E0DD) and
+    // their length fields are read in the body transfer-syntax byte order, exactly
+    // as the buffered fromPart10 reads them via Tag.readTag → readUint16, which
+    // honors stream.isLittleEndian.  They are NOT unconditionally little-endian:
+    // in an Explicit Big Endian dataset the item bytes on wire are big-endian
+    // (FF FE for the group, E0 00 for the element, etc.) and must be read as BE.
     const getU16 = abs => bsrc.view.getUint16(abs, bodyLittleEndian);
     const getU32 = abs => bsrc.view.getUint32(abs, bodyLittleEndian);
 
@@ -985,6 +992,22 @@ export async function fromPart10Stream(input, listener, options = {}) {
             target.binaryFragment(bsrc.slice(fragStart, fragEnd));
             bsrc.offset = fragEnd;
             await target.awaitDrain(); // backpressure between fragments
+            // K6: per-fragment release — bounding peak memory to (largest
+            // fragment + chunk size + fixed slack) rather than the full pixel-data
+            // element.  The fragment bytes were already copied into an owned
+            // ArrayBuffer by bsrc.slice(), so aliasing is safe to discard here.
+            // Without this, the whole encapsulated element accumulates in the stream
+            // buffer until the post-element consume() in the body loop fires.
+            if (releaseEnabled) {
+                bsrc.consume(bsrc.offset);
+                const info = bsrc.getBufferMemoryInfo();
+                // For the deflate path (bodyStream active), mirror the body-loop
+                // pattern: include raw stream memory state alongside inflated state.
+                if (bodyStream) {
+                    info.rawStreamInfo = stream.getBufferMemoryInfo();
+                }
+                options.onConsume?.(info);
+            }
         }
         target.endBinary();
         target.endElement();

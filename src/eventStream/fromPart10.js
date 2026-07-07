@@ -1,21 +1,13 @@
-import { parseDicom } from "@dcmjs/parser";
-import { DicomMessage } from "../DicomMessage.js";
-import { Tag } from "../Tag.js";
-import {
-    EXPLICIT_LITTLE_ENDIAN,
-    EXPLICIT_BIG_ENDIAN,
-    IMPLICIT_LITTLE_ENDIAN,
-    DEFLATED_EXPLICIT_LITTLE_ENDIAN
-} from "../constants/dicom.js";
-import { fromDataSet } from "./fromDataSet.js";
 import {
     resolveVrInstance,
     decodeElementValues,
-    resolveCharacterSet
+    resolveCharacterSet,
+    decodeWithEagerReadTag,
+    seedReadContext
 } from "../core/decodeCore.js";
 
 /**
- * fromPart10 — slice B: a genuine raw-bytes Part 10 -> event-stream generator.
+ * fromPart10 — a genuine raw-bytes Part 10 -> event-stream generator.
  *
  * Walks @dcmjs/parser's offsets tree in source order and emits the event-stream
  * contract, decoding each element with decodeCore primitives (resolveVrInstance,
@@ -23,9 +15,13 @@ import {
  * as RAW fragments (§33); frame grouping is naturalization (slice D).
  * Defined-length binary is one fragment.
  *
- * Hard cases delegate to the lazy core for the whole file (byte-equivalent by
- * construction): deflate transfer syntax, and any per-element undefined-length
- * non-SQ / unknown-VR case the common-path walker can't faithfully decode.
+ * Parsing is delegated to decodeCore.seedReadContext which runs @dcmjs/parser
+ * with the pako inflater (transparent for non-deflate syntax) and returns
+ * ready-to-use metaWindow (original buffer) and bodyWindow (inflated body).
+ * Undefined-length non-SQ elements (classifyElement "eagerWindow") are decoded
+ * per-element via decodeCore.decodeWithEagerReadTag.  Tokenizer-rejected files
+ * propagate the error directly (empirical corpus check confirmed no file needs
+ * eager fallback — slice J stage 4c).
  *
  * Documented behavior deltas vs the old fromPart10 (both are DELIBERATE
  * convergence on eager DicomMessage.readFile semantics):
@@ -44,34 +40,24 @@ import {
 export async function fromPart10(buffer, listener, options = {}) {
     const byteArray = toUint8Array(buffer);
 
-    let dataSet;
+    // seedReadContext parses with @dcmjs/parser (inflater enabled for deflate),
+    // extracts the transfer syntax, and returns ready-to-use windows where
+    // metaWindow indexes the original (possibly compressed) buffer and
+    // bodyWindow indexes the (possibly inflated) body buffer.  This replaces
+    // the direct parseDicom call + manual window construction and eliminates
+    // the deflate early-return delegation path (slice J stage 4b).
+    let dataSet, syntax, metaWindow, bodyWindow;
     try {
-        dataSet = parseDicom(byteArray, {
-            vrCallback: parserTag => {
-                const ed = DicomMessage.lookupTag(
-                    new Tag(parseInt(parserTag.slice(1), 16))
-                );
-                return ed ? ed.vr : undefined;
-            }
-        });
+        ({ dataSet, syntax, metaWindow, bodyWindow } = seedReadContext(
+            byteArray,
+            options
+        ));
     } catch (e) {
-        // Tokenizer-rejected file: let the lazy core decide (it delegates to
-        // eager and throws the same way).
-        return delegate(buffer, listener, options, e);
+        // Empirical check (slice J stage 4c) confirmed: every corpus file either
+        // passes seedReadContext or is also rejected by DicomMessage.readFile —
+        // no file requires a whole-file fallback here.  Propagate directly.
+        throw e;
     }
-
-    // metaWindow: original input buffer, always explicit little endian.
-    // Meta element offsets always index the original (possibly compressed)
-    // buffer; we construct this before reading the transfer syntax so the TS
-    // element can be decoded without a separate stream setup.
-    const metaWindow = {
-        arrayBuffer: byteArray.buffer,
-        baseOffset: byteArray.byteOffset || 0,
-        syntax: EXPLICIT_LITTLE_ENDIAN,
-        littleEndian: true,
-        implicit: false,
-        decoder: null
-    };
 
     const policy = {
         forceStoreRaw: !!options.forceStoreRaw,
@@ -79,104 +65,57 @@ export async function fromPart10(buffer, listener, options = {}) {
         ignoreErrors: !!options.ignoreErrors
     };
 
-    const syntax = DicomMessage._normalizeSyntax(
-        transferSyntaxOf(dataSet, metaWindow, policy)
-    );
-    if (syntax === DEFLATED_EXPLICIT_LITTLE_ENDIAN) {
-        // Deflate dual-buffer handling is trapped in the lazy core; delegate.
-        return delegate(buffer, listener, options);
-    }
+    listener.startDataSet({ transferSyntaxUID: syntax });
 
-    // bodyWindow: post-parse buffer with negotiated syntax/endianness/
-    // implicitness. decoder starts null; resolved after SpecificCharacterSet
-    // is read below.
-    const bodyWindow = {
-        arrayBuffer: dataSet.byteArray.buffer,
-        baseOffset: dataSet.byteArray.byteOffset || 0,
-        syntax,
-        littleEndian: syntax !== EXPLICIT_BIG_ENDIAN,
-        implicit: syntax === IMPLICIT_LITTLE_ENDIAN,
-        decoder: null
-    };
+    const elements = dataSet.elements;
+    const keys = Object.keys(elements).filter(k => k !== "xfffee00d");
+    const metaKeys = keys.filter(k => isMetaKey(k));
+    const bodyKeys = keys.filter(k => !isMetaKey(k));
 
-    // A control-flow signal used to bail out to whole-file delegation when a
-    // per-element hard case is reached.
-    const HARD = Symbol("hard-case");
-
-    try {
-        listener.startDataSet({ transferSyntaxUID: syntax });
-
-        const elements = dataSet.elements;
-        const keys = Object.keys(elements).filter(k => k !== "xfffee00d");
-        const metaKeys = keys.filter(k => isMetaKey(k));
-        const bodyKeys = keys.filter(k => !isMetaKey(k));
-
-        if (metaKeys.length) {
-            listener.startFileMetaInformation();
-            for (const key of metaKeys) {
-                emitElement(
-                    listener,
-                    metaWindow,
-                    bodyWindow,
-                    policy,
-                    elements[key],
-                    true,
-                    HARD,
-                    null
-                );
-            }
-            listener.endFileMetaInformation();
-        }
-
-        // Resolve the dataset decoder from SpecificCharacterSet (00080005).
-        // resolveCharacterSet uses eager semantics: throws for unsupported
-        // charsets when ignoreErrors=false (DELIBERATE convergence on eager),
-        // degrades to null decoder when ignoreErrors=true.
-        // The ISO_IR 192 seedState in the result is intentionally discarded:
-        // the event stream emits SpecificCharacterSet as-in-file (corpus gate
-        // exempts that tag from equivalence checking).
-        const csResult = resolveCharacterSet(
-            bodyWindow,
-            elements.x00080005,
-            policy
-        );
-        const decoder = csResult?.decoder ?? null;
-
-        for (const key of bodyKeys) {
+    if (metaKeys.length) {
+        listener.startFileMetaInformation();
+        for (const key of metaKeys) {
             emitElement(
                 listener,
                 metaWindow,
                 bodyWindow,
                 policy,
                 elements[key],
-                false,
-                HARD,
-                decoder
+                true,
+                null
             );
-            await listener.awaitDrain();
         }
-
-        listener.endDataSet();
-    } catch (signal) {
-        if (signal === HARD) {
-            return delegate(buffer, listener, options);
-        }
-        throw signal;
+        listener.endFileMetaInformation();
     }
-}
 
-/** Re-emit the whole file via the slice-A path over the lazy core's decode. */
-function delegate(buffer, listener, options, parseError) {
-    let dict;
-    try {
-        dict = DicomMessage.readFile(toArrayBuffer(buffer), options);
-    } catch (e) {
-        if (parseError) {
-            throw parseError;
-        }
-        throw e;
+    // Resolve the dataset decoder from SpecificCharacterSet (00080005).
+    // resolveCharacterSet uses eager semantics: throws for unsupported
+    // charsets when ignoreErrors=false (DELIBERATE convergence on eager),
+    // degrades to null decoder when ignoreErrors=true.
+    // The ISO_IR 192 seedState in the result is intentionally discarded:
+    // the event stream emits SpecificCharacterSet as-in-file (corpus gate
+    // exempts that tag from equivalence checking).
+    const csResult = resolveCharacterSet(
+        bodyWindow,
+        elements.x00080005,
+        policy
+    );
+    const decoder = csResult?.decoder ?? null;
+
+    for (const key of bodyKeys) {
+        emitElement(
+            listener,
+            metaWindow,
+            bodyWindow,
+            policy,
+            elements[key],
+            false,
+            decoder
+        );
+        await listener.awaitDrain();
     }
-    return fromDataSet({ meta: dict.meta, dict: dict.dict }, listener);
+
+    listener.endDataSet();
 }
 
 /**
@@ -194,7 +133,6 @@ function emitElement(
     policy,
     el,
     isMeta,
-    HARD,
     decoder
 ) {
     const tag = cleanTag(el);
@@ -230,7 +168,6 @@ function emitElement(
                     policy,
                     itemElements[key],
                     isMeta,
-                    HARD,
                     itemDecoder
                 );
             }
@@ -252,9 +189,18 @@ function emitElement(
         return;
     }
 
-    // Other undefined-length cases are hard: delegate the whole file.
+    // Undefined-length non-SQ elements (classifyElement "eagerWindow"): re-read
+    // the element span via the eager reader, exactly as the lazy core does via
+    // materializeWithEagerReadTag.  This eliminates the whole-file delegation
+    // that previously occurred here (slice J stage 4a).
     if (el.hadUndefinedLength) {
-        throw HARD;
+        const { values, rawValues } = decodeWithEagerReadTag(
+            window,
+            el,
+            policy
+        );
+        emitValues(listener, tag, vrInstance, el, values, rawValues);
+        return;
     }
 
     // Decode the value(s) with the core primitives, then route by the DECODED
@@ -267,7 +213,11 @@ function emitElement(
         vrInstance,
         policy
     );
+    emitValues(listener, tag, vrInstance, el, values, rawValues);
+}
 
+/** Route decoded {values, rawValues} to binary or scalar listener events. */
+function emitValues(listener, tag, vrInstance, el, values, rawValues) {
     if (values.some(isBufferLike)) {
         listener.startElement(tag, { vr: vrInstance.type, length: el.length });
         listener.startBinary({ encapsulated: false });
@@ -294,21 +244,6 @@ function isBufferLike(v) {
 
 // --- misc -------------------------------------------------------------------
 
-/**
- * Read the transfer syntax UID from the dataset using core decode primitives.
- * The TS element lives in group 0002 (always explicit little endian), so
- * metaWindow is the correct window.
- */
-function transferSyntaxOf(dataSet, metaWindow, policy) {
-    const el = dataSet.elements.x00020010;
-    if (!el) {
-        return EXPLICIT_LITTLE_ENDIAN;
-    }
-    const vrInstance = resolveVrInstance(el, metaWindow);
-    const { values } = decodeElementValues(metaWindow, el, vrInstance, policy);
-    return values[0] || EXPLICIT_LITTLE_ENDIAN;
-}
-
 function fragmentBuffer(window, f) {
     const start = window.baseOffset + f.position;
     return window.arrayBuffer.slice(start, start + f.length);
@@ -329,14 +264,4 @@ function toUint8Array(buffer) {
         return buffer;
     }
     return new Uint8Array(buffer);
-}
-
-function toArrayBuffer(buffer) {
-    if (buffer instanceof ArrayBuffer) {
-        return buffer.slice(0);
-    }
-    return buffer.buffer.slice(
-        buffer.byteOffset,
-        buffer.byteOffset + buffer.byteLength
-    );
 }

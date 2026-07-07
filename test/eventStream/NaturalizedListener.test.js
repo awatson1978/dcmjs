@@ -266,16 +266,16 @@ describe("NaturalizedListener — Person Name proxy (§17)", () => {
         const l = new NaturalizedListener();
         l.startDataSet({});
         l.startElement("00100010", { vr: "PN" }); // PatientName, VM 1
-        l.value({ Alphabetic: "Wallace^Bill" });
+        l.value({ Alphabetic: "Doe^Jane" });
         l.endElement();
         l.endDataSet();
 
-        expect(l.result.PatientName.Alphabetic).toBe("Wallace^Bill");
-        expect(String(l.result.PatientName)).toBe("Wallace^Bill");
+        expect(l.result.PatientName.Alphabetic).toBe("Doe^Jane");
+        expect(String(l.result.PatientName)).toBe("Doe^Jane");
         // toJSON serializes to the DICOM JSON model (PN Value is an array of
         // component objects), matching dcmjs's existing convention.
         expect(JSON.parse(JSON.stringify(l.result.PatientName))).toEqual([
-            { Alphabetic: "Wallace^Bill" }
+            { Alphabetic: "Doe^Jane" }
         ]);
     });
 

@@ -51,7 +51,7 @@ describe("fromPart10 — explicit little endian scalars", () => {
     };
     const dict = {
         "00080060": { vr: "CS", Value: ["CT"] },
-        "00100010": { vr: "PN", Value: ["Wallace^Bill"] },
+        "00100010": { vr: "PN", Value: ["Doe^Jane"] },
         "00100020": { vr: "LO", Value: ["12345"] },
         "00200013": { vr: "IS", Value: [12] },
         "00080008": { vr: "CS", Value: ["ORIGINAL", "PRIMARY"] }

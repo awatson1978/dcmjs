@@ -30,7 +30,7 @@ const { DicomEventStream } = dcmjs.eventStream;
 
 // bytes -> naturalized application object
 const metadata = await DicomEventStream.fromPart10(arrayBuffer).toNaturalized();
-metadata.PatientName.Alphabetic; // "Wallace^Bill"
+metadata.PatientName.Alphabetic; // "Doe^Jane"
 metadata.PatientID;              // "12345"
 
 // DICOMweb JSON -> DICOM Part 10 file
@@ -140,8 +140,8 @@ PN values keep their DICOMweb `{ Alphabetic, Ideographic, Phonetic }` shape and
 also stringify to the raw PN string:
 
 ```js
-metadata.PatientName.Alphabetic;   // "Wallace^Bill"
-String(metadata.PatientName);      // "Wallace^Bill"
+metadata.PatientName.Alphabetic;   // "Doe^Jane"
+String(metadata.PatientName);      // "Doe^Jane"
 ```
 
 ### Private tags

@@ -12,7 +12,7 @@ function drive(listener) {
 
     // A plain scalar
     listener.startElement("00100010", { vr: "PN" });
-    listener.value("Wallace^Bill");
+    listener.value("Doe^Jane");
     listener.endElement();
 
     // A sequence with one item containing one element
@@ -37,7 +37,7 @@ describe("CollectorListener", () => {
                 "00020010": { vr: "UI", Value: ["1.2.840.10008.1.2.1"] }
             },
             dict: {
-                "00100010": { vr: "PN", Value: ["Wallace^Bill"] },
+                "00100010": { vr: "PN", Value: ["Doe^Jane"] },
                 "00081110": {
                     vr: "SQ",
                     Value: [

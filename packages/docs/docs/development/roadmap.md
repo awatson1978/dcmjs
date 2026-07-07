@@ -37,19 +37,24 @@ Status as of 2026-06-10 — executed through step 6, version 1.0.0-beta.0 (NOT p
 | R3 naturalize over lazy | PARTIAL — works unchanged, gated; lazy keyword facade + VM-driven shapes not built | bcdfb49 |
 | R4 writer fusion | DONE (passthrough, backpatch, deflate-on-write) | 2703b90 |
 | R5 character sets | DONE (per-dataset + per-item contexts; ISO_IR 192 rewrite kept) | bcdfb49 |
-| R6 streaming | PARTIAL — scoped fixes only; full re-platform deferred to 1.x | fd526c3 |
+| R6 streaming | DONE (streaming source `fromPart10Stream` complete, stages K1–K6); AsyncDicomReader re-platform deferred to 1.x | event-stream-source |
 | R7 deletions | PARTIAL — see R7 section; eager core kept as escape hatch for beta | fd526c3 |
 | R8 gates | All standing gates green (see R8) | — |
 
-Additional work since 2026-06-10: the event-stream layer (slices A–G and J, tracked in
+Additional work since 2026-06-10: the event-stream layer (slices A–G, J, and K, tracked in
 `CLAUDE_REFACTOR_PLAN.md`) is complete. `src/core/decodeCore.js` is now the shared decode
 module consumed by both `readFileLazy` and `fromPart10`; `fromPart10`'s whole-file delegation
-to the lazy reader is removed. The `AsyncDicomReader` re-platform (R6) remains deferred.
+to the lazy reader is removed. `fromPart10Stream` (slice K, stages K1–K6) is the new
+chunked streaming source — it accepts any `AsyncIterable<Uint8Array>` or `ReadableStream`
+and parses with bounded memory across all transfer syntaxes (defined-length, undefined-length,
+encapsulated pixel data, deflate). The `AsyncDicomReader` re-platform onto `fromPart10Stream`
+(K7 / R6.7) was assessed and deferred: the pixel-data frame-splitting and compressed-frame-assembly
+semantics exposed by `AsyncDicomReader`'s tests cannot be reproduced by a thin adapter without
+reimplementing significant logic; the re-platform remains on the 1.x backlog.
 
-Remaining for 1.0 final / 1.x: the full R6 streaming re-platform of
-AsyncDicomReader onto the tokenizer; deleting the eager read loop once the beta
-soak is over; the packaging subpath split and TypeScript surface; and the four
-open API decisions at the bottom of this page.
+Remaining for 1.0 final / 1.x: the AsyncDicomReader re-platform onto `fromPart10Stream`;
+deleting the eager read loop once the beta soak is over; the packaging subpath split and
+TypeScript surface; and the four open API decisions at the bottom of this page.
 
 ## Founding decisions
 
@@ -285,24 +290,63 @@ See [Character sets](../guides/character-sets.md).
 
 ---
 
-## R6. Streaming (deferred phase)
+## R6. Streaming
 
-> STATUS: PARTIAL (fd526c3). Landed: readUint16Array off-by-one fix, shared
-> default TextDecoder/TextEncoder singletons, SplitDataView cached last-hit
-> chunk index for sequential streaming reads. NOT done: re-platforming
-> AsyncDicomReader onto the tokenizer (it still runs its own header/element
-> logic over SplitDataView and still calls DicomMessage._read for the meta
-> group) — deliberate 1.x work.
+> STATUS: DONE — `fromPart10Stream` (slice K, stages K1–K6) is the streaming
+> source; `AsyncDicomReader` re-platform deferred to 1.x (see K7 assessment).
 
-`AsyncDicomReader` duplicates header/element logic and reads through
-`SplitDataView.findView` per primitive. Re-platforming it onto the parser is the
-hardest rewiring because the parser assumes one contiguous buffer while the
-async reader works over chunk lists with `ensureAvailable`/`consume`.
+### What shipped: `fromPart10Stream`
 
-The eventual shape: the parser's element readers run over the contiguous window
-`SplitDataView` can guarantee (`hasData`), falling back to `ensureAvailable`
-awaits at element boundaries; `SplitDataView` stays confined to the streaming
-layer. See [Streaming](../architecture/streaming.md).
+`src/eventStream/fromPart10Stream.js` is the new chunked streaming DICOM source.
+It accepts any `ArrayBuffer`, `AsyncIterable<Uint8Array | ArrayBuffer>`, or
+WHATWG `ReadableStream` and parses incrementally into the 15-verb
+`EventStreamListener` vocabulary, without buffering the full file:
+
+- **Chunked, bounded-memory input.** Uses a `ReadBufferStream` with
+  `clearBuffers: true`; each top-level element calls `consume()` to release
+  chunks as soon as they are fully parsed. Peak memory is bounded by the largest
+  single element (or fragment) plus one chunk of look-ahead.
+- **Incremental FMI.** File Meta Information elements are decoded on-the-fly
+  before any body bytes are needed; `startDataSet` is emitted with the correct
+  transfer syntax UID before the FMI bracket opens.
+- **Full body element loop.** Defined-length leaves, undefined-length SQs
+  (delimiter-driven with `EventBuffer` for backfilling parity span lengths),
+  encapsulated pixel data (fragment streaming with per-fragment `consume()`),
+  and implicit-LE datasets all parse natively in the body loop.
+- **Deflate (K5).** A `pako.Inflate` relay coroutine inflates compressed bytes
+  concurrently into a zero-based `bodyStream`; the body element loop reads from
+  `bodyStream`, keeping raw and inflated offset spaces separate.
+- **Corpus equivalence.** 29 fixtures (ELE, ILE, EBE, deflate, encapsulated,
+  multi-frame) at whole-file, 1024-byte, 37-byte, and 1-byte chunk granularities
+  all produce byte-identical output to the buffered `fromPart10`.
+- **Backpressure.** `setDrain` / `awaitDrain` gates at top-level element
+  boundaries and between encapsulated fragments (promise-driven, no polling).
+- **Truncation safety.** Seven truncation phases (mid-preamble, mid-FMI,
+  mid-header, mid-value, mid-fragment, corrupt deflate, empty input) all produce
+  clean rejections, not hangs.
+
+See [Streaming](../architecture/streaming.md) for the full architecture.
+
+### What remains deferred: `AsyncDicomReader` re-platform (K7 / R6.7)
+
+`AsyncDicomReader` still runs its own header/element loop and delivers pixel data
+with frame-level semantics (`listener.information.numberOfFrames / rows / cols`)
+that `fromPart10Stream`'s flat binary-event output cannot reproduce with a thin
+adapter. Specifically:
+
+- **Uncompressed frame splitting.** `fromPart10Stream` → `emitValues` delivers
+  pixel data as a single `startBinary / binaryFragment / endBinary` sequence.
+  `AsyncDicomReader.readUncompressed()` splits into per-frame arrays using
+  tracked geometry — a semantic that cannot be preserved without buffering and
+  re-splitting in the shim.
+- **Compressed frame assembly.** `fromPart10Stream.emitEncapsulated()` streams
+  fragments flat; `AsyncDicomReader.readCompressed()` assembles frames using
+  Basic Offset Table offsets. The shim would need to re-implement that assembly
+  logic.
+
+The re-platform is left for 1.x. `AsyncDicomReader` is self-contained and keeps
+working as-is; the 1.0-beta scoped fixes (readUint16Array off-by-one,
+TextDecoder/Encoder singletons, SplitDataView cached-chunk fast path) remain.
 
 ---
 
@@ -349,13 +393,19 @@ The remaining deletion list, executed once the gates allow:
 - [x] 6. R7 deletions + 1.0.0-beta.0 — DONE fd526c3 (partial by design: eager
       core kept as DCMJS_CORE=eager escape hatch until R6 re-platform + beta
       soak). NOT published.
-- [ ] 7. R6 streaming re-platform — NOT DONE (1.x; scoped fixes landed in
-      fd526c3: readUint16Array fix, codec singletons, cached-chunk fast path).
+- [x] 7. R6 streaming source — DONE (`fromPart10Stream`, slice K stages K1–K6:
+      corpus equivalence, bounded memory, backpressure, truncation gates, 1422
+      tests both cores). AsyncDicomReader re-platform (K7/R6.7): assessed and
+      deferred to 1.x — pixel-data frame semantics are not reproducible by a thin
+      shim without reimplementing uncompressed-frame-split / compressed-frame-
+      assembly logic; deferred cleanly, all gates unchanged.
 
 ### 1.x backlog
 
-- [ ] Re-platform AsyncDicomReader onto the tokenizer (R6) so streaming and
-      synchronous reads share one element reader.
+- [ ] Re-platform AsyncDicomReader onto `fromPart10Stream` (K7/R6.7) — requires
+      reimplementing pixel-data frame-split and compressed-frame-assembly in the
+      adapter, or changing `fromPart10Stream` to emit per-frame events. Deferred
+      per task-K7-report.md assessment.
 - [ ] Delete the eager read loop (`_read`/`_readTag` + eager element classes)
       once AsyncDicomReader is re-platformed and the beta has soaked.
 - [ ] Packaging: subpath exports / workspace-package split (data, dictionary,

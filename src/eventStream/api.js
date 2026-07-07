@@ -3,6 +3,7 @@ import { DicomWebJsonWriter } from "./DicomWebJsonWriter.js";
 import { Part10Writer } from "./Part10Writer.js";
 import { CollectorListener } from "./CollectorListener.js";
 import { fromPart10 } from "./fromPart10.js";
+import { fromPart10Stream } from "./fromPart10Stream.js";
 import { fromDicomWebJson } from "./fromDicomWebJson.js";
 import { fromDataSet } from "./fromDataSet.js";
 import { createEventAsyncIterable } from "./asyncIterator.js";
@@ -32,6 +33,55 @@ export class DicomEventStream {
         return new DicomEventStream(listener =>
             fromPart10(buffer, listener, options)
         );
+    }
+
+    /**
+     * A chunked bytes→events source (slice K).
+     *
+     * Accepted `input` forms — see `fromPart10Stream` for the full contract:
+     *   - `ArrayBuffer | Uint8Array`  → re-runnable (each `.process()` starts fresh)
+     *   - `AsyncIterable | ReadableStream` → single-use; second `.process()` rejects
+     *     with a clear "already been consumed" error.
+     *
+     * `noCopy` is not accepted; the streaming source forces noCopy off because
+     * zero-copy views alias chunk memory that `consume()` releases (decision D-E).
+     *
+     * @param {ArrayBuffer|Uint8Array|AsyncIterable|ReadableStream} input
+     * @param {Object} [options]
+     * @param {boolean} [options.forceStoreRaw]
+     * @param {boolean} [options.ignoreErrors]
+     * @returns {DicomEventStream}
+     */
+    static fromPart10Stream(input, options = {}) {
+        const isBuffer =
+            input instanceof ArrayBuffer || ArrayBuffer.isView(input);
+
+        if (isBuffer) {
+            // Buffer inputs are re-runnable: every _run() creates a fresh parse.
+            return new DicomEventStream(listener =>
+                fromPart10Stream(input, listener, options)
+            );
+        }
+
+        // Iterable / ReadableStream inputs are single-use: the iterator is
+        // consumed on the first .process() call.  A second call rejects with
+        // a clear error so callers are not silently handed an empty stream.
+        let consumed = false;
+        return new DicomEventStream(listener => {
+            if (consumed) {
+                return Promise.reject(
+                    new Error(
+                        "DicomEventStream.fromPart10Stream: this stream source " +
+                            "has already been consumed and cannot be re-run. " +
+                            "Only ArrayBuffer/Uint8Array inputs are re-runnable. " +
+                            "To drive multiple sinks, convert the bytes to an " +
+                            "ArrayBuffer first and pass that instead."
+                    )
+                );
+            }
+            consumed = true;
+            return fromPart10Stream(input, listener, options);
+        });
     }
 
     /** A DICOMweb JSON (DICOM JSON model) source. */

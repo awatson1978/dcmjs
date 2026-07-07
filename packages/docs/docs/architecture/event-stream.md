@@ -117,8 +117,10 @@ the same contract as `fromPart10` by a formal gate suite
   `startElement.length` is `0xFFFFFFFF` (stream) vs a computed span (buffered);
   this is normalized by name in the gate and pinned in code.
 - **Synthesized EBE SQ.** An in-test Explicit Big Endian file with a
-  defined-length sequence validates that item-tag endianness is always treated as
-  little-endian (DICOM PS3.5 §7.5) even when the body transfer syntax is BE.
+  defined-length sequence validates that FFFE-family item/delimiter tags and their
+  lengths are read in the body transfer-syntax byte order (big-endian for EBE),
+  matching the buffered `fromPart10` behavior (Tag.readTag → readUint16 which
+  honors `isLittleEndian`).
 - **Bounded memory — encapsulated.** A 24 × 256 KB synthetic encapsulated file
   is streamed with a drain gate; peak retained bytes must stay below
   `(1 fragment + 1 chunk + slack)` and final retention must approach zero.

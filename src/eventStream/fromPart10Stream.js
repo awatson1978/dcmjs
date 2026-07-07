@@ -22,6 +22,7 @@
  * switch to clearBuffers=true and consume() as data is parsed.
  */
 
+import pako from "pako";
 import { ReadBufferStream } from "../BufferStream.js";
 import { fromPart10, emitValues } from "./fromPart10.js";
 import {
@@ -185,6 +186,12 @@ export async function fromPart10Stream(input, listener, options = {}) {
     /** @type {Array<{tag:string, vrStr:string, length:number, values:any[], rawValues:any[]}>} */
     const fmiElements = [];
     let transferSyntaxUID = EXPLICIT_LITTLE_ENDIAN; // default if 0002,0010 absent
+    // Raw (un-normalised) TS read from (0002,0010): used for the K5 deflate
+    // detection because _normalizeSyntax maps deflate → ELE, which would
+    // prevent bodyStream from being created (K5 root bug).  transferSyntaxUID
+    // (normalised) is kept for listener.startDataSet and body-parsing parity
+    // with fromPart10 (which also normalises via seedReadContext).
+    let rawTransferSyntaxUID = EXPLICIT_LITTLE_ENDIAN;
 
     // We need at least 8 bytes for the smallest possible FMI header.
     await stream.ensureAvailable(8);
@@ -311,6 +318,7 @@ export async function fromPart10Stream(input, listener, options = {}) {
         // Capture TransferSyntaxUID for startDataSet and body-phase delegation.
         // Matches seedReadContext's normalization via DicomMessage._normalizeSyntax.
         if (tagStr === "00020010" && values[0]) {
+            rawTransferSyntaxUID = values[0];
             transferSyntaxUID = DicomMessage._normalizeSyntax(values[0]);
         }
 
@@ -368,28 +376,118 @@ export async function fromPart10Stream(input, listener, options = {}) {
     // deflate is decided BEFORE the body loop. The only remaining buffered path
     // is deflate (K5). Chunk release is LIVE (clearBuffers:true + consume()).
 
-    // --- Deflate TS → buffered body path (still retains full bytes; K5) ---
-    if (transferSyntaxUID === DEFLATED_EXPLICIT_LITTLE_ENDIAN) {
-        // K5 will stream-inflate; for now delegate to fromPart10 (buffered).
-        options.onPhase?.("deflate"); // observable hook for tests
-        await feedPromise;
-        if (feedError) throw feedError;
-        const deflateBytes = new Uint8Array(stream.slice(0, stream.size));
-        await fromPart10(deflateBytes.buffer, listener, {
-            ...options,
-            _skipMeta: true
-        });
-        listener.endDataSet();
-        return;
+    // --- K5: Deflate TS → stream-inflate into bodyStream (incremental) ---
+    //
+    // A relay coroutine reads compressed bytes from `stream` (raw space, fixed
+    // at metaEndOffset after FMI parsing) and pushes them through pako.Inflate
+    // into `bodyStream` (inflated/zero-based space). The body element loop
+    // below reads from `bsrc`, which is `bodyStream` for deflate and `stream`
+    // for everything else. This is the ONLY branch that decides which offset
+    // space the body loop operates in.
+    //
+    // Offset-space invariant: `stream` coordinates are always raw/compressed;
+    // `bodyStream` coordinates are always inflated/zero-based. The two spaces
+    // are NEVER mixed: body element offsets, `ensureAbs` calls, `slice` calls,
+    // and `consume` calls all operate exclusively on whichever `bsrc` resolves
+    // to. The relay is the sole owner of `stream` during the body phase.
+
+    let bodyStream = null;
+    let inflateError = null;
+    let relayPromise = Promise.resolve();
+
+    if (rawTransferSyntaxUID === DEFLATED_EXPLICIT_LITTLE_ENDIAN) {
+        bodyStream = new ReadBufferStream(null, true, { clearBuffers: true });
+
+        // `stream.offset` is fixed at metaEndOffset throughout the body phase
+        // for the deflate path — the body parser reads from bodyStream, never
+        // from stream. This keeps raw-space and inflated-space counters separate.
+        const relayStartPos = stream.offset; // == metaEndOffset
+
+        relayPromise = (async () => {
+            // chunkSize controls when pako calls onData.  The default is 64 KiB
+            // (pako 2.x source: 1024*64) — large enough that typical DICOM deflate
+            // bodies never fill a single chunk before the stream is finalised, so
+            // onData would never fire mid-stream.  16 KiB keeps the buffer small
+            // enough to ensure onData fires for every 16 KiB of inflated output,
+            // giving the body loop bytes to parse before the raw stream ends.
+            const inflater = new pako.Inflate({ raw: true, chunkSize: 16384 });
+            inflater.onData = chunk => {
+                // chunk is a Uint8Array (pako 2.x). Slice to an owned
+                // ArrayBuffer so bodyStream's view doesn't alias pako's buffer.
+                bodyStream.addBuffer(
+                    chunk.buffer.slice(
+                        chunk.byteOffset,
+                        chunk.byteOffset + chunk.byteLength
+                    )
+                );
+            };
+
+            let relayPos = relayStartPos;
+            for (;;) {
+                // Wait for at least one new byte at relayPos, or raw stream done.
+                // stream.offset stays fixed (== metaEndOffset), so:
+                //   need = relayPos + 1 - stream.offset = bytes to advance past offset.
+                const need = relayPos + 1 - stream.offset;
+                await stream.ensureAvailable(need);
+
+                // Synchronous snapshot after the await (JS single-threaded:
+                // no feed-loop interleaving between these two reads).
+                const nowEnd = stream.endOffset;
+                const done = stream.isComplete;
+
+                if (nowEnd > relayPos) {
+                    const rawSlice = new Uint8Array(
+                        stream.slice(relayPos, nowEnd)
+                    );
+                    relayPos = nowEnd;
+                    // Release raw chunks that the relay has fully passed.
+                    stream.consume(relayPos);
+                    // isLast: feed loop called setComplete() — no more chunks.
+                    const isLast = done;
+                    inflater.push(rawSlice, isLast);
+                    if (inflater.err) {
+                        // pako 2.x stores the error message in inflater.msg.
+                        inflateError = new Error(
+                            `fromPart10Stream: deflate decompress failed: ${inflater.msg}`
+                        );
+                        bodyStream.setComplete(); // unblock waiting body parser
+                        return;
+                    }
+                    if (isLast) break;
+                } else {
+                    // No new bytes — stream must be isComplete (OR-complete).
+                    // Finalize: push empty batch with isLast=true.
+                    inflater.push(new Uint8Array(0), true);
+                    if (inflater.err) {
+                        inflateError = new Error(
+                            `fromPart10Stream: deflate decompress failed: ${inflater.msg}`
+                        );
+                    }
+                    break;
+                }
+            }
+
+            // Propagate a feed error if the raw stream failed (e.g. network
+            // error mid-stream).  Prefer inflate error if both occurred.
+            if (!inflateError && feedError) {
+                inflateError = feedError;
+            }
+
+            bodyStream.setComplete();
+        })();
     }
+
+    // Body source: inflated bodyStream for deflate, raw stream for everything else.
+    // ALL body helper functions and the body loop use `bsrc` exclusively.
+    const bsrc = bodyStream ?? stream;
 
     // Body transfer syntax characteristics — drive all element reads.
     const bodyLittleEndian = transferSyntaxUID !== EXPLICIT_BIG_ENDIAN;
     const bodyImplicit = transferSyntaxUID === IMPLICIT_LITTLE_ENDIAN;
 
-    // K4: chunk release is LIVE for non-deflate streams. clearBuffers is true
-    // at construction, so consume() actually frees fully-passed chunks after
-    // every completed top-level element.
+    // Chunk release is LIVE for all paths: clearBuffers=true on both `stream`
+    // (non-deflate) and `bodyStream` (deflate). The relay releases raw chunks
+    // as it advances; the body loop releases inflated (or native) chunks below.
     const releaseEnabled = true;
 
     const UNDEFINED_LEN = 0xffffffff;
@@ -404,8 +502,10 @@ export async function fromPart10Stream(input, listener, options = {}) {
     };
 
     // Byte-order helpers for body elements (tag, VR, length, item tags).
-    const getU16 = abs => stream.view.getUint16(abs, bodyLittleEndian);
-    const getU32 = abs => stream.view.getUint32(abs, bodyLittleEndian);
+    // Use `bsrc` (bodyStream for deflate, stream for everything else) so that
+    // these helpers operate in the correct offset space.
+    const getU16 = abs => bsrc.view.getUint16(abs, bodyLittleEndian);
+    const getU32 = abs => bsrc.view.getUint32(abs, bodyLittleEndian);
 
     /** Convert (group, element) numbers to clean DICOM tag string "GGGGEEEE". */
     function bodyTagStr(g, e) {
@@ -471,11 +571,13 @@ export async function fromPart10Stream(input, listener, options = {}) {
      * semantics). Returns true only when the bytes are genuinely available.
      */
     async function ensureAbs(absEnd) {
-        const need = absEnd - stream.offset;
+        // Operate on `bsrc`: bodyStream (inflated, zero-based) for deflate,
+        // stream (raw) for everything else. Never mix offset spaces.
+        const need = absEnd - bsrc.offset;
         if (need > 0) {
-            await stream.ensureAvailable(need);
+            await bsrc.ensureAvailable(need);
         }
-        return absEnd <= stream.endOffset;
+        return absEnd <= bsrc.endOffset;
     }
 
     // ---- Undefined-length structural end-finders (element-aware skip, no emission) ----
@@ -522,7 +624,7 @@ export async function fromPart10Stream(input, listener, options = {}) {
         let pos = fromAbs;
         for (;;) {
             if (!(await ensureAbs(pos + 8))) {
-                return { contentEnd: stream.endOffset, end: stream.endOffset };
+                return { contentEnd: bsrc.endOffset, end: bsrc.endOffset };
             }
             const g = getU16(pos);
             const e = getU16(pos + 2);
@@ -549,7 +651,7 @@ export async function fromPart10Stream(input, listener, options = {}) {
     async function skipUndefinedItem(fromAbs) {
         let pos = fromAbs;
         for (;;) {
-            if (!(await ensureAbs(pos + 8))) return stream.endOffset;
+            if (!(await ensureAbs(pos + 8))) return bsrc.endOffset;
             const g = getU16(pos);
             const e = getU16(pos + 2);
             if (g === 0xfffe && e === 0xe00d) return pos + 8;
@@ -560,19 +662,19 @@ export async function fromPart10Stream(input, listener, options = {}) {
     /** Skip a single element header + value, recursing into nested structures. */
     async function skipOneElementEnd(fromAbs) {
         let pos = fromAbs;
-        if (!(await ensureAbs(pos + 8))) return stream.endOffset;
+        if (!(await ensureAbs(pos + 8))) return bsrc.endOffset;
         pos += 4; // tag
         let valueLength;
         if (bodyImplicit) {
-            valueLength = stream.view.getUint32(pos, true);
+            valueLength = bsrc.view.getUint32(pos, true);
             pos += 4;
         } else {
             const vr =
-                String.fromCharCode(stream.view.getUint8(pos)) +
-                String.fromCharCode(stream.view.getUint8(pos + 1));
+                String.fromCharCode(bsrc.view.getUint8(pos)) +
+                String.fromCharCode(bsrc.view.getUint8(pos + 1));
             pos += 2;
             if (ValueRepresentation.createByTypeString(vr).isLength32()) {
-                if (!(await ensureAbs(pos + 6))) return stream.endOffset;
+                if (!(await ensureAbs(pos + 6))) return bsrc.endOffset;
                 pos += 2; // reserved
                 valueLength = getU32(pos);
                 pos += 4;
@@ -584,7 +686,7 @@ export async function fromPart10Stream(input, listener, options = {}) {
         if (valueLength === UNDEFINED_LEN) {
             return (await skipUndefinedSequence(pos)).end;
         }
-        if (!(await ensureAbs(pos + valueLength))) return stream.endOffset;
+        if (!(await ensureAbs(pos + valueLength))) return bsrc.endOffset;
         return pos + valueLength;
     }
 
@@ -595,55 +697,55 @@ export async function fromPart10Stream(input, listener, options = {}) {
      * to thread into the next element. Mirrors decodeCore.classifyElement.
      */
     async function parseOneElement(target, elemStartAbs, currentDecoder) {
-        stream.offset = elemStartAbs;
+        bsrc.offset = elemStartAbs;
         const elGroup = getU16(elemStartAbs);
         const elElement = getU16(elemStartAbs + 2);
-        stream.offset = elemStartAbs + 4;
+        bsrc.offset = elemStartAbs + 4;
         const tagStr = bodyTagStr(elGroup, elElement);
 
         let vrStr = null;
         let valueLength;
         if (bodyImplicit) {
-            if (!(await ensureAbs(stream.offset + 4))) {
+            if (!(await ensureAbs(bsrc.offset + 4))) {
                 throw new Error(
                     `fromPart10Stream: truncated at ${elemStartAbs}: missing implicit length`
                 );
             }
             // Implicit is always LITTLE_ENDIAN regardless of body TS.
-            valueLength = stream.view.getUint32(stream.offset, true);
-            stream.offset += 4;
+            valueLength = bsrc.view.getUint32(bsrc.offset, true);
+            bsrc.offset += 4;
         } else {
-            if (!(await ensureAbs(stream.offset + 2))) {
+            if (!(await ensureAbs(bsrc.offset + 2))) {
                 throw new Error(
                     `fromPart10Stream: truncated at ${elemStartAbs}: missing VR bytes`
                 );
             }
             vrStr =
-                String.fromCharCode(stream.view.getUint8(stream.offset)) +
-                String.fromCharCode(stream.view.getUint8(stream.offset + 1));
-            stream.offset += 2;
+                String.fromCharCode(bsrc.view.getUint8(bsrc.offset)) +
+                String.fromCharCode(bsrc.view.getUint8(bsrc.offset + 1));
+            bsrc.offset += 2;
             const vrForLen = ValueRepresentation.createByTypeString(vrStr);
             if (vrForLen.isLength32()) {
-                if (!(await ensureAbs(stream.offset + 6))) {
+                if (!(await ensureAbs(bsrc.offset + 6))) {
                     throw new Error(
                         `fromPart10Stream: truncated at ${elemStartAbs}: missing extended length`
                     );
                 }
-                stream.offset += 2; // reserved
-                valueLength = getU32(stream.offset);
-                stream.offset += 4;
+                bsrc.offset += 2; // reserved
+                valueLength = getU32(bsrc.offset);
+                bsrc.offset += 4;
             } else {
-                if (!(await ensureAbs(stream.offset + 2))) {
+                if (!(await ensureAbs(bsrc.offset + 2))) {
                     throw new Error(
                         `fromPart10Stream: truncated at ${elemStartAbs}: missing 2-byte length`
                     );
                 }
-                valueLength = getU16(stream.offset);
-                stream.offset += 2;
+                valueLength = getU16(bsrc.offset);
+                bsrc.offset += 2;
             }
         }
 
-        const valueStartAbs = stream.offset;
+        const valueStartAbs = bsrc.offset;
         const undef = valueLength === UNDEFINED_LEN;
         const elLike = {
             vr: vrStr,
@@ -665,8 +767,8 @@ export async function fromPart10Stream(input, listener, options = {}) {
                 (await ensureAbs(valueStartAbs + 4))
             ) {
                 // Item/delimiter tags are little-endian in implicit LE (== body).
-                const pg = stream.view.getUint16(valueStartAbs, true);
-                const pe = stream.view.getUint16(valueStartAbs + 2, true);
+                const pg = bsrc.view.getUint16(valueStartAbs, true);
+                const pe = bsrc.view.getUint16(valueStartAbs + 2, true);
                 if (pg === 0xfffe && (pe === 0xe000 || pe === 0xe0dd)) {
                     vrInstance = SQ_VR;
                 }
@@ -708,8 +810,8 @@ export async function fromPart10Stream(input, listener, options = {}) {
                 if (dictVr.type === "SQ") {
                     treatAsSq = true;
                 } else if (await ensureAbs(valueStartAbs + 4)) {
-                    const pg = stream.view.getUint16(valueStartAbs, true);
-                    const pe = stream.view.getUint16(valueStartAbs + 2, true);
+                    const pg = bsrc.view.getUint16(valueStartAbs, true);
+                    const pe = bsrc.view.getUint16(valueStartAbs + 2, true);
                     treatAsSq =
                         pg === 0xfffe && (pe === 0xe000 || pe === 0xe0dd);
                 }
@@ -761,7 +863,7 @@ export async function fromPart10Stream(input, listener, options = {}) {
                     `declares ${valueLength} bytes but stream ended`
             );
         }
-        const valueAB = stream.slice(valueStartAbs, valueEndAbs);
+        const valueAB = bsrc.slice(valueStartAbs, valueEndAbs);
         const win = {
             arrayBuffer: valueAB,
             baseOffset: 0,
@@ -784,7 +886,7 @@ export async function fromPart10Stream(input, listener, options = {}) {
             newDecoder = csResult?.decoder ?? null;
         }
         emitValues(target, tagStr, vrInstance, elLike, values, rawValues);
-        stream.offset = valueEndAbs;
+        bsrc.offset = valueEndAbs;
         return newDecoder;
     }
 
@@ -808,7 +910,7 @@ export async function fromPart10Stream(input, listener, options = {}) {
             target.startSequence(tagStr, { vr: "SQ", length: declaredLength });
             await parseSqItems(target, sqEndAbs, false, outerDecoder);
             target.endSequence();
-            stream.offset = sqEndAbs;
+            bsrc.offset = sqEndAbs;
         } else {
             const buf = new EventBuffer();
             const delimStart = await parseSqItems(buf, -1, true, outerDecoder);
@@ -816,7 +918,7 @@ export async function fromPart10Stream(input, listener, options = {}) {
             target.startSequence(tagStr, { vr: "SQ", length: contentSpan });
             buf.flushTo(target);
             target.endSequence();
-            // stream.offset already advanced past FFFE,E0DD by parseSqItems.
+            // bsrc.offset already advanced past FFFE,E0DD by parseSqItems.
         }
     }
 
@@ -834,43 +936,43 @@ export async function fromPart10Stream(input, listener, options = {}) {
             length: UNDEFINED_LEN
         });
         target.startBinary({ encapsulated: true });
-        stream.offset = dataOffsetAbs;
+        bsrc.offset = dataOffsetAbs;
 
         // Basic Offset Table item (FFFE,E000) — skip its bytes.
-        if (!(await ensureAbs(stream.offset + 8))) {
+        if (!(await ensureAbs(bsrc.offset + 8))) {
             throw new Error(
-                `fromPart10Stream: truncated: encapsulated BOT header at ${stream.offset}`
+                `fromPart10Stream: truncated: encapsulated BOT header at ${bsrc.offset}`
             );
         }
-        const botLen = getU32(stream.offset + 4);
-        stream.offset += 8;
+        const botLen = getU32(bsrc.offset + 4);
+        bsrc.offset += 8;
         if (botLen > 0) {
-            if (!(await ensureAbs(stream.offset + botLen))) {
+            if (!(await ensureAbs(bsrc.offset + botLen))) {
                 throw new Error(
                     `fromPart10Stream: truncated: encapsulated BOT (${botLen} bytes)`
                 );
             }
-            stream.offset += botLen;
+            bsrc.offset += botLen;
         }
 
         for (;;) {
-            if (!(await ensureAbs(stream.offset + 8))) {
+            if (!(await ensureAbs(bsrc.offset + 8))) {
                 throw new Error(
-                    `fromPart10Stream: truncated: encapsulated item header at ${stream.offset}`
+                    `fromPart10Stream: truncated: encapsulated item header at ${bsrc.offset}`
                 );
             }
-            const g = getU16(stream.offset);
-            const e = getU16(stream.offset + 2);
+            const g = getU16(bsrc.offset);
+            const e = getU16(bsrc.offset + 2);
             if (g === 0xfffe && e === 0xe0dd) {
-                stream.offset += 8; // sequence-delimiter tag + 4-byte length
+                bsrc.offset += 8; // sequence-delimiter tag + 4-byte length
                 break;
             }
             if (g !== 0xfffe || e !== 0xe000) {
                 break; // unexpected tag — stop gracefully
             }
-            const fragLen = getU32(stream.offset + 4);
-            stream.offset += 8;
-            const fragStart = stream.offset;
+            const fragLen = getU32(bsrc.offset + 4);
+            bsrc.offset += 8;
+            const fragStart = bsrc.offset;
             const fragEnd = fragStart + fragLen;
             if (!(await ensureAbs(fragEnd))) {
                 throw new Error(
@@ -878,8 +980,8 @@ export async function fromPart10Stream(input, listener, options = {}) {
                 );
             }
             // Fresh copy — the emitted buffer must not alias released chunks.
-            target.binaryFragment(stream.slice(fragStart, fragEnd));
-            stream.offset = fragEnd;
+            target.binaryFragment(bsrc.slice(fragStart, fragEnd));
+            bsrc.offset = fragEnd;
             await target.awaitDrain(); // backpressure between fragments
         }
         target.endBinary();
@@ -904,7 +1006,7 @@ export async function fromPart10Stream(input, listener, options = {}) {
         decoder
     ) {
         const { contentEnd, end } = await skipUndefinedSequence(valueStartAbs);
-        const windowAB = stream.slice(elemStartAbs, end);
+        const windowAB = bsrc.slice(elemStartAbs, end);
         const win = {
             arrayBuffer: windowAB,
             baseOffset: 0,
@@ -926,7 +1028,7 @@ export async function fromPart10Stream(input, listener, options = {}) {
             policy
         );
         emitValues(target, tagStr, vrInstance, eagerEl, values, rawValues);
-        stream.offset = end;
+        bsrc.offset = end;
     }
 
     /**
@@ -938,27 +1040,27 @@ export async function fromPart10Stream(input, listener, options = {}) {
      * `outerDecoder` is the parent-scope charset decoder inherited by items.
      */
     async function parseSqItems(target, sqEndAbs, undefinedSeq, outerDecoder) {
-        while (undefinedSeq || stream.offset < sqEndAbs) {
-            if (!(await ensureAbs(stream.offset + 8))) {
-                if (undefinedSeq) return stream.offset; // EOF before delimiter
+        while (undefinedSeq || bsrc.offset < sqEndAbs) {
+            if (!(await ensureAbs(bsrc.offset + 8))) {
+                if (undefinedSeq) return bsrc.offset; // EOF before delimiter
                 throw new Error(
-                    `fromPart10Stream: truncated: SQ item header at ${stream.offset}`
+                    `fromPart10Stream: truncated: SQ item header at ${bsrc.offset}`
                 );
             }
-            const itemStart = stream.offset;
+            const itemStart = bsrc.offset;
             const itemGroup = getU16(itemStart);
             const itemElement = getU16(itemStart + 2);
 
             if (itemGroup === 0xfffe && itemElement === 0xe0dd) {
-                stream.offset = itemStart + 8; // consume seq-delimiter + length
+                bsrc.offset = itemStart + 8; // consume seq-delimiter + length
                 return itemStart;
             }
             if (itemGroup !== 0xfffe || itemElement !== 0xe000) {
                 return itemStart; // unexpected tag — stop gracefully
             }
             const itemLength = getU32(itemStart + 4);
-            stream.offset = itemStart + 8; // past item header
-            const itemDataOffset = stream.offset;
+            bsrc.offset = itemStart + 8; // past item header
+            const itemDataOffset = bsrc.offset;
 
             if (itemLength !== UNDEFINED_LEN) {
                 const itemEndAbs = itemDataOffset + itemLength;
@@ -970,7 +1072,7 @@ export async function fromPart10Stream(input, listener, options = {}) {
                     outerDecoder
                 );
                 target.endItem();
-                stream.offset = itemEndAbs;
+                bsrc.offset = itemEndAbs;
             } else {
                 // Undefined-length item: buffer to backfill the parser's item
                 // span (data offset → past the closing item delimiter).
@@ -987,7 +1089,7 @@ export async function fromPart10Stream(input, listener, options = {}) {
                 target.endItem();
             }
         }
-        return stream.offset;
+        return bsrc.offset;
     }
 
     /**
@@ -1007,14 +1109,14 @@ export async function fromPart10Stream(input, listener, options = {}) {
         parentDecoder
     ) {
         let itemDecoder = parentDecoder;
-        while (undefinedItem || stream.offset < itemEndAbs) {
-            if (!(await ensureAbs(stream.offset + 4))) {
-                if (undefinedItem) return stream.offset;
+        while (undefinedItem || bsrc.offset < itemEndAbs) {
+            if (!(await ensureAbs(bsrc.offset + 4))) {
+                if (undefinedItem) return bsrc.offset;
                 throw new Error(
-                    `fromPart10Stream: truncated: item element header at ${stream.offset}`
+                    `fromPart10Stream: truncated: item element header at ${bsrc.offset}`
                 );
             }
-            const elemStart = stream.offset;
+            const elemStart = bsrc.offset;
             const g = getU16(elemStart);
             const e = getU16(elemStart + 2);
             if (g === 0xfffe && e === 0xe00d) {
@@ -1022,53 +1124,67 @@ export async function fromPart10Stream(input, listener, options = {}) {
                 if (!(await ensureAbs(elemStart + 8)) && undefinedItem) {
                     return elemStart;
                 }
-                stream.offset = elemStart + 8;
+                bsrc.offset = elemStart + 8;
                 return elemStart;
             }
             itemDecoder = await parseOneElement(target, elemStart, itemDecoder);
         }
-        return stream.offset;
+        return bsrc.offset;
     }
 
-    // ---- K4 top-level body element loop ----
+    // ---- K5 top-level body element loop ----
     // Every element (defined or undefined length, leaf or SQ or encapsulated)
     // is read and emitted incrementally by parseOneElement.  After each
     // top-level element completes, consume() releases the chunks it no longer
-    // needs (non-deflate release is live).
+    // needs. For deflate, `bsrc` is bodyStream (inflated space, zero-based);
+    // the relay concurrently pushes inflated chunks. For all other paths,
+    // `bsrc` is stream (raw space). The two offset spaces are never mixed.
     let bodyDecoder = null; // resolved when (0008,0005) is first seen in body
 
-    bodyLoop: for (;;) {
-        // --- Read next element tag (4 bytes) ---
-        if (!(await ensureAbs(stream.offset + 4))) break bodyLoop; // clean EOF
+    try {
+        bodyLoop: for (;;) {
+            // --- Read next element tag (4 bytes) ---
+            if (!(await ensureAbs(bsrc.offset + 4))) break bodyLoop; // clean EOF
 
-        const elemStartAbs = stream.offset;
-        const elGroup = getU16(elemStartAbs);
+            const elemStartAbs = bsrc.offset;
+            const elGroup = getU16(elemStartAbs);
 
-        // Defensive: stray top-level FFFE delimiter tags are malformed for a
-        // well-formed Part 10 body; skip them so the next real element frames
-        // correctly (native SQ/encapsulated handlers already consume their own
-        // delimiters, so this is only reached on malformed input).
-        if (elGroup === 0xfffe) {
-            if (!(await ensureAbs(elemStartAbs + 8))) break bodyLoop;
-            stream.offset = elemStartAbs + 8;
-            continue bodyLoop;
+            // Defensive: stray top-level FFFE delimiter tags are malformed for a
+            // well-formed Part 10 body; skip them so the next real element frames
+            // correctly (native SQ/encapsulated handlers already consume their own
+            // delimiters, so this is only reached on malformed input).
+            if (elGroup === 0xfffe) {
+                if (!(await ensureAbs(elemStartAbs + 8))) break bodyLoop;
+                bsrc.offset = elemStartAbs + 8;
+                continue bodyLoop;
+            }
+
+            bodyDecoder = await parseOneElement(
+                listener,
+                elemStartAbs,
+                bodyDecoder
+            );
+            await listener.awaitDrain();
+            if (releaseEnabled) {
+                // Release every chunk fully behind the current position.
+                bsrc.consume(bsrc.offset);
+                options.onConsume?.(bsrc.getBufferMemoryInfo());
+            }
         }
-
-        bodyDecoder = await parseOneElement(
-            listener,
-            elemStartAbs,
-            bodyDecoder
-        );
-        await listener.awaitDrain();
-        if (releaseEnabled) {
-            // Release every chunk fully behind the current position.
-            stream.consume(stream.offset);
-            options.onConsume?.(stream.getBufferMemoryInfo());
-        }
+    } catch (bodyErr) {
+        // Wait for the relay to settle so inflateError is populated (if any).
+        await relayPromise;
+        // Prioritize inflate error: it is the root cause; the body error
+        // is a symptom (truncated read on corrupt/incomplete inflate output).
+        throw inflateError ?? bodyErr;
     }
 
-    // Observable hook: the native incremental path always runs to here (the
-    // tail-fallback path is deleted; deflate returns early above).
+    // Relay must finish before we inspect inflateError.
+    await relayPromise;
+    if (inflateError) throw inflateError;
+
+    // Observable hook: fires for ALL paths (deflate and non-deflate) now that
+    // the early deflate return is gone.
     options.onPhase?.("native");
 
     listener.endDataSet();

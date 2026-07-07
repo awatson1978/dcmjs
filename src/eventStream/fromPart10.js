@@ -5,6 +5,7 @@ import {
     decodeWithEagerReadTag,
     seedReadContext
 } from "../core/decodeCore.js";
+import { ValueRepresentation } from "../ValueRepresentation.js";
 
 /**
  * fromPart10 — a genuine raw-bytes Part 10 -> event-stream generator.
@@ -154,7 +155,17 @@ function emitElement(
         : decoder
         ? { ...bodyWindow, decoder }
         : bodyWindow;
-    const vrInstance = resolveVrInstance(el, window);
+    let vrInstance = resolveVrInstance(el, window);
+
+    // Mirror readDicomElementImplicit.js isSequence() peek for implicit-VR
+    // body elements: @dcmjs/parser populates el.items when it detects an
+    // implicit sequence via the data-peek heuristic (non-private elements
+    // whose first 4 value bytes are an item tag or sequence delimiter).
+    // resolveVrInstance is dictionary-only and returns UN for unknown tags,
+    // so we must promote to SQ here when the parser already found items.
+    if (!isMeta && window.implicit && vrInstance.type !== "SQ" && el.items) {
+        vrInstance = ValueRepresentation.createByTypeString("SQ");
+    }
 
     // Plain sequence (defined or undefined length).
     if (vrInstance.type === "SQ" && el.items) {
@@ -226,8 +237,11 @@ function emitElement(
     emitValues(listener, tag, vrInstance, el, values, rawValues);
 }
 
-/** Route decoded {values, rawValues} to binary or scalar listener events. */
-function emitValues(listener, tag, vrInstance, el, values, rawValues) {
+/**
+ * Route decoded {values, rawValues} to binary or scalar listener events.
+ * Exported for reuse by fromPart10Stream's K3 incremental body loop.
+ */
+export function emitValues(listener, tag, vrInstance, el, values, rawValues) {
     if (values.some(isBufferLike)) {
         listener.startElement(tag, { vr: vrInstance.type, length: el.length });
         listener.startBinary({ encapsulated: false });
@@ -267,6 +281,52 @@ function cleanTag(el) {
 function isMetaKey(key) {
     // key is 'xggggeeee'; group is chars 1..5
     return key.slice(1, 5) === "0002";
+}
+
+/**
+ * Walk pre-parsed body elements starting at or after `fromAbsOffset`, emitting
+ * each one into `listener`.  Used by fromPart10Stream's K3 tail-fallback:
+ * when an undefined-length element is encountered mid-body, the stream path
+ * awaits feed completion, runs seedReadContext, and calls this function to
+ * emit the elements it has not yet emitted (those at or after `fromAbsOffset`).
+ *
+ * @param {import("./EventStreamListener").EventStreamListener} listener
+ * @param {object} metaWindow  - from seedReadContext
+ * @param {object} bodyWindow  - from seedReadContext
+ * @param {object} policy      - {forceStoreRaw, noCopy, ignoreErrors}
+ * @param {object} elements    - dataSet.elements from seedReadContext
+ * @param {TextDecoder|null} decoder - active body charset decoder (null = Latin-1)
+ * @param {number} fromAbsOffset - absolute file offset; elements before this
+ *        were already emitted by the incremental loop and must be skipped.
+ * K3 tail-fallback: undefined-length handling is native in K4.
+ */
+export async function walkBodyTail(
+    listener,
+    metaWindow,
+    bodyWindow,
+    policy,
+    elements,
+    decoder,
+    fromAbsOffset
+) {
+    const bodyKeys = Object.keys(elements).filter(
+        k => !isMetaKey(k) && k !== "xfffee00d"
+    );
+    for (const key of bodyKeys) {
+        const el = elements[key];
+        // Skip elements that the incremental loop already emitted.
+        if (el.startOffset < fromAbsOffset) continue;
+        emitElement(
+            listener,
+            metaWindow,
+            bodyWindow,
+            policy,
+            el,
+            false,
+            decoder
+        );
+        await listener.awaitDrain();
+    }
 }
 
 function toUint8Array(buffer) {

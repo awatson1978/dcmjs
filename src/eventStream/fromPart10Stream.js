@@ -23,11 +23,21 @@
  */
 
 import { ReadBufferStream } from "../BufferStream.js";
-import { fromPart10 } from "./fromPart10.js";
-import { EXPLICIT_LITTLE_ENDIAN } from "../constants/dicom.js";
+import { fromPart10, emitValues, walkBodyTail } from "./fromPart10.js";
+import {
+    EXPLICIT_LITTLE_ENDIAN,
+    EXPLICIT_BIG_ENDIAN,
+    IMPLICIT_LITTLE_ENDIAN,
+    DEFLATED_EXPLICIT_LITTLE_ENDIAN
+} from "../constants/dicom.js";
 import { DicomMessage } from "../DicomMessage.js";
 import { ValueRepresentation } from "../ValueRepresentation.js";
-import { resolveVrInstance, decodeElementValues } from "../core/decodeCore.js";
+import {
+    resolveVrInstance,
+    decodeElementValues,
+    resolveCharacterSet,
+    seedReadContext
+} from "../core/decodeCore.js";
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -334,21 +344,587 @@ export async function fromPart10Stream(input, listener, options = {}) {
         listener.endFileMetaInformation();
     }
 
-    // ---- Phase 4: Body phase (K2 placeholder — still buffered) ----
+    // ---- Phase 4: Body phase (K3 — incremental defined-length element loop) ----
     //
-    // Wait for all remaining bytes, then pass the full byte array to
-    // fromPart10 with _skipMeta:true so it emits only the body elements
-    // (skipping startDataSet, FMI, and endDataSet — all handled above/below).
+    // Staged fallback ladder (binding design decision):
     //
-    // K3+ will replace this block with an incremental body walk.
-    await feedPromise;
-    if (feedError) throw feedError;
+    //   1. Deflate TS  → buffered-body path unchanged (K5 will stream-inflate).
+    //   2. Undefined-length element encountered mid-body → "buffered tail-fallback":
+    //      await feed completion, run seedReadContext, emit remaining elements
+    //      (those at/after `fromAbsOffset`) via walkBodyTail.
+    //      K3 tail-fallback: undefined-length handled natively in K4.
+    //   3. Defined-length SQ containing an undefined-length inner element →
+    //      event-buffer the top-level SQ subtree; discard + tail-fallback from
+    //      that SQ's start offset on TailFallbackSignal.
+    //
+    // clearBuffers stays false (both fallbacks need retained bytes).
+    // releaseEnabled=false makes consume() call sites dormant (flip in K4/K5).
 
-    const byteArray = new Uint8Array(stream.slice(0, stream.size));
-    await fromPart10(byteArray.buffer, listener, {
-        ...options,
-        _skipMeta: true
-    });
+    // --- K3 fallback rung 1: deflate TS → buffered body path ---
+    if (transferSyntaxUID === DEFLATED_EXPLICIT_LITTLE_ENDIAN) {
+        // K5 will stream-inflate; for now delegate to fromPart10 (buffered).
+        options.onPhase?.("deflate"); // observable hook for tests
+        await feedPromise;
+        if (feedError) throw feedError;
+        const deflateBytes = new Uint8Array(stream.slice(0, stream.size));
+        await fromPart10(deflateBytes.buffer, listener, {
+            ...options,
+            _skipMeta: true
+        });
+        listener.endDataSet();
+        return;
+    }
+
+    // Body transfer syntax characteristics — drive all element reads.
+    const bodyLittleEndian = transferSyntaxUID !== EXPLICIT_BIG_ENDIAN;
+    const bodyImplicit = transferSyntaxUID === IMPLICIT_LITTLE_ENDIAN;
+
+    // releaseEnabled: flip to true in K4/K5 when no fallback needs retained bytes.
+    // K3: dormant — consume() calls below are no-ops because clearBuffers=false.
+    const releaseEnabled = false; // K3: dormant; enabled in K4/K5
+
+    // Byte-order helpers for body elements (tag, VR, length, item tags).
+    const getU16 = abs => stream.view.getUint16(abs, bodyLittleEndian);
+    const getU32 = abs => stream.view.getUint32(abs, bodyLittleEndian);
+
+    /** Convert (group, element) numbers to clean DICOM tag string "GGGGEEEE". */
+    function bodyTagStr(g, e) {
+        return (
+            g.toString(16).padStart(4, "0").toUpperCase() +
+            e.toString(16).padStart(4, "0").toUpperCase()
+        );
+    }
+
+    /**
+     * EventBuffer — accumulates listener events for a single top-level SQ
+     * subtree.  Flushed to the real listener on successful parse; discarded
+     * on TailFallbackSignal.  awaitDrain() is a no-op (no I/O pressure).
+     * K3 tail-fallback: undefined-length handling is native in K4.
+     */
+    class EventBuffer {
+        constructor() {
+            this._q = [];
+        }
+        startElement(tag, info) {
+            this._q.push(l => l.startElement(tag, info));
+        }
+        endElement() {
+            this._q.push(l => l.endElement());
+        }
+        value(v, opts) {
+            this._q.push(l => l.value(v, opts));
+        }
+        startBinary(opts) {
+            this._q.push(l => l.startBinary(opts));
+        }
+        binaryFragment(buf) {
+            this._q.push(l => l.binaryFragment(buf));
+        }
+        endBinary() {
+            this._q.push(l => l.endBinary());
+        }
+        startSequence(tag, info) {
+            this._q.push(l => l.startSequence(tag, info));
+        }
+        endSequence() {
+            this._q.push(l => l.endSequence());
+        }
+        startItem(info) {
+            this._q.push(l => l.startItem(info));
+        }
+        endItem() {
+            this._q.push(l => l.endItem());
+        }
+        awaitDrain() {} // no-op
+        /** Replay all buffered events to `realListener`. */
+        flushTo(realListener) {
+            for (const fn of this._q) fn(realListener);
+        }
+    }
+
+    /**
+     * Sentinel thrown (not an Error) when an undefined-length element is
+     * encountered inside a defined-length SQ subtree. Propagates up to the
+     * top-level body loop which triggers tail-fallback from the SQ's start.
+     * K3 tail-fallback: undefined-length handled natively in K4.
+     */
+    class TailFallbackSignal {}
+
+    /**
+     * Await feed completion, run seedReadContext on the full bytes, then
+     * emit all body elements at or after `fromAbsOffset` via walkBodyTail.
+     * K3 tail-fallback: undefined-length elements handed natively in K4.
+     */
+    async function triggerTailFallback(fromAbsOffset) {
+        await feedPromise;
+        if (feedError) throw feedError;
+        const fullBytes = new Uint8Array(stream.slice(0, stream.size));
+        const { dataSet, metaWindow, bodyWindow } = seedReadContext(
+            fullBytes,
+            options
+        );
+        const csResult = resolveCharacterSet(
+            bodyWindow,
+            dataSet.elements.x00080005,
+            policy
+        );
+        const tailDecoder = csResult?.decoder ?? null;
+        await walkBodyTail(
+            listener,
+            metaWindow,
+            bodyWindow,
+            policy,
+            dataSet.elements,
+            tailDecoder,
+            fromAbsOffset
+        );
+    }
+
+    /**
+     * Parse SQ items from stream.offset until sqEndAbs, emitting into
+     * targetListener.  Throws TailFallbackSignal on any undefined-length
+     * element.  outerDecoder is the parent-scope charset decoder.
+     * K3 tail-fallback: undefined-length items handled natively in K4.
+     */
+    async function parseSqItems(targetListener, sqEndAbs, outerDecoder) {
+        while (stream.offset < sqEndAbs) {
+            // Read item tag (FFFE,E000) + 4-byte length = 8 bytes
+            await stream.ensureAvailable(8);
+            if (!stream.isAvailable(8, false)) {
+                throw new Error(
+                    `fromPart10Stream: truncated: SQ item header missing at ${stream.offset}`
+                );
+            }
+            const itemGroup = getU16(stream.offset);
+            const itemElement = getU16(stream.offset + 2);
+
+            // FFFE,E0DD = sequence delimiter (for undefined-length SQ)
+            if (itemGroup === 0xfffe && itemElement === 0xe0dd) {
+                stream.offset += 8;
+                break;
+            }
+            // FFFE,E000 = item tag
+            if (itemGroup !== 0xfffe || itemElement !== 0xe000) {
+                // Unexpected tag — stop gracefully
+                break;
+            }
+            stream.offset += 4; // past item tag
+            const itemLength = getU32(stream.offset);
+            stream.offset += 4;
+
+            if (itemLength === 0xffffffff) {
+                // K3 tail-fallback: undefined-length item not handled natively until K4.
+                throw new TailFallbackSignal();
+            }
+
+            const itemEndAbs = stream.offset + itemLength;
+            targetListener.startItem({ length: itemLength });
+            await parseItemElements(targetListener, itemEndAbs, outerDecoder);
+            targetListener.endItem();
+        }
+    }
+
+    /**
+     * Parse elements within an SQ item from stream.offset to itemEndAbs.
+     * Per-item charset scoping: if this item's own 00080005 exists, it
+     * overrides `parentDecoder` for subsequent elements in this item's
+     * subtree, mirroring buffered fromPart10's per-item decoder threading.
+     * Throws TailFallbackSignal on any undefined-length element.
+     */
+    async function parseItemElements(
+        targetListener,
+        itemEndAbs,
+        parentDecoder
+    ) {
+        let itemDecoder = parentDecoder;
+
+        while (stream.offset < itemEndAbs) {
+            await stream.ensureAvailable(4);
+            if (!stream.isAvailable(4, false)) {
+                throw new Error(
+                    `fromPart10Stream: truncated: item element header at ${stream.offset}`
+                );
+            }
+            const elemStartAbs = stream.offset;
+            const elGroup = getU16(stream.offset);
+            stream.offset += 2;
+            const elElement = getU16(stream.offset);
+            stream.offset += 2;
+
+            // FFFE,E00D = item delimiter
+            if (elGroup === 0xfffe && elElement === 0xe00d) {
+                stream.offset += 4; // skip 4-byte zero length
+                break;
+            }
+
+            const tagStr = bodyTagStr(elGroup, elElement);
+            let vrStr = null;
+            let valueLength;
+
+            if (bodyImplicit) {
+                await stream.ensureAvailable(4);
+                if (!stream.isAvailable(4, false)) {
+                    throw new Error(
+                        `fromPart10Stream: truncated at ${elemStartAbs}: missing implicit length`
+                    );
+                }
+                // Implicit always LE
+                valueLength = stream.view.getUint32(stream.offset, true);
+                stream.offset += 4;
+            } else {
+                await stream.ensureAvailable(2);
+                if (!stream.isAvailable(2, false)) {
+                    throw new Error(
+                        `fromPart10Stream: truncated at ${elemStartAbs}: missing VR`
+                    );
+                }
+                vrStr =
+                    String.fromCharCode(stream.view.getUint8(stream.offset)) +
+                    String.fromCharCode(
+                        stream.view.getUint8(stream.offset + 1)
+                    );
+                stream.offset += 2;
+
+                const vrForLen = ValueRepresentation.createByTypeString(vrStr);
+                if (vrForLen.isLength32()) {
+                    await stream.ensureAvailable(6);
+                    if (!stream.isAvailable(6, false)) {
+                        throw new Error(
+                            `fromPart10Stream: truncated at ${elemStartAbs}: missing ext length`
+                        );
+                    }
+                    stream.offset += 2; // reserved
+                    valueLength = getU32(stream.offset);
+                    stream.offset += 4;
+                } else {
+                    await stream.ensureAvailable(2);
+                    if (!stream.isAvailable(2, false)) {
+                        throw new Error(
+                            `fromPart10Stream: truncated at ${elemStartAbs}: missing 2-byte length`
+                        );
+                    }
+                    valueLength = getU16(stream.offset);
+                    stream.offset += 2;
+                }
+            }
+
+            if (valueLength === 0xffffffff) {
+                // K3 tail-fallback: undefined-length inside SQ handled natively in K4.
+                throw new TailFallbackSignal();
+            }
+
+            const valueStartAbs = stream.offset;
+            const valueEndAbs = valueStartAbs + valueLength;
+
+            const elLike = {
+                vr: vrStr,
+                tagValue: ((elGroup << 16) | elElement) >>> 0,
+                dataOffset: 0,
+                length: valueLength,
+                hadUndefinedLength: false
+            };
+            const dummyWin = {
+                arrayBuffer: new ArrayBuffer(0),
+                baseOffset: 0,
+                syntax: transferSyntaxUID,
+                littleEndian: bodyLittleEndian,
+                implicit: bodyImplicit,
+                decoder: null
+            };
+            let vrInstance = resolveVrInstance(elLike, dummyWin);
+
+            // Mirror readDicomElementImplicit.js isSequence() data-peek for
+            // implicit-VR nested elements (same logic as the top-level loop).
+            if (
+                bodyImplicit &&
+                vrInstance.type !== "SQ" &&
+                (elGroup & 1) === 0 &&
+                valueLength >= 4
+            ) {
+                await stream.ensureAvailable(4);
+                if (stream.isAvailable(4, false)) {
+                    const peekGroup = stream.view.getUint16(
+                        valueStartAbs,
+                        true
+                    );
+                    const peekElem = stream.view.getUint16(
+                        valueStartAbs + 2,
+                        true
+                    );
+                    if (
+                        peekGroup === 0xfffe &&
+                        (peekElem === 0xe000 || peekElem === 0xe0dd)
+                    ) {
+                        vrInstance =
+                            ValueRepresentation.createByTypeString("SQ");
+                    }
+                }
+            }
+
+            if (vrInstance.type === "SQ") {
+                // Nested defined-length SQ: recurse
+                targetListener.startSequence(tagStr, {
+                    vr: "SQ",
+                    length: valueLength
+                });
+                await parseSqItems(targetListener, valueEndAbs, itemDecoder);
+                targetListener.endSequence();
+                stream.offset = valueEndAbs;
+            } else {
+                // Leaf element: decode and emit
+                await stream.ensureAvailable(valueLength);
+                if (!stream.isAvailable(valueLength, false)) {
+                    throw new Error(
+                        `fromPart10Stream: truncated: element at ${valueStartAbs} needs ${valueLength} bytes`
+                    );
+                }
+                const valueAB = stream.slice(valueStartAbs, valueEndAbs);
+                const win = {
+                    arrayBuffer: valueAB,
+                    baseOffset: 0,
+                    syntax: transferSyntaxUID,
+                    littleEndian: bodyLittleEndian,
+                    implicit: bodyImplicit,
+                    decoder: itemDecoder
+                };
+                // Per-item charset scoping: 00080005 in this item overrides for
+                // subsequent elements in this item's subtree.
+                if (tagStr === "00080005") {
+                    const csResult = resolveCharacterSet(win, elLike, policy);
+                    itemDecoder = csResult?.decoder ?? null;
+                    win.decoder = itemDecoder;
+                }
+                const { values, rawValues } = decodeElementValues(
+                    win,
+                    elLike,
+                    vrInstance,
+                    policy
+                );
+                emitValues(
+                    targetListener,
+                    tagStr,
+                    vrInstance,
+                    elLike,
+                    values,
+                    rawValues
+                );
+                stream.offset = valueEndAbs;
+            }
+        }
+    }
+
+    // ---- K3 top-level body element loop ----
+    let bodyDecoder = null; // resolved when (0008,0005) is first seen in body
+    let tailFallbackUsed = false;
+
+    bodyLoop: while (true) {
+        // --- Read next element tag (4 bytes) ---
+        await stream.ensureAvailable(4);
+        if (!stream.isAvailable(4, false)) break bodyLoop; // clean EOF
+
+        const elementStartAbs = stream.offset;
+        const elGroup = getU16(stream.offset);
+        stream.offset += 2;
+        const elElement = getU16(stream.offset);
+        stream.offset += 2;
+
+        // FFFE group (item/SQ delimiter tags) at top level: skip defensively.
+        // Top-level FFFE tags are malformed for well-formed Part 10 files;
+        // skip to avoid misframing the next real element.
+        if (elGroup === 0xfffe) {
+            await stream.ensureAvailable(4);
+            if (stream.isAvailable(4, false)) stream.offset += 4; // skip 4-byte length
+            continue bodyLoop;
+        }
+
+        const tagStr = bodyTagStr(elGroup, elElement);
+
+        // --- Read VR and length ---
+        let vrStr = null;
+        let valueLength;
+
+        if (bodyImplicit) {
+            // Implicit VR: tag (read above) + 4-byte length; no VR bytes
+            await stream.ensureAvailable(4);
+            if (!stream.isAvailable(4, false)) {
+                throw new Error(
+                    `fromPart10Stream: truncated at ${elementStartAbs}: missing implicit length`
+                );
+            }
+            // Implicit is always LITTLE_ENDIAN regardless of body TS
+            valueLength = stream.view.getUint32(stream.offset, true);
+            stream.offset += 4;
+        } else {
+            // Explicit VR: 2-byte VR code
+            await stream.ensureAvailable(2);
+            if (!stream.isAvailable(2, false)) {
+                throw new Error(
+                    `fromPart10Stream: truncated at ${elementStartAbs}: missing VR bytes`
+                );
+            }
+            vrStr =
+                String.fromCharCode(stream.view.getUint8(stream.offset)) +
+                String.fromCharCode(stream.view.getUint8(stream.offset + 1));
+            stream.offset += 2;
+
+            const vrForLen = ValueRepresentation.createByTypeString(vrStr);
+            if (vrForLen.isLength32()) {
+                // Extended form: 2 reserved bytes + 4-byte length
+                await stream.ensureAvailable(6);
+                if (!stream.isAvailable(6, false)) {
+                    throw new Error(
+                        `fromPart10Stream: truncated at ${elementStartAbs}: missing extended length`
+                    );
+                }
+                stream.offset += 2; // skip reserved bytes
+                valueLength = getU32(stream.offset);
+                stream.offset += 4;
+            } else {
+                // Standard form: 2-byte length
+                await stream.ensureAvailable(2);
+                if (!stream.isAvailable(2, false)) {
+                    throw new Error(
+                        `fromPart10Stream: truncated at ${elementStartAbs}: missing 2-byte length`
+                    );
+                }
+                valueLength = getU16(stream.offset);
+                stream.offset += 2;
+            }
+        }
+
+        const valueStartAbs = stream.offset;
+        const valueEndAbs = valueStartAbs + valueLength;
+
+        // --- Undefined-length: tail-fallback ---
+        if (valueLength === 0xffffffff) {
+            // K3 tail-fallback: undefined-length handled natively in K4.
+            tailFallbackUsed = true;
+            await triggerTailFallback(elementStartAbs);
+            break bodyLoop;
+        }
+
+        // --- VR instance for routing ---
+        const elLike = {
+            vr: vrStr,
+            tagValue: ((elGroup << 16) | elElement) >>> 0,
+            dataOffset: 0,
+            length: valueLength,
+            hadUndefinedLength: false
+        };
+        // Dummy window for resolveVrInstance: only window.implicit is used;
+        // the buffer contents are not accessed by resolveVrInstance.
+        const dummyWin = {
+            arrayBuffer: new ArrayBuffer(0),
+            baseOffset: 0,
+            syntax: transferSyntaxUID,
+            littleEndian: bodyLittleEndian,
+            implicit: bodyImplicit,
+            decoder: null
+        };
+        let vrInstance = resolveVrInstance(elLike, dummyWin);
+
+        // Mirror readDicomElementImplicit.js isSequence() data-peek:
+        // For implicit-VR datasets the dictionary alone may not identify an
+        // unknown element as SQ.  When the element is non-private and its first
+        // 4 value bytes are an item tag (FFFE,E000) or sequence delimiter
+        // (FFFE,E0DD), treat it as an implicit SQ — exactly the heuristic used
+        // by the buffered parser.  K3 boundary: hadUndefinedLength is always
+        // false here (undefined-length already triggered tail-fallback above),
+        // so only the !isPrivate branch of the original condition applies.
+        if (
+            bodyImplicit &&
+            vrInstance.type !== "SQ" &&
+            (elGroup & 1) === 0 &&
+            valueLength >= 4
+        ) {
+            await stream.ensureAvailable(4);
+            if (stream.isAvailable(4, false)) {
+                // Item/delimiter tags are always stored little-endian.
+                const peekGroup = stream.view.getUint16(valueStartAbs, true);
+                const peekElem = stream.view.getUint16(valueStartAbs + 2, true);
+                if (
+                    peekGroup === 0xfffe &&
+                    (peekElem === 0xe000 || peekElem === 0xe0dd)
+                ) {
+                    vrInstance = ValueRepresentation.createByTypeString("SQ");
+                }
+            }
+        }
+
+        // --- Route by element type ---
+        if (vrInstance.type === "SQ") {
+            // Defined-length SQ: buffer all subtree events in EventBuffer.
+            // If TailFallbackSignal is thrown from anywhere inside the SQ,
+            // discard the buffer and tail-fallback from this element's start.
+            // K3 tail-fallback: undefined-length inside SQ is handled natively in K4.
+            const sqStartAbs = elementStartAbs;
+            const buf = new EventBuffer();
+            buf.startSequence(tagStr, { vr: "SQ", length: valueLength });
+            try {
+                await parseSqItems(buf, valueEndAbs, bodyDecoder);
+            } catch (e) {
+                if (e instanceof TailFallbackSignal) {
+                    tailFallbackUsed = true;
+                    await triggerTailFallback(sqStartAbs);
+                    break bodyLoop;
+                }
+                throw e;
+            }
+            buf.endSequence();
+            buf.flushTo(listener);
+            stream.offset = valueEndAbs;
+            await listener.awaitDrain();
+            if (releaseEnabled) stream.consume(valueEndAbs); // K3: dormant
+        } else {
+            // Defined-length leaf element: decode value and emit directly.
+            // Emit is incremental — no need to wait for feed completion.
+            if (valueLength > 0) {
+                await stream.ensureAvailable(valueLength);
+                if (!stream.isAvailable(valueLength, false)) {
+                    throw new Error(
+                        `fromPart10Stream: truncated: element at ${valueStartAbs} ` +
+                            `declares ${valueLength} bytes but stream ended`
+                    );
+                }
+            }
+
+            const valueAB = stream.slice(valueStartAbs, valueEndAbs);
+            const win = {
+                arrayBuffer: valueAB,
+                baseOffset: 0,
+                syntax: transferSyntaxUID,
+                littleEndian: bodyLittleEndian,
+                implicit: bodyImplicit,
+                decoder: bodyDecoder
+            };
+
+            const { values, rawValues } = decodeElementValues(
+                win,
+                elLike,
+                vrInstance,
+                policy
+            );
+
+            // Top-level charset: (0008,0005) SpecificCharacterSet sets the body
+            // decoder for all subsequent body elements (including inside SQ items
+            // that inherit the parent policy).
+            if (tagStr === "00080005") {
+                const csResult = resolveCharacterSet(win, elLike, policy);
+                bodyDecoder = csResult?.decoder ?? null;
+            }
+
+            emitValues(listener, tagStr, vrInstance, elLike, values, rawValues);
+            stream.offset = valueEndAbs;
+            await listener.awaitDrain();
+            if (releaseEnabled) stream.consume(valueEndAbs); // K3: dormant
+        }
+    }
+
+    // K3 observable hook: report which path was taken.
+    // 'native'       = incremental path (all elements defined-length)
+    // 'tailFallback' = buffered-tail path (undefined-length element encountered)
+    // ('deflate' is reported in the early-return block above)
+    options.onPhase?.(tailFallbackUsed ? "tailFallback" : "native");
 
     listener.endDataSet();
 }

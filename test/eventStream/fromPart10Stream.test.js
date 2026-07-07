@@ -1205,3 +1205,622 @@ describe("fromPart10Stream — K3: implicit SQ-detection data-peek parity", () =
         }
     );
 });
+
+// ===========================================================================
+// K4 TESTS — undefined-length structures stream natively; tail-fallback gone;
+// chunk release live.  Written RED against K3 (which tail-falls-back on every
+// undefined-length fixture) before the K4 implementation.
+// ===========================================================================
+
+/** Recursively list every *.dcm file under the given repo-relative dirs. */
+function listDcmFiles(dirs) {
+    const out = [];
+    const walk = abs => {
+        for (const name of fs.readdirSync(abs)) {
+            const p = path.join(abs, name);
+            const st = fs.statSync(p);
+            if (st.isDirectory()) walk(p);
+            else if (name.endsWith(".dcm")) out.push(path.relative(REPO_ROOT, p));
+        }
+    };
+    for (const d of dirs) walk(path.join(REPO_ROOT, d));
+    return out;
+}
+
+// Real encapsulated fixtures (undefined-length pixel data with fragments).
+const FIXTURE_ENCAP_BOT =
+    "packages/parser/testImages/encapsulated/single-frame/CT1_UNC.fragmented_bot_jpeg_ls.80.dcm";
+const FIXTURE_ENCAP_NOBOT =
+    "packages/parser/testImages/encapsulated/single-frame/CT1_UNC.fragmented_no_bot_jpeg_ls.80.dcm";
+const FIXTURE_ENCAP_MULTI =
+    "packages/parser/testImages/encapsulated/multi-frame/IM00001.fragmented_no_bot_jpeg_baseline.50.dcm";
+
+// Undefined-length SQ fixtures (many top-level + nested undefined-length SQs).
+const FIXTURE_SQ_UNDEF = "test/sample-dicom.dcm";
+const FIXTURE_SQ_UNDEF2 =
+    "packages/parser/testImages/encapsulated/multi-frame/CT0012.explicit_little_endian.dcm";
+const FIXTURE_CINE = "test/cine-test.dcm";
+
+// ---------------------------------------------------------------------------
+// K4 Test 17: NO corpus fixture tail-falls-back anymore.
+//
+// The strongest deletion gate: every Part 10 fixture in the corpus must be
+// streamed via the 'native' path (or 'deflate' for deflated syntax).  With K3
+// most encapsulated / undefined-SQ fixtures report 'tailFallback'; after K4 the
+// tail-fallback path is deleted and none may.
+// ---------------------------------------------------------------------------
+
+describe("fromPart10Stream — K4: no fixture uses tail-fallback", () => {
+    test("every corpus .dcm streams via native or deflate (never tailFallback)", async () => {
+        const files = listDcmFiles(["packages/parser/testImages", "test"]);
+        expect(files.length).toBeGreaterThan(0);
+
+        const offenders = [];
+        for (const rel of files) {
+            const phases = [];
+            const listener = new CollectorListener();
+            try {
+                await fromPart10Stream(readBuffer(rel).slice(0), listener, {
+                    onPhase: p => phases.push(p)
+                });
+            } catch (e) {
+                offenders.push(`${rel}: threw ${e.message}`);
+                continue;
+            }
+            if (phases.includes("tailFallback")) {
+                offenders.push(`${rel}: ${phases.join(",")}`);
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// K4 Test 18: Real encapsulated fixtures — equivalence + native path
+// ---------------------------------------------------------------------------
+
+describe("fromPart10Stream — K4: encapsulated pixel data streams natively", () => {
+    test.each([
+        ["fragmented + BOT (single chunk)", FIXTURE_ENCAP_BOT, b => b],
+        ["fragmented + BOT (37-byte chunks)", FIXTURE_ENCAP_BOT, b => chunked(b, 37)],
+        ["fragmented no-BOT (37-byte chunks)", FIXTURE_ENCAP_NOBOT, b => chunked(b, 37)],
+        ["multi-frame fragmented (4096-byte chunks)", FIXTURE_ENCAP_MULTI, b => chunked(b, 4096)]
+    ])("%s: events deep-equal buffered + onPhase='native'", async (_label, rel, toInput) => {
+        const buffer = readBuffer(rel);
+        const expected = await runBuffered(buffer.slice(0));
+        const phases = [];
+        const actual = await runStream(toInput(buffer.slice(0)), {
+            onPhase: p => phases.push(p)
+        });
+
+        const problems = [];
+        compareSection(expected.meta || {}, actual.meta || {}, "meta", problems);
+        compareSection(expected.dict || {}, actual.dict || {}, "dict", problems);
+        expect(problems).toEqual([]);
+
+        expect(phases).toContain("native");
+        expect(phases).not.toContain("tailFallback");
+        expect(phases).not.toContain("deflate");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// K4 Test 18b: Encapsulated pixel-data startElement length — stream vs buffered
+//
+// DELIBERATE DELTA: fromPart10Stream emits startElement({ length: 0xFFFFFFFF })
+// for encapsulated pixel data (the on-wire undefined length).  Buffered
+// fromPart10 emits the parser's computed content span (e.g. 164406 for
+// CT1_UNC.fragmented_bot_jpeg_ls.80.dcm) because it knows the full file before
+// emitting.  The stream MUST emit 0xFFFFFFFF up-front so that binaryFragment
+// events can arrive before the input is complete (Test 19); emitting the
+// computed span would require buffering the entire encapsulated element first,
+// defeating fragment streaming.
+//
+// CollectorListener drops the length field; this test uses a tiny inline
+// listener that records startElement options to assert the stream's value.
+// ---------------------------------------------------------------------------
+
+/** Listener that records every startElement call as { tag, length }. */
+class StartElementCapture extends CollectorListener {
+    constructor() {
+        super();
+        this.startEls = [];
+    }
+    _baseStartElement(tag, info = {}) {
+        this.startEls.push({ tag, length: info.length });
+        super._baseStartElement(tag, info);
+    }
+}
+
+describe("fromPart10Stream — K4: encapsulated startElement length is 0xFFFFFFFF (delta from buffered)", () => {
+    test("stream emits on-wire 0xFFFFFFFF for encapsulated pixel-data element", async () => {
+        const buffer = readBuffer(FIXTURE_ENCAP_BOT);
+
+        const listener = new StartElementCapture();
+        await fromPart10Stream(buffer.slice(0), listener);
+
+        // Find the pixel-data startElement event.
+        const pixelEl = listener.startEls.find(e => e.tag === "7FE00010");
+        expect(pixelEl).toBeDefined();
+        // Stream emits the on-wire 0xFFFFFFFF (= 4294967295) — the computed
+        // span is unknown at emission time (fragment streaming requires emitting
+        // startElement before reading the closing delimiter).
+        expect(pixelEl.length).toBe(0xffffffff);
+        // Note: buffered fromPart10 emits the parser's computed span (the actual
+        // byte count between startElement and the closing FFFE,E0DD) — a
+        // gate-invisible delta because CollectorListener ignores this field.
+    });
+});
+
+// ---------------------------------------------------------------------------
+// K4 Test 19: Encapsulated fragments arrive BEFORE input completes
+//
+// The key streaming gate for fragments: a binaryFragment event must be
+// delivered while the tail of the file is still gated behind a promise.  With
+// K3 this is impossible (tail-fallback awaits the full input before emitting
+// any pixel-data events).
+// ---------------------------------------------------------------------------
+
+class FirstFragmentListener extends BracketTrackingListener {
+    constructor() {
+        super();
+        this._fragged = false;
+        this._inEncapsulated = false;
+        this.firstFragment = new Promise(resolve => {
+            this._resolveFragment = resolve;
+        });
+    }
+    startBinary(opts = {}) {
+        // Only pixel-data fragments count — ignore FMI/leaf binary blobs.
+        this._inEncapsulated = !!opts.encapsulated;
+    }
+    endBinary() {
+        this._inEncapsulated = false;
+    }
+    binaryFragment(buf) {
+        if (this._inEncapsulated && !this._fragged) {
+            this._fragged = true;
+            this._resolveFragment(buf ? buf.byteLength : 0);
+        }
+    }
+}
+
+describe("fromPart10Stream — K4: fragment events before input completes", () => {
+    test("a binaryFragment arrives while the file tail is gated", async () => {
+        const buffer = readBuffer(FIXTURE_ENCAP_BOT);
+        const bytes = new Uint8Array(buffer);
+        // Split roughly in half: the first half covers FMI + metadata + the
+        // pixel-data header + several fragments; the tail stays gated.
+        const SPLIT = Math.floor(bytes.length / 2);
+
+        let unblockTail;
+        const tailGate = new Promise(resolve => {
+            unblockTail = resolve;
+        });
+
+        async function* gatingIterable() {
+            yield bytes.slice(0, SPLIT);
+            await tailGate;
+            yield bytes.slice(SPLIT);
+        }
+
+        const listener = new FirstFragmentListener();
+        const parsePromise = fromPart10Stream(gatingIterable(), listener);
+
+        const fragTimeout = new Promise((_, reject) =>
+            setTimeout(
+                () => reject(new Error("First fragment timeout — fragments not streamed incrementally")),
+                10000
+            )
+        );
+        const fragLen = await Promise.race([listener.firstFragment, fragTimeout]);
+        expect(typeof fragLen).toBe("number");
+        expect(fragLen).toBeGreaterThan(0);
+
+        unblockTail();
+        await parsePromise;
+    });
+});
+
+// ---------------------------------------------------------------------------
+// K4 Test 20: Undefined-length SQ fixtures — equivalence + native path
+// ---------------------------------------------------------------------------
+
+describe("fromPart10Stream — K4: undefined-length SQ streams natively", () => {
+    test.each([
+        ["sample-dicom (single chunk)", FIXTURE_SQ_UNDEF, b => b],
+        ["sample-dicom (37-byte chunks)", FIXTURE_SQ_UNDEF, b => chunked(b, 37)],
+        ["CT0012 explicit-LE (37-byte chunks)", FIXTURE_SQ_UNDEF2, b => chunked(b, 37)],
+        ["cine-test (37-byte chunks)", FIXTURE_CINE, b => chunked(b, 37)]
+    ])("%s: events deep-equal buffered + onPhase='native'", async (_label, rel, toInput) => {
+        const buffer = readBuffer(rel);
+        const expected = await runBuffered(buffer.slice(0));
+        const phases = [];
+        const actual = await runStream(toInput(buffer.slice(0)), {
+            onPhase: p => phases.push(p)
+        });
+
+        const problems = [];
+        compareSection(expected.meta || {}, actual.meta || {}, "meta", problems);
+        compareSection(expected.dict || {}, actual.dict || {}, "dict", problems);
+        expect(problems).toEqual([]);
+
+        expect(phases).toContain("native");
+        expect(phases).not.toContain("tailFallback");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// K4 Test 21: startSequence length payload parity for undefined-length SQ
+//
+// Buffered emits startSequence({ length }) with the parser's computed content
+// span (position of the sequence delimiter minus the sequence dataOffset), NOT
+// 0xFFFFFFFF.  The stream path must emit the SAME length for every sequence.
+// ---------------------------------------------------------------------------
+
+class SeqLengthListener extends CollectorListener {
+    constructor() {
+        super();
+        this._seqLengths = [];
+    }
+    _baseStartSequence(tag, info = {}) {
+        super._baseStartSequence(tag, info);
+        this._seqLengths.push(`${tag}:${info.length}`);
+    }
+}
+
+describe("fromPart10Stream — K4: undefined-length SQ length-payload parity", () => {
+    test("startSequence lengths match buffered element-for-element", async () => {
+        const buffer = readBuffer(FIXTURE_SQ_UNDEF);
+
+        const bufferedListener = new SeqLengthListener();
+        await fromPart10(buffer.slice(0), bufferedListener);
+
+        const streamListener = new SeqLengthListener();
+        await fromPart10Stream(chunked(buffer.slice(0), 37), streamListener);
+
+        expect(streamListener._seqLengths.length).toBeGreaterThan(0);
+        expect(streamListener._seqLengths).toEqual(bufferedListener._seqLengths);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// K4 Test 22: Synthesized undefined-length non-SQ leaf ("eagerWindow")
+//
+// The J4a "eagerWindow" hard case: a private explicit-VR UN element of
+// undefined length with zero-length items ending in a sequence delimiter
+// (FFFE,E0DD).  The parser routes this through readSequenceItemsImplicit and
+// dcmjs decodes it via the eager reader (decodeWithEagerReadTag), NOT as an SQ.
+// The stream path must bound the element window to the same delimiter and
+// decode identically, with the same startElement length payload (the parser's
+// content span).  Mirrors test/eventStream/fromPart10.test.js's J4a builder.
+// ---------------------------------------------------------------------------
+
+/**
+ * Build an Explicit-LE Part 10 file whose body is a single private UN element
+ * (group/element given, undefined length) containing `numEmptyItems`
+ * zero-length items and a closing sequence delimiter (FFFE,E0DD).
+ */
+function buildUndefinedUnLeafFile(group, element, numEmptyItems) {
+    const tsStr = "1.2.840.10008.1.2.1\0"; // ELE
+
+    const fmiOB = new DicomWriter();
+    fmiOB.elemLong(0x0002, 0x0001, "OB", new Uint8Array([0, 1]));
+    const fmiTS = new DicomWriter();
+    fmiTS.elemStd(
+        0x0002, 0x0010, "UI",
+        new Uint8Array(tsStr.split("").map(c => c.charCodeAt(0)))
+    );
+    const restFmiLen = fmiOB.toUint8Array().length + fmiTS.toUint8Array().length;
+    const glBytes = new Uint8Array(4);
+    new DataView(glBytes.buffer).setUint32(0, restFmiLen, true);
+    const fmiGL = new DicomWriter();
+    fmiGL.elemStd(0x0002, 0x0000, "UL", glBytes);
+
+    // Body element: explicit UN long-form header with undefined length.
+    const body = new DicomWriter();
+    body.u16(group);
+    body.u16(element);
+    body.ascii("UN");
+    body.u16(0); // reserved
+    body.u32(0xffffffff); // undefined length
+    for (let i = 0; i < numEmptyItems; i++) {
+        body.u16(0xfffe);
+        body.u16(0xe000);
+        body.u32(0); // zero-length item
+    }
+    // Sequence delimiter FFFE,E0DD + 0 length.
+    body.u16(0xfffe);
+    body.u16(0xe0dd);
+    body.u32(0);
+
+    const file = new DicomWriter();
+    file.zeros(128);
+    file.ascii("DICM");
+    file._push(fmiGL.toUint8Array());
+    file._push(fmiOB.toUint8Array());
+    file._push(fmiTS.toUint8Array());
+    file._push(body.toUint8Array());
+    return file.toArrayBuffer();
+}
+
+class ElementLengthListener extends CollectorListener {
+    constructor() {
+        super();
+        this._elLengths = [];
+    }
+    _baseStartElement(tag, info = {}) {
+        super._baseStartElement(tag, info);
+        this._elLengths.push(`${tag}:${info.length}`);
+    }
+}
+
+describe("fromPart10Stream — K4: undefined-length non-SQ leaf (eagerWindow)", () => {
+    test.each([
+        ["single chunk", b => b],
+        ["37-byte chunks", b => chunked(b, 37)]
+    ])("%s: events + element length match buffered", async (_label, toInput) => {
+        // Private (0099,0001) UN, undefined length, two zero-length items,
+        // sequence delimiter — the J4a eagerWindow fixture.
+        const buffer = buildUndefinedUnLeafFile(0x0099, 0x0001, 2);
+
+        const bufferedListener = new ElementLengthListener();
+        await fromPart10(buffer.slice(0), bufferedListener);
+
+        const phases = [];
+        const streamListener = new ElementLengthListener();
+        await fromPart10Stream(toInput(buffer.slice(0)), streamListener, {
+            onPhase: p => phases.push(p)
+        });
+
+        const problems = [];
+        compareSection(
+            bufferedListener.result.dict || {},
+            streamListener.result.dict || {},
+            "dict",
+            problems
+        );
+        expect(problems).toEqual([]);
+        // Length-payload parity for the undefined-length leaf element.
+        expect(streamListener._elLengths.length).toBeGreaterThan(0);
+        expect(streamListener._elLengths).toEqual(bufferedListener._elLengths);
+        expect(phases).toContain("native");
+        expect(phases).not.toContain("tailFallback");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// K4 Test 22b: Undefined-length text VR (UT) with FFFE,E00D terminator —
+//              KNOWINGLY-ACCEPTED DIVERGENCE (stream throws; buffered: garbage)
+//
+// DICOM PS3.5 only permits undefined length for SQ, items, and encapsulated
+// pixel data.  A UT (or UC/UR) element with length 0xFFFFFFFF is non-conformant.
+// The two paths handle it differently (empirically verified, pinned here):
+//
+//   buffered fromPart10 — readEncodedString clamps the 0xFFFFFFFF read to the
+//     buffer end, consuming ALL remaining bytes (delimiter + trailing elements)
+//     as the UT string.  Returns successfully with garbage value; trailing
+//     elements after the FFFE,E00D are silently lost.
+//
+//   fromPart10Stream — emitUndefinedLeaf's skipUndefinedSequence sees the
+//     non-FFFE value bytes as malformed (not FFFE,E0DD / FFFE,E000) and stops
+//     immediately; the body loop then re-parses the value bytes as a DICOM
+//     element, producing a truncation throw.
+//
+// This is a DELIBERATE loud-failure divergence: stream fails loudly on input
+// that buffered silently mishandles.  The test pins actual observed behavior
+// so the divergence is explicit and reviewable rather than accidental.
+// ---------------------------------------------------------------------------
+
+/**
+ * Build an Explicit-LE Part 10 file whose body is a single explicit-VR UT
+ * element with undefined length (12-byte long form), followed by `valueBytes`,
+ * an FFFE,E00D item delimiter, and a trailing (0008,0060) CS "CT" element.
+ * This structure is non-conformant per PS3.5 (undefined length is only
+ * permitted for SQ/items/encapsulated pixel data).
+ */
+function buildUndefinedLengthUtFile(valueBytes) {
+    const tsStr = "1.2.840.10008.1.2.1\0"; // Explicit Little Endian
+
+    const fmiOB = new DicomWriter();
+    fmiOB.elemLong(0x0002, 0x0001, "OB", new Uint8Array([0, 1]));
+    const fmiTS = new DicomWriter();
+    fmiTS.elemStd(
+        0x0002, 0x0010, "UI",
+        new Uint8Array(tsStr.split("").map(c => c.charCodeAt(0)))
+    );
+    const restFmiLen = fmiOB.toUint8Array().length + fmiTS.toUint8Array().length;
+    const glBytes = new Uint8Array(4);
+    new DataView(glBytes.buffer).setUint32(0, restFmiLen, true);
+    const fmiGL = new DicomWriter();
+    fmiGL.elemStd(0x0002, 0x0000, "UL", glBytes);
+
+    const body = new DicomWriter();
+    // UT long-form header: tag(4) + VR(2) + reserved(2) + length(4) = 12 bytes.
+    body.u16(0x0008); body.u16(0x0104); // (0008,0104) CodeMeaning
+    body.ascii("UT");
+    body.u16(0);           // reserved
+    body.u32(0xffffffff);  // undefined length — non-conformant for UT
+    // value bytes (text content before the delimiter)
+    body._push(valueBytes);
+    // FFFE,E00D item delimiter (NOT E0DD sequence delimiter)
+    body.u16(0xfffe); body.u16(0xe00d); body.u32(0);
+    // Trailing element: (0008,0060) CS "CT"
+    body.u16(0x0008); body.u16(0x0060);
+    body.ascii("CS"); body.u16(2); body.ascii("CT");
+
+    const file = new DicomWriter();
+    file.zeros(128);
+    file.ascii("DICM");
+    file._push(fmiGL.toUint8Array());
+    file._push(fmiOB.toUint8Array());
+    file._push(fmiTS.toUint8Array());
+    file._push(body.toUint8Array());
+    return file.toArrayBuffer();
+}
+
+describe("fromPart10Stream — K4: undefined-length UT with E00D delimiter (divergence)", () => {
+    test("buffered returns garbage; stream throws truncation (knowingly-accepted divergence)", async () => {
+        // Value bytes: "hello" (5 bytes).  Non-FFFE bytes guarantee skipUndefinedSequence
+        // stops at value-start, causing the body loop to re-parse them as a DICOM
+        // element with a garbage length → truncation throw.
+        const VALUE = new Uint8Array([0x68, 0x65, 0x6c, 0x6c, 0x6f]); // "hello"
+        const buffer = buildUndefinedLengthUtFile(VALUE);
+
+        // ---- buffered path: does NOT throw; returns garbage ----
+        // readEncodedString clamps the 0xFFFFFFFF read to the buffer boundary,
+        // consuming all remaining bytes (delimiter + trailing CS element) as the
+        // UT string.  The trailing (0008,0060) CS element is lost.
+        const bufferedListener = new CollectorListener();
+        await expect(
+            fromPart10(buffer.slice(0), bufferedListener)
+        ).resolves.toBeUndefined();
+
+        const utEntry = bufferedListener.result.dict["00080104"];
+        expect(utEntry).toBeDefined();
+        expect(utEntry.vr).toBe("UT");
+        // The garbage value bleeds past the E00D delimiter and contains the
+        // delimiter bytes and trailing element bytes.
+        const utValue = utEntry.Value[0];
+        expect(typeof utValue).toBe("string");
+        // Confirm bleed: value includes bytes from the FFFE,E00D delimiter.
+        // \xfe\xff = þÿ (or equivalent depending on TextDecoder), \r = 0x0D, à = 0xE0.
+        expect(utValue.length).toBeGreaterThan(VALUE.length); // includes delimiter + CS bytes
+        // Trailing (0008,0060) CS element is silently consumed into the UT value.
+        expect(bufferedListener.result.dict["00080060"]).toBeUndefined();
+
+        // ---- stream path: DOES throw (loud failure on non-conformant data) ----
+        // emitUndefinedLeaf stops at value-start (malformed item scan), then the
+        // body loop re-parses the value bytes as a DICOM element.  The garbage
+        // element declares a length larger than the remaining bytes → truncation.
+        const streamListener = new CollectorListener();
+        await expect(
+            fromPart10Stream(buffer.slice(0), streamListener)
+        ).rejects.toThrow(/truncated/);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// K4 Test 23: Synthesized UN-as-implicit-SQ variant
+//
+// An implicit dictionary-unknown element of undefined length whose value begins
+// with an item tag is resolved as an implicit SQ by dcmjs (resolveVrInstance's
+// hadUndefinedLength -> SQ branch, confirmed by the item-tag data-peek).  The
+// stream path must reach the same classification and emit SQ events.
+// ---------------------------------------------------------------------------
+
+/** Build an Implicit-LE file with one undefined-length body element. */
+function buildImplicitUndefinedFile(group, element, valueBytes) {
+    const ILE_TS = "1.2.840.10008.1.2\0";
+    const fmiOB = new DicomWriter();
+    fmiOB.elemLong(0x0002, 0x0001, "OB", new Uint8Array([0, 1]));
+    const fmiTS = new DicomWriter();
+    fmiTS.elemStd(
+        0x0002, 0x0010, "UI",
+        new Uint8Array(ILE_TS.split("").map(c => c.charCodeAt(0)))
+    );
+    const restFmiLen = fmiOB.toUint8Array().length + fmiTS.toUint8Array().length;
+    const glBytes = new Uint8Array(4);
+    new DataView(glBytes.buffer).setUint32(0, restFmiLen, true);
+    const fmiGL = new DicomWriter();
+    fmiGL.elemStd(0x0002, 0x0000, "UL", glBytes);
+
+    const body = new DicomWriter();
+    body.u16(group);
+    body.u16(element);
+    body.u32(0xffffffff); // undefined length
+    body._push(valueBytes);
+
+    const file = new DicomWriter();
+    file.zeros(128);
+    file.ascii("DICM");
+    file._push(fmiGL.toUint8Array());
+    file._push(fmiOB.toUint8Array());
+    file._push(fmiTS.toUint8Array());
+    file._push(body.toUint8Array());
+    return file.toArrayBuffer();
+}
+
+describe("fromPart10Stream — K4: UN-as-implicit-SQ variant", () => {
+    test.each([
+        ["single chunk", b => b],
+        ["37-byte chunks", b => chunked(b, 37)]
+    ])("%s: dictionary-unknown implicit undefined-length -> SQ matches buffered", async (_label, toInput) => {
+        // One item (FFFE,E000 undefined) with one child CS element, ending with
+        // an item delimiter, then a sequence delimiter (FFFE,E0DD).
+        const seqBytes = new Uint8Array([
+            // item start FFFE,E000, undefined length
+            0xfe, 0xff, 0x00, 0xe0, 0xff, 0xff, 0xff, 0xff,
+            // child: (0008,0060) implicit, length 2, "CT"
+            0x08, 0x00, 0x60, 0x00, 0x02, 0x00, 0x00, 0x00, 0x43, 0x54,
+            // item delimiter FFFE,E00D + 0 length
+            0xfe, 0xff, 0x0d, 0xe0, 0x00, 0x00, 0x00, 0x00,
+            // sequence delimiter FFFE,E0DD + 0 length
+            0xfe, 0xff, 0xdd, 0xe0, 0x00, 0x00, 0x00, 0x00
+        ]);
+        // Even (non-private) group so the implicit undefined-length element is
+        // retained as an SQ with items (private groups get items cleared).
+        const buffer = buildImplicitUndefinedFile(0x4444, 0x4444, seqBytes);
+
+        const expected = await runBuffered(buffer.slice(0));
+        const phases = [];
+        const actual = await runStream(toInput(buffer.slice(0)), {
+            onPhase: p => phases.push(p)
+        });
+
+        const problems = [];
+        compareSection(expected.meta || {}, actual.meta || {}, "meta", problems);
+        compareSection(expected.dict || {}, actual.dict || {}, "dict", problems);
+        expect(problems).toEqual([]);
+        expect(actual.dict["44444444"]).toBeDefined();
+        expect(actual.dict["44444444"].vr).toBe("SQ");
+        expect(phases).toContain("native");
+        expect(phases).not.toContain("tailFallback");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// K4 Test 24: Chunk-release smoke test (bounded memory)
+//
+// Streaming a corpus encapsulated fixture in small chunks must actually release
+// consumed chunks (clearBuffers + consume live).  We sample the stream's
+// getBufferMemoryInfo() after each top-level consume via an internal onConsume
+// hook and assert (a) it fires repeatedly, (b) the consume offset advances, and
+// (c) retained bytes end up far below the file size — proving buffers were
+// nulled, which cannot happen with release off (K3).
+// ---------------------------------------------------------------------------
+
+describe("fromPart10Stream — K4: chunk release is live (bounded-memory smoke)", () => {
+    test("encapsulated fixture in small chunks releases consumed buffers", async () => {
+        const buffer = readBuffer(FIXTURE_ENCAP_BOT);
+        const fileLen = buffer.byteLength;
+
+        const memSamples = [];
+        const listener = new CollectorListener();
+        await fromPart10Stream(chunked(buffer.slice(0), 4096), listener, {
+            onConsume: info => memSamples.push(info)
+        });
+
+        // The hook fired for many top-level elements.
+        expect(memSamples.length).toBeGreaterThanOrEqual(5);
+
+        // Consume offset advances monotonically.
+        for (let i = 1; i < memSamples.length; i++) {
+            expect(memSamples[i].consumeOffset).toBeGreaterThanOrEqual(
+                memSamples[i - 1].consumeOffset
+            );
+        }
+
+        // Release genuinely happened: the final retained totalSize is far below
+        // the file size (buffers were nulled).  With release off this equals the
+        // full file size.
+        const last = memSamples[memSamples.length - 1];
+        expect(last.totalSize).toBeLessThan(fileLen / 2);
+
+        // Buffers were actually nulled by consume(): with release off the
+        // final report would still hold every fed chunk (totalSize == fileLen).
+        expect(last.bufferCount).toBeLessThan(
+            Math.ceil(fileLen / 4096)
+        );
+    });
+});

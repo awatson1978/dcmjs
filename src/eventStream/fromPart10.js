@@ -283,52 +283,6 @@ function isMetaKey(key) {
     return key.slice(1, 5) === "0002";
 }
 
-/**
- * Walk pre-parsed body elements starting at or after `fromAbsOffset`, emitting
- * each one into `listener`.  Used by fromPart10Stream's K3 tail-fallback:
- * when an undefined-length element is encountered mid-body, the stream path
- * awaits feed completion, runs seedReadContext, and calls this function to
- * emit the elements it has not yet emitted (those at or after `fromAbsOffset`).
- *
- * @param {import("./EventStreamListener").EventStreamListener} listener
- * @param {object} metaWindow  - from seedReadContext
- * @param {object} bodyWindow  - from seedReadContext
- * @param {object} policy      - {forceStoreRaw, noCopy, ignoreErrors}
- * @param {object} elements    - dataSet.elements from seedReadContext
- * @param {TextDecoder|null} decoder - active body charset decoder (null = Latin-1)
- * @param {number} fromAbsOffset - absolute file offset; elements before this
- *        were already emitted by the incremental loop and must be skipped.
- * K3 tail-fallback: undefined-length handling is native in K4.
- */
-export async function walkBodyTail(
-    listener,
-    metaWindow,
-    bodyWindow,
-    policy,
-    elements,
-    decoder,
-    fromAbsOffset
-) {
-    const bodyKeys = Object.keys(elements).filter(
-        k => !isMetaKey(k) && k !== "xfffee00d"
-    );
-    for (const key of bodyKeys) {
-        const el = elements[key];
-        // Skip elements that the incremental loop already emitted.
-        if (el.startOffset < fromAbsOffset) continue;
-        emitElement(
-            listener,
-            metaWindow,
-            bodyWindow,
-            policy,
-            el,
-            false,
-            decoder
-        );
-        await listener.awaitDrain();
-    }
-}
-
 function toUint8Array(buffer) {
     if (buffer instanceof Uint8Array) {
         return buffer;

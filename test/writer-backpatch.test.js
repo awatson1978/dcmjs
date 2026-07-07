@@ -13,7 +13,7 @@ const { DicomMessage } = dcmjs.data;
 
 /**
  * Byte-identity regression suite for the eager writer rework (direct
- * destination-stream writes + length backpatching, REWIRING-PLAN R4 item 2).
+ * destination-stream writes + length backpatching, docs roadmap R4 item 2).
  *
  * The expected fixtures were captured by running DicomDict.write() with the
  * PRE-rework writer (per-element temporary WriteBufferStream + concat, see

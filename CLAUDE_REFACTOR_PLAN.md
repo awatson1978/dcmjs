@@ -30,7 +30,9 @@ Each slice is its own spec → plan → implement cycle. Dependency-ordered:
 | **B** | **Part 10 (raw bytes) → generator** | A | **DONE** — `fromPart10`, 31-fixture corpus gate green |
 | **C** | **DICOMweb JSON → generator** | A | **DONE** — `fromDicomWebJson`, source-agnostic structural gate green |
 | **D1** | **Naturalized value model (core)** | A, B, C | **DONE** — `NaturalizedListener`, generator-agnostic corpus gate green |
-| D2 | Naturalized PN proxy + private grouping + precision/raw retention | D1 | not started |
+| **D2a** | **Naturalized Person Name proxy (§17)** | D1 | **DONE** — `.Alphabetic` + `String()`→raw PN, reuses `pnAddValueAccessors` |
+| **D2b** | **Naturalized private-tag grouping (§18)** | D1 | **DONE** — `<slot>:<creator>` groups incl. registered names (§18.1–§18.5) |
+| **D2c** | **Naturalized precision/raw retention (§16/§27)** | D1, A | **DONE** — raw-value channel + round-trip retention; DS precision preserved |
 | **E1** | **DICOMweb JSON writer (sink)** | A | **DONE** — `DicomWebJsonWriter`, JSON round-trip + end-to-end gate green |
 | E2 | Part 10 byte writer (passthrough via sourceSpan) | A | not started |
 | **F** | **Public source/sink API (§32)** | A–E1 | **DONE** — `DicomEventStream` + `Naturalized.from` / `DicomWebJson.from` |
@@ -222,10 +224,34 @@ naturalize identically across all fixtures, modulo the known SpecificCharacterSe
 and binary frame-grouping), and a three-source agreement check (dict vs DICOMweb JSON).
 Full suite green on both cores (1038 tests).
 
-# Slices D2–G — summaries (not yet planned in detail)
-- **D2. Naturalized PN/private/precision** — PN proxy (§17), private-tag grouping (§18),
-  precision preservation (§16), raw retention (§27, needs the contract to carry raw values),
-  low-allocation state-by-depth tuning (§15.4).
+# Slices D2–G — summaries
+
+- **D2a. Naturalized Person Name proxy (§17)** — DONE. In `NaturalizedListener`, PN values
+  get non-enumerable `toString()`/`toJSON()` via the existing `dicomJson.pnAddValueAccessors`:
+  VM 1 → the `{Alphabetic,...}` object (so `PatientName.Alphabetic` works) with
+  `String(name)` → raw PN string; VM n → array with `\`-joined `toString()`. Accessors are
+  non-enumerable so the cross-source corpus gate is unaffected. Resolved the spec's open §17
+  question (component access IS supported for VM 1; toJSON serializes to the DICOM JSON array
+  form). 1051 tests green both cores.
+- **D2b. Private-tag grouping (§18)** — DONE. In `NaturalizedListener`, private data is
+  grouped under `"<slot>:<CREATOR>"` keys with `originalTagOffset` and block-relative
+  (low-byte) element keys (§18.1); private creators are recorded per dataset level and not
+  emitted as ordinary attributes (§18.5); creatorless private data keeps a full-tag
+  `{vr, Value}` unknown shape (§18.4); grouping is scoped per dataset level (sequence items
+  have their own creators). Registered private names (§18.2) are resolved via
+  `lookupPrivateTag` with the creator-qualified key `(gggg,"CREATOR",ee)` and used as the
+  nested key when known, meaningful (not "Unknown"), and non-colliding — e.g. SIEMENS CSA
+  HEADER (0029,1010) → `CSAImageHeaderInfo`; otherwise the numeric block-relative offset.
+  Applies identically across generators (cross-source gate stays green).
+- **D2c. Precision / raw retention (§16/§27)** — DONE. The contract's `value` event gained an
+  optional `rawValue` payload; `fromPart10` (via parallel raw shaping) and `fromDataSet`
+  (via `_rawValue`) emit it. `NaturalizedListener` retains the raw source string whenever a
+  numeric VR value's shortest decimal cannot reproduce the source (over-length DS, or an
+  integer beyond the safe range) — a VR-agnostic round-trip check, so normal values keep
+  their number. `fromDicomWebJson` carries no raw, so JSON-sourced numbers stay numbers
+  (DICOMweb JSON has already chosen a number). Note: IS is capped at 12 chars so it never
+  overflows; the real case is DS (≤16 chars). Default behavior matches §27 "inexact only".
+- Low-allocation state-by-depth tuning (§15.4) — future.
 - **E1. DICOMweb JSON writer** — DONE. `src/eventStream/DicomWebJsonWriter.js` (exposed as
   `dcmjs.eventStream.DicomWebJsonWriter`): the faithful inverse of `fromDicomWebJson`,
   making the contract a sink. Output `{vr, Value}` / `{vr, BulkDataURI}` /

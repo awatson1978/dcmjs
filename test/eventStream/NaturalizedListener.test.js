@@ -260,3 +260,172 @@ describe("NaturalizedListener — all three sources agree (§4.4)", () => {
         );
     });
 });
+
+describe("NaturalizedListener — Person Name proxy (§17)", () => {
+    test("VM-1 PN exposes components and stringifies to the raw PN string", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        l.startElement("00100010", { vr: "PN" }); // PatientName, VM 1
+        l.value({ Alphabetic: "Wallace^Bill" });
+        l.endElement();
+        l.endDataSet();
+
+        expect(l.result.PatientName.Alphabetic).toBe("Wallace^Bill");
+        expect(String(l.result.PatientName)).toBe("Wallace^Bill");
+        // toJSON serializes to the DICOM JSON model (PN Value is an array of
+        // component objects), matching dcmjs's existing convention.
+        expect(JSON.parse(JSON.stringify(l.result.PatientName))).toEqual([
+            { Alphabetic: "Wallace^Bill" }
+        ]);
+    });
+
+    test("VM-n PN is an array that stringifies with the value delimiter", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        l.startElement("00101001", { vr: "PN" }); // OtherPatientNames, VM 1-n
+        l.value({ Alphabetic: "Doe^John" });
+        l.value({ Alphabetic: "Doe^Jane" });
+        l.endElement();
+        l.endDataSet();
+
+        expect(Array.isArray(l.result.OtherPatientNames)).toBe(true);
+        expect(l.result.OtherPatientNames).toHaveLength(2);
+        expect(l.result.OtherPatientNames[0].Alphabetic).toBe("Doe^John");
+        expect(String(l.result.OtherPatientNames)).toBe("Doe^John\\Doe^Jane");
+    });
+
+    test("present-empty PN stays null", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        l.startElement("00100010", { vr: "PN" });
+        l.endElement();
+        l.endDataSet();
+        expect(l.result.PatientName).toBeNull();
+    });
+});
+
+describe("NaturalizedListener — private-tag grouping (§18)", () => {
+    test("groups private data under <slot>:<creator>, with block-relative keys", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        // An unregistered creator -> numeric block-relative keys (§18.1/§18.3).
+        scalar(l, "00290010", "LO", "ACME_PRIVATE_1.0"); // creator, slot 0x10
+        scalar(l, "00291010", "LO", "acme-value"); // private data (0029,1010)
+        scalar(l, "00291011", "LO", "acme-value-2"); // private data (0029,1011)
+        l.endDataSet();
+
+        expect(l.result["10:ACME_PRIVATE_1.0"]).toEqual({
+            originalTagOffset: 0x10,
+            "10": "acme-value",
+            "11": "acme-value-2"
+        });
+        // §18.5: the creator element is not emitted as an ordinary attribute
+        expect("00290010" in l.result).toBe(false);
+    });
+
+    test("uses the registered private name when known (§18.2)", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        scalar(l, "00290010", "LO", "SIEMENS CSA HEADER"); // creator, slot 0x10
+        scalar(l, "00291010", "OB", "csa"); // (0029,1010) -> CSAImageHeaderInfo
+        scalar(l, "00291099", "LO", "x"); // (0029,1099) -> not registered, numeric
+        l.endDataSet();
+
+        const group = l.result["10:SIEMENS CSA HEADER"];
+        expect(group.CSAImageHeaderInfo).toBe("csa");
+        expect(group["99"]).toBe("x");
+        // registered names stay scoped to the creator group
+        expect("CSAImageHeaderInfo" in l.result).toBe(false);
+    });
+
+    test("private data without an identifiable creator keeps a full-tag unknown shape (§18.4)", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        scalar(l, "00291020", "UN", "orphan"); // no creator declared for slot 0x10
+        l.endDataSet();
+
+        expect(l.result["00291020"]).toEqual({ vr: "UN", Value: ["orphan"] });
+    });
+
+    test("private grouping is scoped per dataset level (sequence items have their own creators)", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        scalar(l, "00290010", "LO", "ROOT CREATOR");
+        scalar(l, "00291010", "LO", "root");
+        l.startSequence("00400100", { vr: "SQ" }); // ScheduledProcedureStepSequence
+        l.startItem({});
+        scalar(l, "00290010", "LO", "ITEM CREATOR");
+        scalar(l, "00291010", "LO", "item");
+        l.endItem();
+        l.endSequence();
+        l.endDataSet();
+
+        expect(l.result["10:ROOT CREATOR"]["10"]).toBe("root");
+        const item = l.result.ScheduledProcedureStepSequence;
+        expect(item["10:ITEM CREATOR"]["10"]).toBe("item");
+    });
+});
+
+describe("NaturalizedListener — precision / raw retention (§16)", () => {
+    test("retains the raw string for a decimal the JS number cannot reproduce", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        l.startElement("00180050", { vr: "DS" }); // SliceThickness, DS
+        // 16-char DS; the double rounds to ...992, losing the last digit.
+        l.value(9007199254740993, { rawValue: "9007199254740993" });
+        l.endElement();
+        l.endDataSet();
+        expect(l.result.SliceThickness).toBe("9007199254740993");
+    });
+
+    test("keeps the number for exactly-representable decimals (incl. trailing zeros)", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        l.startElement("00180050", { vr: "DS" });
+        l.value(1.5, { rawValue: "1.50" }); // recoverable as 1.5
+        l.endElement();
+        l.endDataSet();
+        expect(l.result.SliceThickness).toBe(1.5);
+    });
+
+    test("without a raw value (e.g. DICOMweb JSON) the number is kept as-is", () => {
+        const l = new NaturalizedListener();
+        l.startDataSet({});
+        l.startElement("00180050", { vr: "DS" });
+        l.value(9007199254740993); // no rawValue available
+        l.endElement();
+        l.endDataSet();
+        expect(typeof l.result.SliceThickness).toBe("number");
+    });
+});
+
+describe("NaturalizedListener — precision end-to-end through generators", () => {
+    const { DicomDict } = dcmjs.data;
+
+    function buildLossyDsPart10() {
+        const meta = {
+            "00020010": { vr: "UI", Value: ["1.2.840.10008.1.2.1"] },
+            "00020002": { vr: "UI", Value: ["1.2.840.10008.5.1.4.1.1.7"] },
+            "00020003": { vr: "UI", Value: ["1.2.3.4.5"] }
+        };
+        const dd = new DicomDict(meta);
+        // 16-char DS whose double representation loses the final digit.
+        dd.dict = { "00180050": { vr: "DS", Value: ["9007199254740993"] } };
+        return dd.write();
+    }
+
+    test("lossy DS retains its raw string from raw bytes (fromPart10)", async () => {
+        const buffer = buildLossyDsPart10();
+        const l = new NaturalizedListener();
+        await fromPart10(buffer.slice(0), l);
+        expect(l.result.SliceThickness).toBe("9007199254740993");
+    });
+
+    test("lossy DS retains its raw string from a dict (fromDataSet)", async () => {
+        const buffer = buildLossyDsPart10();
+        const dict = DicomMessage.readFile(buffer.slice(0));
+        const l = new NaturalizedListener();
+        await fromDataSet({ meta: dict.meta, dict: dict.dict }, l);
+        expect(l.result.SliceThickness).toBe("9007199254740993");
+    });
+});

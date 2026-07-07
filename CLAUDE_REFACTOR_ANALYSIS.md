@@ -223,6 +223,33 @@ A literal reading of §12 would warn on every enhanced/multi-frame object; the e
 call is that violations apply only to non-sequence scalar VRs whose value count exceeds the
 declared VM.
 
+## D13. PN proxy shape (§17, resolving the spec's open decision)
+
+**Question:** §17 leaves PN proxy/list behavior for VM 1 vs VM n open, including whether
+`PatientName.Alphabetic` is supported directly for VM 1.
+
+**Decision:** VM 1 → the `{Alphabetic, Ideographic, Phonetic}` object itself, so
+`.Alphabetic` works directly, plus non-enumerable `toString()` (→ raw PN string) and
+`toJSON()`. VM n → array of those objects with array-level `toString()` joining components
+with `\`. Reuse `dicomJson.pnAddValueAccessors` (idempotent, non-enumerable, so cross-source
+structural equality is unaffected). `toJSON` serializes to the DICOM JSON model (PN Value is
+an array of component objects), matching dcmjs's existing convention.
+
+## D14. Precision / raw retention (§16/§27)
+
+**Decision:** Extend the contract's `value` event with an optional `rawValue` (backward
+compatible). `fromPart10` and `fromDataSet` (the Part-10-derived sources) emit it;
+`fromDicomWebJson` does not (JSON already chose a number). The naturalized listener retains
+the raw source string whenever a numeric value's shortest decimal (`value.toString()`)
+doesn't reproduce the source string — a VR-agnostic round-trip check, so normal values keep
+their JS number. Default matches §27 "inexact only".
+
+**Gotcha found during TDD:** the spec's "large integer" example can't be an `IS` — IS is
+capped at 12 characters, so it never overflows JS safe integers. The real string-retention
+case is `DS` (≤16 characters), whose double can drop the final digit (e.g. the 16-char
+"9007199254740993" → 9007199254740992). The retention rule is therefore round-trip-based,
+not VR-specific.
+
 ## Grounding facts established during exploration
 
 - Parser element shape (confirmed): `tag`, `tagValue` (numeric), `vr`, `length`,

@@ -166,7 +166,7 @@ function emitElement(listener, ctx, el, isMeta, HARD, decoder) {
     // go to the binary sub-stream; everything else (incl. numeric "binary" VRs
     // like SL/US which decode to numbers) goes to value().
     const stream = elementStream(ctx, el, isMeta, decoder);
-    const values = decodeValues(
+    const { values, rawValues } = decodeValues(
         vr,
         stream,
         el.length,
@@ -188,24 +188,32 @@ function emitElement(listener, ctx, el, isMeta, HARD, decoder) {
     listener.startElement(tag, { vr: vr.type, length: el.length });
     let index = 0;
     for (const v of values) {
-        listener.value(v, { index: index++ });
+        listener.value(v, { index, rawValue: rawValues[index] });
+        index++;
     }
     listener.endElement();
 }
 
-/** Mirror materializeElement's value phase: numeric multi-read loop + shaping. */
+/**
+ * Mirror materializeElement's value phase: numeric multi-read loop + shaping.
+ * Returns { values, rawValues } in parallel; rawValues carry source strings for
+ * precision-preserving retention (§16/§27).
+ */
 function decodeValues(vr, stream, length, syntax, ctx) {
     const opts = { forceStoreRaw: ctx.forceStoreRaw };
     if (vr.isBinary() && vr.maxLength && length > vr.maxLength) {
-        const out = [];
+        const values = [];
+        const rawValues = [];
         const times = length / vr.maxLength;
         for (let i = 0; i < times; i++) {
-            out.push(vr.read(stream, vr.maxLength, syntax, opts).value);
+            const r = vr.read(stream, vr.maxLength, syntax, opts);
+            values.push(r.value);
+            rawValues.push(r.rawValue);
         }
-        return out;
+        return { values, rawValues };
     }
     const result = vr.read(stream, length, syntax, opts) || {};
-    return shapeReadValues(vr, result.value);
+    return shapeReadValues(vr, result.value, result.rawValue);
 }
 
 function isBufferLike(v) {
@@ -243,19 +251,29 @@ function resolveVrInstance(el, ctx, isMeta) {
     return ValueRepresentation.createByTypeString(vrType);
 }
 
-function shapeReadValues(vr, value) {
-    if (vr.allowMultiple()) {
-        if (typeof value === "string") {
-            return vr.dropPadByte(
-                value.split(String.fromCharCode(VM_DELIMITER))
-            );
-        }
-        return Array.isArray(value) ? value : [value];
+function shapeReadValues(vr, value, rawValue) {
+    if (vr.allowMultiple() && typeof value === "string") {
+        const delim = String.fromCharCode(VM_DELIMITER);
+        const values = vr.dropPadByte(value.split(delim));
+        const rawValues =
+            typeof rawValue === "string"
+                ? vr.dropPadByte(rawValue.split(delim))
+                : alignRaw(values, rawValue);
+        return { values, rawValues };
     }
-    if (vr.type === "SQ" || vr.type === "OW" || vr.type === "OB") {
-        return Array.isArray(value) ? value : [value];
+    const values = Array.isArray(value) ? value : [value];
+    return { values, rawValues: alignRaw(values, rawValue) };
+}
+
+/** Align a (possibly scalar) rawValue to the shaped values array, by position. */
+function alignRaw(values, rawValue) {
+    if (Array.isArray(rawValue)) {
+        return rawValue;
     }
-    return Array.isArray(value) ? value : [value];
+    if (values.length === 1) {
+        return [rawValue];
+    }
+    return values.map(() => undefined);
 }
 
 function resolveDecoder(ctx, csEl) {

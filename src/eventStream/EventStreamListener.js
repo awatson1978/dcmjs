@@ -14,9 +14,13 @@
  *   Structural: startElement / endElement
  *               startSequence / endSequence
  *               startItem / endItem
- *               value
+ *               value(v, { index, rawValue? })
  *   Binary:     bulkDataReference
  *               startBinary / binaryFragment / endBinary
+ *
+ * The `value` event's options bag is optional and extensible; `rawValue` carries
+ * the source string (when available) for precision-preserving retention
+ * (§16/§27). Consumers that don't need it ignore it.
  *
  * Structural and value callbacks are synchronous (allocation-free hot path,
  * §15.4 / §24.1). Backpressure is applied out of band via setDrain/awaitDrain,

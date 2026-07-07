@@ -478,9 +478,12 @@ describe("fromPart10Stream — K2: FMI events before input completes", () => {
             // The listener resolves fmiComplete when endFileMetaInformation is called.
             // Use a generous timeout that FAILS the test rather than passing vacuously
             // if FMI parsing stalls.
-            const fmiTimeout = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("FMI parsing timeout")), 10000)
-            );
+            const fmiTimeout = new Promise((_, reject) => {
+                const t = setTimeout(() => reject(new Error("FMI parsing timeout")), 10000);
+                // unref so this timer does not keep the process alive if the real
+                // promise wins (prevents "worker failed to exit gracefully" warnings).
+                if (t?.unref) t.unref();
+            });
             await Promise.race([listener.fmiComplete, fmiTimeout]);
 
             // K2 assertion: FMI bracket events must have been delivered
@@ -653,12 +656,15 @@ describe("fromPart10Stream — K3: body events before input completes", () => {
             const parsePromise = fromPart10Stream(gatingIterable(), listener);
 
             // Await the first body element deterministically (with timeout).
-            const bodyTimeout = new Promise((_, reject) =>
-                setTimeout(
+            const bodyTimeout = new Promise((_, reject) => {
+                const t = setTimeout(
                     () => reject(new Error("First body element timeout — K3 body loop not incremental")),
                     10000
-                )
-            );
+                );
+                // unref so this timer does not keep the process alive if the real
+                // promise wins (prevents "worker failed to exit gracefully" warnings).
+                if (t?.unref) t.unref();
+            });
             const firstBodyTag = await Promise.race([
                 listener.firstBodyElement,
                 bodyTimeout
@@ -1407,12 +1413,15 @@ describe("fromPart10Stream — K4: fragment events before input completes", () =
         const listener = new FirstFragmentListener();
         const parsePromise = fromPart10Stream(gatingIterable(), listener);
 
-        const fragTimeout = new Promise((_, reject) =>
-            setTimeout(
+        const fragTimeout = new Promise((_, reject) => {
+            const t = setTimeout(
                 () => reject(new Error("First fragment timeout — fragments not streamed incrementally")),
                 10000
-            )
-        );
+            );
+            // unref so this timer does not keep the process alive if the real
+            // promise wins (prevents "worker failed to exit gracefully" warnings).
+            if (t?.unref) t.unref();
+        });
         const fragLen = await Promise.race([listener.firstFragment, fragTimeout]);
         expect(typeof fragLen).toBe("number");
         expect(fragLen).toBeGreaterThan(0);
@@ -1874,8 +1883,8 @@ describe("fromPart10Stream — K5: deflate body events before input completes (K
         const listener = new BodyGateListener();
         const parsePromise = fromPart10Stream(gatingIterable(), listener);
 
-        const bodyTimeout = new Promise((_, reject) =>
-            setTimeout(
+        const bodyTimeout = new Promise((_, reject) => {
+            const t = setTimeout(
                 () =>
                     reject(
                         new Error(
@@ -1883,8 +1892,11 @@ describe("fromPart10Stream — K5: deflate body events before input completes (K
                         )
                     ),
                 10000
-            )
-        );
+            );
+            // unref so this timer does not keep the process alive if the real
+            // promise wins (prevents "worker failed to exit gracefully" warnings).
+            if (t?.unref) t.unref();
+        });
 
         const firstTag = await Promise.race([
             listener.firstBodyElement,

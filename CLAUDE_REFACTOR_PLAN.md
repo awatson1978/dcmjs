@@ -46,7 +46,7 @@ Each slice is its own spec → plan → implement cycle. Dependency-ordered:
 | **G** | **Cross-source equivalence matrix (§31)** | A–F | **DONE** — 30-fixture three-source (bytes/dict/DICOMweb JSON) naturalize-identically gate |
 | **FHIR** | **FHIR sink** (`@dcmjs/fhir`, `toFhir()`) | D1, F | **DONE** — merged PR #4 + worked-examples guide; consumed downstream (honeycomb DICOM→FHIR mapping collapsed onto it) |
 | **J** | **One read core** (= plan-R3) — extract `src/core/decodeCore.js` from `LazyDicomReader`; repoint `readFileLazy` + `fromPart10`; delete `fromPart10`'s delegation paths | A, B | **DONE** — `src/core/decodeCore.js` extracted (8f77614), lazy + fromPart10 repointed; fromPart10 delegation removed; deflate and undefined-length now native. 1249 tests both cores. |
-| **K** | **Streaming Part 10 source** (= roadmap-R6) — `fromPart10Stream`, chunked bounded-memory, full 15-verb vocabulary | J, A | **APPROVED 2026-07-06 — queued behind J.** Phase 2, 7 stages (R6.0 `SplitDataView.consume` bugfix → skeleton → incremental FMI → defined-length loop → undefined-length delimiter state machine → streaming deflate via `pako.Inflate` → 37-byte/1024-byte chunk equivalence + bounded-memory + backpressure gates; R6.7 `AsyncDicomReader` re-platform is stretch/deferrable). Decisions D-C/D-E (noCopy forced off) |
+| **K** | **Streaming Part 10 source** (= roadmap-R6) — `fromPart10Stream`, chunked bounded-memory, full 15-verb vocabulary | J, A | **DONE** — `src/eventStream/fromPart10Stream.js` shipped (stages K1–K6): chunked AsyncIterable/ReadableStream input, clearBuffers bounded memory, incremental FMI, full body element loop (defined-length/undefined-length/SQ/deflate/encapsulated), 29-fixture corpus equivalence, bounded-memory + backpressure + truncation gates, 1422 tests both cores. R6.7 (`AsyncDicomReader` re-platform onto fromPart10Stream): **deferred to 1.x** — pixel-data frame-splitting and compressed-frame-assembly semantics are not reproducible by a thin shim; deferred cleanly with no src changes; see task-K7-report.md. |
 | **H** | **Conformance validation layer** | D1, D22 | **in scope** — confirmed 2026-07-03 (D26); needs planning pass |
 | **I** | **Curation / normalization layer** (dicom-curate) | D1, D2b, D2c, E2, F, H | **in scope** — confirmed 2026-07-03 (D26); needs planning pass |
 | plan-R1 | Legacy compatibility wrappers (§32.2) | F | parked — behavior-changing at call sites (OHIF/Cornerstone3D); needs own planning pass |
@@ -439,3 +439,26 @@ linear, so this is **not** currently needed. If a profiled real workload (large 
 enhanced multi-frame) shows GC pressure, the spec's "reusable state objects by nesting depth"
 (§15.4) is the lever: pool the listener's frame objects by depth instead of allocating per
 element. **Trigger to start:** a profiled allocation problem on a real dataset.
+
+---
+
+## Post-merge follow-ups (from final whole-branch review 2026-07-06)
+
+1. **[highest value] Move the implicit-SQ promotion into `decodeCore`.** The promotion is
+   currently triplicated: `fromPart10` trusts the parser's `el.items`; `fromPart10Stream`
+   hand-rolls a manual FFFE peek; `readFileLazy`/`decodeCore.classifyElement` does neither —
+   so the lazy core diverges from eager for defined-length unknown-implicit elements whose
+   value starts with an item tag. Fix: make `decodeCore.classifyElement`/`resolveVrInstance`
+   peek-aware — closes the lazy gap and deletes the triplication. One contract, one behavior.
+
+2. **Cosmetic renames.** Rename the `window` local in `fromPart10.js` (shadows the browser
+   global). Rename `SplitDataView`'s `consumed[]` array to `consumedCount` for clarity.
+
+3. **Test strengthening.** Gate 5 (deflate bounded-memory) uses a tiny body that fits one
+   pako batch, so it does not exercise the K5 relay-balloon risk (fast feed + slow listener
+   growing `bodyStream`); add a large-deflate paced-feed case. Extract the duplicated
+   `compareTrees`/`DicomWriter` test helpers into `test/eventStream/helpers/`.
+
+4. **Parity edges (low priority).** Truncation error-class differs: stream throws `Error`;
+   buffered parser throws `{exception, dataSet}`. Mid-FMI truncation emits partial events
+   before throwing where buffered throws first.

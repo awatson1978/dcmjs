@@ -503,11 +503,16 @@ export async function fromPart10Stream(input, listener, options = {}) {
         decoder: null
     };
 
-    // Byte-order helpers for body elements (tag, VR, length, item tags).
+    // Byte-order helpers for body elements (tag, VR, length).
     // Use `bsrc` (bodyStream for deflate, stream for everything else) so that
     // these helpers operate in the correct offset space.
     const getU16 = abs => bsrc.view.getUint16(abs, bodyLittleEndian);
     const getU32 = abs => bsrc.view.getUint32(abs, bodyLittleEndian);
+    // FFFE-group delimiters (FFFE,E000 item / FFFE,E00D item-delimiter /
+    // FFFE,E0DD sequence-delimiter) are ALWAYS encoded little-endian per
+    // DICOM PS3.5 §7.5, even in Explicit Big Endian transfer syntaxes.
+    const getU16LE = abs => bsrc.view.getUint16(abs, true);
+    const getU32LE = abs => bsrc.view.getUint32(abs, true);
 
     /** Convert (group, element) numbers to clean DICOM tag string "GGGGEEEE". */
     function bodyTagStr(g, e) {
@@ -628,15 +633,15 @@ export async function fromPart10Stream(input, listener, options = {}) {
             if (!(await ensureAbs(pos + 8))) {
                 return { contentEnd: bsrc.endOffset, end: bsrc.endOffset };
             }
-            const g = getU16(pos);
-            const e = getU16(pos + 2);
+            const g = getU16LE(pos);
+            const e = getU16LE(pos + 2);
             if (g === 0xfffe && e === 0xe0dd) {
                 return { contentEnd: pos, end: pos + 8 };
             }
             if (g !== 0xfffe || e !== 0xe000) {
                 return { contentEnd: pos, end: pos }; // malformed — stop
             }
-            const itemLength = getU32(pos + 4);
+            const itemLength = getU32LE(pos + 4);
             pos += 8;
             pos =
                 itemLength === UNDEFINED_LEN
@@ -654,8 +659,8 @@ export async function fromPart10Stream(input, listener, options = {}) {
         let pos = fromAbs;
         for (;;) {
             if (!(await ensureAbs(pos + 8))) return bsrc.endOffset;
-            const g = getU16(pos);
-            const e = getU16(pos + 2);
+            const g = getU16LE(pos);
+            const e = getU16LE(pos + 2);
             if (g === 0xfffe && e === 0xe00d) return pos + 8;
             pos = await skipOneElementEnd(pos);
         }
@@ -946,7 +951,7 @@ export async function fromPart10Stream(input, listener, options = {}) {
                 `fromPart10Stream: truncated: encapsulated BOT header at ${bsrc.offset}`
             );
         }
-        const botLen = getU32(bsrc.offset + 4);
+        const botLen = getU32LE(bsrc.offset + 4);
         bsrc.offset += 8;
         if (botLen > 0) {
             if (!(await ensureAbs(bsrc.offset + botLen))) {
@@ -963,8 +968,8 @@ export async function fromPart10Stream(input, listener, options = {}) {
                     `fromPart10Stream: truncated: encapsulated item header at ${bsrc.offset}`
                 );
             }
-            const g = getU16(bsrc.offset);
-            const e = getU16(bsrc.offset + 2);
+            const g = getU16LE(bsrc.offset);
+            const e = getU16LE(bsrc.offset + 2);
             if (g === 0xfffe && e === 0xe0dd) {
                 bsrc.offset += 8; // sequence-delimiter tag + 4-byte length
                 break;
@@ -972,7 +977,7 @@ export async function fromPart10Stream(input, listener, options = {}) {
             if (g !== 0xfffe || e !== 0xe000) {
                 break; // unexpected tag — stop gracefully
             }
-            const fragLen = getU32(bsrc.offset + 4);
+            const fragLen = getU32LE(bsrc.offset + 4);
             bsrc.offset += 8;
             const fragStart = bsrc.offset;
             const fragEnd = fragStart + fragLen;
@@ -985,6 +990,22 @@ export async function fromPart10Stream(input, listener, options = {}) {
             target.binaryFragment(bsrc.slice(fragStart, fragEnd));
             bsrc.offset = fragEnd;
             await target.awaitDrain(); // backpressure between fragments
+            // K6: per-fragment release — bounding peak memory to (largest
+            // fragment + chunk size + fixed slack) rather than the full pixel-data
+            // element.  The fragment bytes were already copied into an owned
+            // ArrayBuffer by bsrc.slice(), so aliasing is safe to discard here.
+            // Without this, the whole encapsulated element accumulates in the stream
+            // buffer until the post-element consume() in the body loop fires.
+            if (releaseEnabled) {
+                bsrc.consume(bsrc.offset);
+                const info = bsrc.getBufferMemoryInfo();
+                // For the deflate path (bodyStream active), mirror the body-loop
+                // pattern: include raw stream memory state alongside inflated state.
+                if (bodyStream) {
+                    info.rawStreamInfo = stream.getBufferMemoryInfo();
+                }
+                options.onConsume?.(info);
+            }
         }
         target.endBinary();
         target.endElement();
@@ -1050,8 +1071,8 @@ export async function fromPart10Stream(input, listener, options = {}) {
                 );
             }
             const itemStart = bsrc.offset;
-            const itemGroup = getU16(itemStart);
-            const itemElement = getU16(itemStart + 2);
+            const itemGroup = getU16LE(itemStart);
+            const itemElement = getU16LE(itemStart + 2);
 
             if (itemGroup === 0xfffe && itemElement === 0xe0dd) {
                 bsrc.offset = itemStart + 8; // consume seq-delimiter + length
@@ -1060,7 +1081,7 @@ export async function fromPart10Stream(input, listener, options = {}) {
             if (itemGroup !== 0xfffe || itemElement !== 0xe000) {
                 return itemStart; // unexpected tag — stop gracefully
             }
-            const itemLength = getU32(itemStart + 4);
+            const itemLength = getU32LE(itemStart + 4);
             bsrc.offset = itemStart + 8; // past item header
             const itemDataOffset = bsrc.offset;
 
@@ -1119,8 +1140,8 @@ export async function fromPart10Stream(input, listener, options = {}) {
                 );
             }
             const elemStart = bsrc.offset;
-            const g = getU16(elemStart);
-            const e = getU16(elemStart + 2);
+            const g = getU16LE(elemStart);
+            const e = getU16LE(elemStart + 2);
             if (g === 0xfffe && e === 0xe00d) {
                 // Item delimiter: consume tag + 4-byte length.
                 if (!(await ensureAbs(elemStart + 8)) && undefinedItem) {

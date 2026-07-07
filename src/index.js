@@ -50,6 +50,7 @@ import { DSRNormalizer } from "./normalizers.js";
 
 import adapters from "./adapters/index.js";
 import utilities from "./utilities/index.js";
+import eventStream from "./eventStream/index.js";
 import sr from "./sr/index.js";
 import * as constants from "./constants/dicom.js";
 
@@ -106,6 +107,7 @@ const dcmjs = {
     constants,
     data,
     derivations,
+    eventStream,
     normalizers,
     sr,
     utilities,
@@ -126,6 +128,7 @@ export {
     constants,
     data,
     derivations,
+    eventStream,
     normalizers,
     sr,
     utilities,

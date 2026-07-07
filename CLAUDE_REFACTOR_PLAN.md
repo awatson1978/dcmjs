@@ -1,0 +1,200 @@
+# CLAUDE_REFACTOR_PLAN.md — Unified dcmjs Refactor
+
+This is the working engineering plan for the Unified dcmjs architecture. It is scoped,
+incremental, and slice-by-slice. The reasoning behind every design decision lives in
+[`CLAUDE_REFACTOR_ANALYSIS.md`](./CLAUDE_REFACTOR_ANALYSIS.md). The existing 1.0
+read/write migration is tracked separately in
+`packages/docs/docs/development/roadmap.md` (R0–R8); this plan layers the spec-driven
+event-stream/naturalization architecture on top of it.
+
+> Specs of record: the **Unified dcmjs Architecture Proposal** and the **Naturalized
+> DICOM Metadata Behavior Specification**. Section (§) references point into the
+> Naturalized spec unless noted.
+
+## Why
+
+Today Part 10 and DICOMweb follow separate metadata paths, naturalization behavior has
+drifted, cardinality is unpredictable, and private-tag handling lacks a formal model.
+The unified architecture fixes this with four layers — **source representations →
+event stream → listeners/writers → retained naturalized metadata** — where the **event
+stream** is the single canonical transformation layer and the **naturalized object** is
+the preferred application-facing representation.
+
+## Decomposition
+
+Each slice is its own spec → plan → implement cycle. Dependency-ordered:
+
+| # | Slice | Depends on | Status |
+|---|---|---|---|
+| **A** | **Event-stream contract** | — | **DONE** — `src/eventStream/`, 79 tests, corpus round-trip green |
+| **B** | **Part 10 (raw bytes) → generator** | A | **DONE** — `fromPart10`, 31-fixture corpus gate green |
+| **C** | **DICOMweb JSON → generator** | A | **DONE** — `fromDicomWebJson`, source-agnostic structural gate green |
+| D | Naturalized listener + value model | A, B | not started |
+| E | Writers (Part 10 + DICOMweb) on event stream | A | not started |
+| F | Public source/sink API + compat wrappers | A–E | not started |
+| G | Cross-source equivalence suite (§31) | A–F | not started |
+
+---
+
+# Slice A — The Event-Stream Contract  *(current)*
+
+**Goal:** turn the implicit listener model into a documented, versioned,
+conformance-tested contract — the vocabulary every reader/writer/listener/filter speaks
+— and prove it with one reference generator. **Out of scope:** naturalization semantics
+(D), DICOMweb (C), writers (E).
+
+## Approved design decisions
+1. **Hybrid model** — push/callback is canonical; an async-iterator adapter sits on top. *(D2)*
+2. **Sync calls + async checkpoints** — allocation-free hot path; backpressure only at
+   top-level element boundaries and binary-fragment emission. *(D3)*
+3. **Binary = fragment sub-stream + reference event.** *(D4)*
+4. **File Meta Information** is a leading bracketed sub-stream. *(D5)*
+5. **Optional `sourceSpan {start,end}`** on structural events. *(D6)*
+6. **Reference generator** = standalone tree-walker over `@dcmjs/parser`'s `DataSet`. *(D7)*
+
+## The contract
+
+### Vocabulary
+```
+Lifecycle
+  startDataSet({ transferSyntaxUID?, sourceContext? })   endDataSet()
+  startFileMetaInformation()                             endFileMetaInformation()
+
+Structural — always balanced, always source-ordered
+  startElement(tag, { vr, length, vm?, sourceSpan? })    endElement()
+  startSequence(tag, { vr, length, sourceSpan? })        endSequence()
+  startItem({ length, sourceSpan? })                     endItem()
+  value(v, { index })            // one call per OBSERVED source value
+
+Binary
+  bulkDataReference({ uri, sourceContext })              // nothing fetched
+  startBinary({ encapsulated, basicOffsetTable?, sourceSpan? })
+  binaryFragment(chunk)                                  // boundaries preserved
+  endBinary()
+```
+
+### Invariants
+- **Loss preservation (§15.1):** emit every observed value and item regardless of
+  declared VM. Cardinality enforcement is a *listener* concern (§15.2), never the stream's.
+- **Well-formed nesting:** every `start*` balanced by its `end*`; source order preserved.
+- **No functions as payloads (§24):** `openInlineBinary` is never emitted.
+- **Diagnostics are out of band:** the stream stays purely loss-preserving.
+- **`sourceSpan` is optional and ignorable.**
+
+## Components (new directory `src/eventStream/`)
+
+1. **Contract design doc** — `docs/superpowers/specs/<date>-event-stream-contract-design.md`,
+   normative, versioned `CONTRACT_VERSION`. Committed first.
+2. **`EventStreamListener.js`** — push core + `next`-middleware chain + `setDrain`/
+   `awaitDrain`. *Reuse* the chain-builder and backpressure from
+   `src/utilities/DicomMetadataListener.js` (191-219, 95-108). Filters stay first-class.
+3. **`fromDataSet.js`** — reference generator. Walks the parser `DataSet` tree, emits the
+   vocabulary. *Reuse* `src/ValueRepresentation.js` for decoding. Sequences →
+   `startSequence`/`startItem`/`endItem`/`endSequence`; encapsulated pixel data →
+   `startBinary`/`binaryFragment`(per `el.fragments`)/`endBinary`; group-0002 → FMI
+   sub-stream first (meta test `tagValue >>> 16 === 0x0002`).
+4. **`asyncIterator.js`** — pull adapter; `[Symbol.asyncIterator]` over a generator run
+   (pooled event shape on the hot path; snapshot to retain).
+5. **`CollectorListener.js`** — trivial reference consumer that rebuilds a tag tree, used
+   only to validate the contract. *Not* the naturalized listener.
+6. **Migration:** `DicomMetadataListener` and its consumers (`AsyncDicomReader` + 5 test
+   files) stay untouched this slice; re-platforming onto the new vocabulary is a later
+   slice (E / R6).
+
+## Verification
+Tests under `test/eventStream/`, following `test/lazy-equivalence.test.js` +
+`test/helper/equivalence.js`:
+1. **Round-trip equivalence (primary gate):** for every `discoverFixtures` file,
+   `fromDataSet` → `CollectorListener` → deep-compare rebuilt tree vs.
+   `DicomMessage.readFile`. Covers plain (explicit/implicit LE, big-endian),
+   sequence-heavy, deflate, encapsulated/fragmented.
+2. **Well-formedness:** balanced `start*`/`end*` across the corpus.
+3. **Binary boundaries:** `binaryFragment` count/spans match `el.fragments` (§33).
+4. **Loss preservation:** crafted VM-1-with-2-values and VM-1-sequence-with-2-items
+   emit everything.
+5. **Pull-adapter parity:** `for await` matches the push collector.
+6. **Backpressure:** slow `setDrain` suspends only at the defined checkpoints.
+
+Run: `pnpm exec jest test/eventStream`, then `pnpm test` and `DCMJS_CORE=eager pnpm test`
+to confirm no regression in existing listener consumers.
+
+## Done means
+Generator emits the contract; collector rebuilds a tree byte-equivalent to today's parse
+across the whole corpus; all six test groups green; contract doc published. No
+naturalization semantics yet.
+
+## Status — DONE
+Implemented under `src/eventStream/` (`EventStreamListener`, `CollectorListener`,
+`fromDataSet`, `asyncIterator`, `index`), exposed as `dcmjs.eventStream`. Tests under
+`test/eventStream/` (79 passing): push-core + middleware + backpressure, collector,
+generator vocabulary/order/payloads/bulk-ref, pull-adapter parity + error propagation,
+corpus round-trip equivalence (30 fixtures: plain LE/BE/implicit, deflate, encapsulated
+single/multi-frame), well-formed nesting, loss preservation (§15.1). Full suite green on
+both cores (`pnpm test` and `DCMJS_CORE=eager pnpm test`: 959 tests).
+
+Honest scope note: the reference generator walks the parser-derived **decoded** dataset
+(reusing the lazy core's `ValueRepresentation` decode), exercising spec §32's "tag source
+→ events" path. The from-raw-bytes Part 10 generator is **slice B**. `_rawValue` raw
+retention is **slice D** and is intentionally not compared in the slice-A gate.
+
+---
+
+# Slice B — Part 10 (raw bytes) → event-stream generator  *(current)*
+
+**Goal:** a genuine bytes→events generator `fromPart10(buffer, listener, options)` over
+`@dcmjs/parser`'s offsets tree, reusing dcmjs's public decode primitives
+(`ValueRepresentation.read`, `ReadBufferStream`, `encodingMapping`,
+`DicomMessage.lookupTag`) plus faithful local copies of the small pure helpers
+(`resolveVrInstance`, `shapeReadValues`). Emits raw encapsulated fragments (§33), not
+frame-grouped buffers (frame grouping is naturalization, slice D).
+
+**Scope (decided):** common path handled directly — explicit/implicit LE + big-endian,
+sequences (defined + undefined length), encapsulated pixel data as raw fragments,
+defined-length binary as a one-fragment sub-stream, SpecificCharacterSet decoding.
+**Hard cases delegate** to the lazy core by falling back to
+`fromDataSet(DicomMessage.readFile(buffer, options))` for the whole file: deflate
+transfer syntax, and any per-element undefined-length non-SQ / `ParsedUnknownValue`
+case the walker can't faithfully decode (detected mid-walk → abort → delegate).
+
+**Follow-up (not slice B):** extract the trapped decode core out of `readFileLazy` into a
+shared module so the lazy reader and this walker share one decode path
+("one read core", roadmap goal). Tracked as a future slice.
+
+**Status — DONE.** `src/eventStream/fromPart10.js` (exposed as
+`dcmjs.eventStream.fromPart10`). Routes leaf elements by decoded value type (buffer →
+binary sub-stream; else `value()`) — not by `isBinary()`, which is true for numeric VRs.
+Tests in `test/eventStream/fromPart10.test.js`: a synthesized explicit-LE round-trip plus
+the 31-fixture corpus gate (non-binary exact, binary at concatenated-fragment-byte level,
+group-length + SpecificCharacterSet exempt). Deflate and hard undefined-length cases
+delegate. Full suite green on both cores (990 tests).
+
+**Verification:** corpus gate like slice A but from raw bytes —
+`fromPart10(buffer)` → `CollectorListener` vs `DicomMessage.readFile(buffer)`:
+non-binary tags exact (vr+Value, SQ-aware), binary tags compared at the
+concatenated-fragment-bytes level, `SpecificCharacterSet` (0008,0005) exempted (readFile
+rewrites it to ISO_IR 192 — a known eager-compat quirk the new path does not propagate).
+
+# Slice C — DICOMweb JSON → event-stream generator  *(DONE)*
+
+`src/eventStream/fromDicomWebJson.js` (exposed as `dcmjs.eventStream.fromDicomWebJson`).
+Low-allocation visitor over the DICOM JSON model emitting the same contract — proves the
+source-agnostic claim (§4.4) from a third source. Values emitted **as-is** (PN stays a
+`{Alphabetic}` object, numbers stay numbers); cross-source value canonicalization is
+deferred to the naturalized listener (slice D), per decision D10. Binary forms:
+`BulkDataURI` → `bulkDataReference` (unfetched, §21); `InlineBinary` base64 → decoded
+buffer fragment (§22/§24.1). Tests in `test/eventStream/fromDicomWebJson.test.js`:
+vocabulary/round-trip incl. nested SQ + PN objects, both binary forms, backpressure, and a
+source-agnostic structural check (DICOMweb JSON vs dcmjs dict produce identical
+event/tag structure). Full suite green (995 tests). The exhaustive corpus-wide cross-source
+*value* matrix is slice G.
+
+# Slices D–G — summaries (not yet planned in detail)
+- **D. Naturalized listener + value model** — the bulk of the metadata spec: VM cardinality
+  (§7–§14), present-empty rules, PN proxy (§17), precision preservation (§16), private-tag
+  grouping (§18), bulk/inline/openInlineBinary (§20–§26), raw retention (§27),
+  cardinality-violation policy (§15.2), low-allocation state-by-depth (§15.4).
+- **E. Writers** — Part 10 (verbatim passthrough via `sourceSpan`, building on R4) and
+  DICOMweb JSON, both as event-stream consumers; `BinaryOutputMode` policy (§26).
+- **F. Public API** — `Naturalized.from(events)`, `Part10.from`, `DicomWebJson.from`,
+  `DicomEventStream.fromPart10` (§32); compat wrappers over legacy APIs.
+- **G. Equivalence suite** — semantic-consistency matrix across all source formats (§31).

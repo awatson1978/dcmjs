@@ -7,19 +7,21 @@
  * Input is normalized into an AsyncIterable and fed into a ReadBufferStream
  * concurrently with parsing.
  *
- * Stage K2 makes the **preamble + File Meta Information phase** genuinely
- * incremental: FMI elements are decoded on-the-fly as bytes arrive, so
- * `startFileMetaInformation` / per-element events / `endFileMetaInformation`
- * are emitted before the body bytes have finished streaming.
+ * The **preamble + File Meta Information phase** is genuinely incremental (K2+):
+ * FMI elements are decoded on-the-fly as bytes arrive, so `startFileMetaInformation` /
+ * per-element events / `endFileMetaInformation` are emitted before body bytes finish.
  *
- * The **body phase** still buffers fully this stage (K1 approach delegated to
- * fromPart10 with `_skipMeta:true`). Stages K3+ will make the body
- * incremental as well.
+ * The **body phase** streams natively for all transfer syntaxes (K3+ native paths):
+ * defined-length, undefined-length, and encapsulated fragments stream directly
+ * from the source. Deflate-compressed bodies (K5) inflate incrementally via
+ * chunked pako.Inflate into a zero-based bodyStream, avoiding full-buffer copies.
  *
- * Decision D-E (noCopy) and the clearBuffers=false choice for K2:
- * We keep all bytes in the stream buffer so that the full byte array can be
- * passed to fromPart10 for the body phase after FMI is parsed.  K3+ will
- * switch to clearBuffers=true and consume() as data is parsed.
+ * Both streams use clearBuffers=true with per-top-level-element consume() so that
+ * chunk memory is released as the parse advances (bounded-memory streaming). The
+ * only remaining buffered fallback is raw-dataset (non-Part10) for error-parity.
+ *
+ * Decision D-E: noCopy is intentionally unsupported (see JSDoc above). Callers
+ * requiring zero-copy must use the buffered fromPart10 directly.
  */
 
 import pako from "pako";
@@ -1168,7 +1170,13 @@ export async function fromPart10Stream(input, listener, options = {}) {
             if (releaseEnabled) {
                 // Release every chunk fully behind the current position.
                 bsrc.consume(bsrc.offset);
-                options.onConsume?.(bsrc.getBufferMemoryInfo());
+                const info = bsrc.getBufferMemoryInfo();
+                // For deflate (bodyStream active), also include raw stream memory state
+                // so tests can verify both streams release chunks concurrently.
+                if (bodyStream) {
+                    info.rawStreamInfo = stream.getBufferMemoryInfo();
+                }
+                options.onConsume?.(info);
             }
         }
     } catch (bodyErr) {

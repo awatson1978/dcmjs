@@ -1845,8 +1845,8 @@ const FIXTURE_DFL_REPORT = "packages/parser/testImages/deflate/report_dfl";
 // Gate design: yield the first half of the file, block on a Promise, yield the
 // second half.  A BodyGateListener resolves firstBodyElement the instant any
 // body element event fires after FMI.  We race that promise against a 10 s
-// timeout.  K4 (buffered deflate) hits the timeout → RED.  K5 (streaming
-// inflate) resolves early → GREEN.
+// timeout.  K4 (deflate guard was dead; compressed bytes hit native loop and threw)
+// → RED. K5 (streaming inflate) resolves early → GREEN.
 // ---------------------------------------------------------------------------
 
 describe("fromPart10Stream — K5: deflate body events before input completes (KEY RED TEST)", () => {
@@ -2018,8 +2018,8 @@ describe("fromPart10Stream — K5: corrupt-deflate error class parity", () => {
     test("corrupt compressed body throws (both paths reject — class parity)", async () => {
         const buffer = buildCorruptDeflateFile();
 
-        // Buffered path: must reject (pako throws a string in 2.x, so we just
-        // check it rejects rather than require instanceof Error).
+        // Buffered path: pako.inflateRaw throws a string in pako 2.x (not Error),
+        // so verify it rejects but document the type.
         let bufferedErr;
         try {
             await fromPart10(buffer.slice(0), new CollectorListener());
@@ -2027,8 +2027,10 @@ describe("fromPart10Stream — K5: corrupt-deflate error class parity", () => {
             bufferedErr = e;
         }
         expect(bufferedErr).toBeTruthy(); // buffered path throws on corrupt deflate
+        // pako 2.x throws string, not Error instance — but it does throw.
+        expect(typeof bufferedErr === "string" || bufferedErr instanceof Error).toBe(true);
 
-        // Streaming path: must also reject — not resolve silently.
+        // Streaming path: must also reject (not resolve silently), and must be Error.
         let streamErr;
         try {
             await fromPart10Stream(buffer.slice(0), new CollectorListener());
@@ -2036,6 +2038,7 @@ describe("fromPart10Stream — K5: corrupt-deflate error class parity", () => {
             streamErr = e;
         }
         expect(streamErr).toBeTruthy(); // streaming path throws on corrupt deflate
+        expect(streamErr instanceof Error).toBe(true); // streaming side wraps as Error
     });
 });
 
@@ -2061,7 +2064,7 @@ describe("fromPart10Stream — K5: deflate chunk release is live", () => {
         // The hook fired at least once per body element.
         expect(memSamples.length).toBeGreaterThanOrEqual(3);
 
-        // Consume offset advances monotonically.
+        // Consume offset advances monotonically (body side).
         for (let i = 1; i < memSamples.length; i++) {
             expect(memSamples[i].consumeOffset).toBeGreaterThanOrEqual(
                 memSamples[i - 1].consumeOffset
@@ -2072,5 +2075,13 @@ describe("fromPart10Stream — K5: deflate chunk release is live", () => {
         // inflated body size — proving consume() actually freed buffers.
         const last = memSamples[memSamples.length - 1];
         expect(last.totalSize).toBeLessThan(50 * 1024); // wave body is ~6.8 kB inflated
+
+        // Also verify RAW stream's retained bytes drop during chunked deflate parse.
+        // The relay concurrently consumes raw stream chunks as it feeds bodyStream.
+        expect(last.rawStreamInfo).toBeDefined();
+        const rawLast = last.rawStreamInfo;
+        // Retained total size in raw stream must be far below the compressed file size
+        // (~26 kB compressed), proving the relay released chunks as it advanced.
+        expect(rawLast.totalSize).toBeLessThan(50 * 1024);
     });
 });

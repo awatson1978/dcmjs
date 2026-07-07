@@ -439,3 +439,26 @@ linear, so this is **not** currently needed. If a profiled real workload (large 
 enhanced multi-frame) shows GC pressure, the spec's "reusable state objects by nesting depth"
 (§15.4) is the lever: pool the listener's frame objects by depth instead of allocating per
 element. **Trigger to start:** a profiled allocation problem on a real dataset.
+
+---
+
+## Post-merge follow-ups (from final whole-branch review 2026-07-06)
+
+1. **[highest value] Move the implicit-SQ promotion into `decodeCore`.** The promotion is
+   currently triplicated: `fromPart10` trusts the parser's `el.items`; `fromPart10Stream`
+   hand-rolls a manual FFFE peek; `readFileLazy`/`decodeCore.classifyElement` does neither —
+   so the lazy core diverges from eager for defined-length unknown-implicit elements whose
+   value starts with an item tag. Fix: make `decodeCore.classifyElement`/`resolveVrInstance`
+   peek-aware — closes the lazy gap and deletes the triplication. One contract, one behavior.
+
+2. **Cosmetic renames.** Rename the `window` local in `fromPart10.js` (shadows the browser
+   global). Rename `SplitDataView`'s `consumed[]` array to `consumedCount` for clarity.
+
+3. **Test strengthening.** Gate 5 (deflate bounded-memory) uses a tiny body that fits one
+   pako batch, so it does not exercise the K5 relay-balloon risk (fast feed + slow listener
+   growing `bodyStream`); add a large-deflate paced-feed case. Extract the duplicated
+   `compareTrees`/`DicomWriter` test helpers into `test/eventStream/helpers/`.
+
+4. **Parity edges (low priority).** Truncation error-class differs: stream throws `Error`;
+   buffered parser throws `{exception, dataSet}`. Mid-FMI truncation emits partial events
+   before throwing where buffered throws first.

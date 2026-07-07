@@ -138,11 +138,29 @@ The gate is promise-driven — no polling, no `setInterval`.
 
 29 fixtures (ELE, ILE, EBE, deflate, encapsulated, multi-frame) at four chunk
 granularities (whole-file, 1024 bytes, 37 bytes, 1 byte) all produce the same
-output as the buffered `fromPart10`. The single documented delta (DELTA-A) is
-the `startElement.length` payload for encapsulated pixel data: `fromPart10Stream`
-carries the on-wire `0xFFFFFFFF`; the buffered path carries a computed span. All
-other events (including `startSequence`, `startItem`, values, and binary
-fragments) are byte-identical.
+output as the buffered `fromPart10`. Two accepted, tested divergences exist:
+
+**DELTA-A — encapsulated pixel data `startElement.length`:** `fromPart10Stream`
+carries the on-wire `0xFFFFFFFF`; the buffered path carries a computed span.
+All other events (including `startSequence`, `startItem`, values, and binary
+fragments) are byte-identical for conformant input.
+
+**DELTA-B — non-conformant input: undefined-length text VRs (UT/UC/UR):**
+DICOM PS3.5 only permits undefined length for SQ elements, items, and
+encapsulated pixel data. When a UT/UC/UR element carries length `0xFFFFFFFF`
+(non-conformant), the two paths diverge deliberately:
+- **Buffered `fromPart10`** — `readEncodedString` clamps the read to the buffer
+  boundary, silently consuming all remaining bytes (including any FFFE,E00D
+  delimiter and trailing elements) into the string value. Returns successfully
+  with a garbage value; trailing elements are lost.
+- **`fromPart10Stream`** — `emitUndefinedLeaf`'s `skipUndefinedSequence` sees
+  the non-FFFE value bytes as malformed, stops at value-start, and the body
+  loop re-parses those bytes as a DICOM element, producing a truncation throw.
+
+The loud-failure behavior is **deliberate**: the stream fails noisily on
+non-conformant data that the buffered path silently mishandles. This divergence
+is empirically verified and pinned in K4 Test 22b of
+`test/eventStream/fromPart10Stream.test.js`.
 
 ---
 

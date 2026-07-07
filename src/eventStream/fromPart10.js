@@ -66,22 +66,14 @@ export async function fromPart10(buffer, listener, options = {}) {
         ignoreErrors: !!options.ignoreErrors
     };
 
-    // _skipMeta: internal option used by fromPart10Stream (K2+) to skip
-    // dataset brackets and FMI emission when the streaming path has already
-    // handled them incrementally.  NEVER pass this from user-facing call
-    // sites; the K1 equivalence tests guard that the normal path is intact.
-    const skipMeta = !!options._skipMeta;
-
-    if (!skipMeta) {
-        listener.startDataSet({ transferSyntaxUID: syntax });
-    }
+    listener.startDataSet({ transferSyntaxUID: syntax });
 
     const elements = dataSet.elements;
     const keys = Object.keys(elements).filter(k => k !== "xfffee00d");
     const metaKeys = keys.filter(k => isMetaKey(k));
     const bodyKeys = keys.filter(k => !isMetaKey(k));
 
-    if (!skipMeta && metaKeys.length) {
+    if (metaKeys.length) {
         listener.startFileMetaInformation();
         for (const key of metaKeys) {
             emitElement(
@@ -124,9 +116,7 @@ export async function fromPart10(buffer, listener, options = {}) {
         await listener.awaitDrain();
     }
 
-    if (!skipMeta) {
-        listener.endDataSet();
-    }
+    listener.endDataSet();
 }
 
 /**

@@ -127,6 +127,9 @@
             "js",
             "mjs",
             "json"
+        ],
+        "modulePathIgnorePatterns": [
+            "<rootDir>/\\.claude"
         ]
     }
 }

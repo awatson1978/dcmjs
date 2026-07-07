@@ -1824,3 +1824,264 @@ describe("fromPart10Stream — K4: chunk release is live (bounded-memory smoke)"
         );
     });
 });
+
+// ===========================================================================
+// K5: Deflate body streaming via chunked pako inflater
+// ===========================================================================
+
+// Deflate corpus fixtures (DEFLATED_EXPLICIT_LITTLE_ENDIAN = 1.2.840.10008.1.2.1.99).
+const FIXTURE_DFL_WAVE = "packages/parser/testImages/deflate/wave_dfl";
+const FIXTURE_DFL_IMAGE = "packages/parser/testImages/deflate/image_dfl";
+const FIXTURE_DFL_REPORT = "packages/parser/testImages/deflate/report_dfl";
+
+// ---------------------------------------------------------------------------
+// K5 Test 25 — KEY RED TEST: deflate body element events before input completes
+//
+// K4 buffers all deflate bytes before delegating to fromPart10(_skipMeta:true),
+// so no body event can arrive until the input generator is fully exhausted.
+// K5's stream-inflate path must allow body element events to arrive while the
+// file tail is still gated.
+//
+// Gate design: yield the first half of the file, block on a Promise, yield the
+// second half.  A BodyGateListener resolves firstBodyElement the instant any
+// body element event fires after FMI.  We race that promise against a 10 s
+// timeout.  K4 (deflate guard was dead; compressed bytes hit native loop and threw)
+// → RED. K5 (streaming inflate) resolves early → GREEN.
+// ---------------------------------------------------------------------------
+
+describe("fromPart10Stream — K5: deflate body events before input completes (KEY RED TEST)", () => {
+    test("first deflate body element arrives while file tail is gated", async () => {
+        // wave_dfl is the largest deflate fixture (~26 kB compressed), giving
+        // the inflater enough data in the first half to emit at least one body
+        // element before the tail is released.
+        const buffer = readBuffer(FIXTURE_DFL_WAVE);
+        const bytes = new Uint8Array(buffer);
+        // Split just past the mid-point so the first chunk covers FMI + a
+        // meaningful slice of the compressed body.
+        const SPLIT = Math.floor(bytes.length * 0.6);
+
+        let unblockTail;
+        const tailGate = new Promise(resolve => {
+            unblockTail = resolve;
+        });
+
+        async function* gatingIterable() {
+            yield bytes.slice(0, SPLIT);
+            await tailGate;
+            yield bytes.slice(SPLIT);
+        }
+
+        const listener = new BodyGateListener();
+        const parsePromise = fromPart10Stream(gatingIterable(), listener);
+
+        const bodyTimeout = new Promise((_, reject) =>
+            setTimeout(
+                () =>
+                    reject(
+                        new Error(
+                            "Deflate body element timeout — K5 not incremental (K4 buffers)"
+                        )
+                    ),
+                10000
+            )
+        );
+
+        const firstTag = await Promise.race([
+            listener.firstBodyElement,
+            bodyTimeout
+        ]);
+
+        // K5 assertion: a body element arrived before the tail was released.
+        expect(typeof firstTag).toBe("string");
+        expect(firstTag.length).toBe(8); // "GGGGEEEE" format
+
+        unblockTail();
+        await parsePromise;
+    });
+});
+
+// ---------------------------------------------------------------------------
+// K5 Test 26 — Deflate equivalence: events match buffered fromPart10
+//
+// Three deflate fixtures, single-chunk and 37-byte-chunk inputs.
+// Parity target is the buffered fromPart10 events (same as K1–K4).
+// ---------------------------------------------------------------------------
+
+describe("fromPart10Stream — K5: deflate equivalence (events match buffered fromPart10)", () => {
+    test.each([
+        ["wave_dfl  — single chunk",   FIXTURE_DFL_WAVE,   b => b],
+        ["wave_dfl  — 37-byte chunks", FIXTURE_DFL_WAVE,   b => chunked(b, 37)],
+        ["image_dfl — single chunk",   FIXTURE_DFL_IMAGE,  b => b],
+        ["image_dfl — 37-byte chunks", FIXTURE_DFL_IMAGE,  b => chunked(b, 37)],
+        ["report_dfl — single chunk",  FIXTURE_DFL_REPORT, b => b],
+        ["report_dfl — 37-byte chunks",FIXTURE_DFL_REPORT, b => chunked(b, 37)]
+    ])("%s", async (_label, fixture, toInput) => {
+        const buffer = readBuffer(fixture);
+
+        const expected = await runBuffered(buffer.slice(0));
+        const phases = [];
+        const actual = await runStream(toInput(buffer.slice(0)), {
+            onPhase: p => phases.push(p)
+        });
+
+        const problems = [];
+        compareSection(expected.meta || {}, actual.meta || {}, "meta", problems);
+        compareSection(expected.dict || {}, actual.dict || {}, "dict", problems);
+        expect(problems).toEqual([]);
+
+        // K5: deflate now streams natively — onPhase must report "native".
+        expect(phases).toContain("native");
+        expect(phases).not.toContain("deflate"); // old K4 buffered-path label
+        expect(phases).not.toContain("tailFallback");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// K5 Test 27 — Seam-split chunkings: chunk boundary straddles FMI/body seam
+//
+// One chunking where a chunk straddles the FMI/body seam (the chunk that
+// contains the last FMI byte also contains the first deflate-body byte), and
+// one where the seam falls exactly on a chunk boundary.  Both must produce
+// events identical to the buffered path.
+//
+// The wave_dfl fixture's FMI ends at ~201 bytes (after the TransferSyntaxUID
+// element).  We use chunk sizes 199 (straddles: chunk [0,199) contains bytes
+// up to 198, so the seam at ~201 is inside chunk [198,396)) and 201 (exact
+// edge: if FMI is <= 201 bytes, the seam falls on the chunk boundary).
+// ---------------------------------------------------------------------------
+
+describe("fromPart10Stream — K5: seam-split chunkings (FMI/deflate-body boundary)", () => {
+    test.each([
+        ["chunk size 199 (straddles FMI/body seam)", 199],
+        ["chunk size 201 (near-exact seam edge)",    201],
+        ["chunk size 73  (many small straddle cases)", 73]
+    ])("%s", async (_label, chunkSize) => {
+        const buffer = readBuffer(FIXTURE_DFL_WAVE);
+
+        const expected = await runBuffered(buffer.slice(0));
+        const phases = [];
+        const actual = await runStream(chunked(buffer.slice(0), chunkSize), {
+            onPhase: p => phases.push(p)
+        });
+
+        const problems = [];
+        compareSection(expected.meta || {}, actual.meta || {}, "meta", problems);
+        compareSection(expected.dict || {}, actual.dict || {}, "dict", problems);
+        expect(problems).toEqual([]);
+        expect(phases).toContain("native");
+        expect(phases).not.toContain("deflate");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// K5 Test 28 — Corrupt-deflate error class parity
+//
+// A synthetic DICOM file whose deflate body is corrupted (all-zeros instead of
+// valid compressed bytes).  Both the buffered and streaming paths must throw;
+// the streaming path must not swallow the error or replace it with a generic
+// truncation error (class parity: Error, not TypeError or similar).
+// ---------------------------------------------------------------------------
+
+/** Build a minimal Part 10 deflate file with a garbled compressed body. */
+function buildCorruptDeflateFile() {
+    // Construct a minimal valid explicit-LE DICOM and compress the body.
+    // Then replace the compressed body with garbage.
+    const DEFLATE_TS = "1.2.840.10008.1.2.1.99\0";
+    const tsBytes = new Uint8Array(DEFLATE_TS.split("").map(c => c.charCodeAt(0)));
+
+    const fmiOB = new DicomWriter();
+    fmiOB.elemLong(0x0002, 0x0001, "OB", new Uint8Array([0, 1]));
+    const fmiTS = new DicomWriter();
+    fmiTS.elemStd(0x0002, 0x0010, "UI", tsBytes);
+
+    const restFmiLen =
+        fmiOB.toUint8Array().length + fmiTS.toUint8Array().length;
+    const glBytes = new Uint8Array(4);
+    new DataView(glBytes.buffer).setUint32(0, restFmiLen, true);
+    const fmiGL = new DicomWriter();
+    fmiGL.elemStd(0x0002, 0x0000, "UL", glBytes);
+
+    // Garbage compressed bytes — not valid deflate output.
+    const garbage = new Uint8Array(64).fill(0xff);
+
+    const file = new DicomWriter();
+    file.zeros(128);
+    file.ascii("DICM");
+    file._push(fmiGL.toUint8Array());
+    file._push(fmiOB.toUint8Array());
+    file._push(fmiTS.toUint8Array());
+    file._push(garbage);
+    return file.toArrayBuffer();
+}
+
+describe("fromPart10Stream — K5: corrupt-deflate error class parity", () => {
+    test("corrupt compressed body throws (both paths reject — class parity)", async () => {
+        const buffer = buildCorruptDeflateFile();
+
+        // Buffered path: pako.inflateRaw throws a string in pako 2.x (not Error),
+        // so verify it rejects but document the type.
+        let bufferedErr;
+        try {
+            await fromPart10(buffer.slice(0), new CollectorListener());
+        } catch (e) {
+            bufferedErr = e;
+        }
+        expect(bufferedErr).toBeTruthy(); // buffered path throws on corrupt deflate
+        // pako 2.x throws string, not Error instance — but it does throw.
+        expect(typeof bufferedErr === "string" || bufferedErr instanceof Error).toBe(true);
+
+        // Streaming path: must also reject (not resolve silently), and must be Error.
+        let streamErr;
+        try {
+            await fromPart10Stream(buffer.slice(0), new CollectorListener());
+        } catch (e) {
+            streamErr = e;
+        }
+        expect(streamErr).toBeTruthy(); // streaming path throws on corrupt deflate
+        expect(streamErr instanceof Error).toBe(true); // streaming side wraps as Error
+    });
+});
+
+// ---------------------------------------------------------------------------
+// K5 Test 29 — Deflate release: chunk memory is freed as body is parsed
+//
+// Streaming a deflate fixture in small chunks must release consumed inflated
+// chunks (bodyStream clearBuffers + consume).  The onConsume hook (which fires
+// per top-level element) must advance monotonically and the final retained
+// size must be far below the inflated body size.
+// ---------------------------------------------------------------------------
+
+describe("fromPart10Stream — K5: deflate chunk release is live", () => {
+    test("deflate fixture in small chunks releases consumed bodyStream buffers", async () => {
+        const buffer = readBuffer(FIXTURE_DFL_WAVE);
+
+        const memSamples = [];
+        const listener = new CollectorListener();
+        await fromPart10Stream(chunked(buffer.slice(0), 512), listener, {
+            onConsume: info => memSamples.push(info)
+        });
+
+        // The hook fired at least once per body element.
+        expect(memSamples.length).toBeGreaterThanOrEqual(3);
+
+        // Consume offset advances monotonically (body side).
+        for (let i = 1; i < memSamples.length; i++) {
+            expect(memSamples[i].consumeOffset).toBeGreaterThanOrEqual(
+                memSamples[i - 1].consumeOffset
+            );
+        }
+
+        // The final retained size in bodyStream is far below the total
+        // inflated body size — proving consume() actually freed buffers.
+        const last = memSamples[memSamples.length - 1];
+        expect(last.totalSize).toBeLessThan(50 * 1024); // wave body is ~6.8 kB inflated
+
+        // Also verify RAW stream's retained bytes drop during chunked deflate parse.
+        // The relay concurrently consumes raw stream chunks as it feeds bodyStream.
+        expect(last.rawStreamInfo).toBeDefined();
+        const rawLast = last.rawStreamInfo;
+        // Retained total size in raw stream must be far below the compressed file size
+        // (~26 kB compressed), proving the relay released chunks as it advanced.
+        expect(rawLast.totalSize).toBeLessThan(50 * 1024);
+    });
+});

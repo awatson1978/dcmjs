@@ -1,5 +1,6 @@
 import { NaturalizedListener } from "./NaturalizedListener.js";
 import { DicomWebJsonWriter } from "./DicomWebJsonWriter.js";
+import { Part10Writer } from "./Part10Writer.js";
 import { CollectorListener } from "./CollectorListener.js";
 import { fromPart10 } from "./fromPart10.js";
 import { fromDicomWebJson } from "./fromDicomWebJson.js";
@@ -45,6 +46,26 @@ export class DicomEventStream {
         return new DicomEventStream(listener => fromDataSet(dataset, listener));
     }
 
+    /**
+     * Auto-detecting source factory: an ArrayBuffer/typed array is treated as
+     * Part 10 bytes; an object with a `dict` (or `meta`) is a parsed dataset;
+     * any other object is the DICOM JSON model.
+     */
+    static from(source) {
+        if (source instanceof ArrayBuffer || ArrayBuffer.isView(source)) {
+            return DicomEventStream.fromPart10(source);
+        }
+        if (source && typeof source === "object") {
+            if (source.dict || source.meta) {
+                return DicomEventStream.fromDataSet(source);
+            }
+            return DicomEventStream.fromDicomWebJson(source);
+        }
+        throw new TypeError(
+            "DicomEventStream.from: unrecognized source (expected Part 10 bytes, a { meta, dict } dataset, or a DICOM JSON object)"
+        );
+    }
+
     /** Drive an arbitrary listener; resolves when the stream completes. */
     process(listener) {
         return Promise.resolve(this._run(listener)).then(() => listener);
@@ -62,6 +83,13 @@ export class DicomEventStream {
         const writer = new DicomWebJsonWriter();
         await this._run(writer);
         return writer.result;
+    }
+
+    /** Serialize to a Part 10 ArrayBuffer (slice E2). */
+    async toPart10(writeOptions) {
+        const writer = new Part10Writer();
+        await this._run(writer);
+        return writer.write(writeOptions);
     }
 
     /** Rebuild a tag-keyed { meta, dict } tree (the reference collector). */

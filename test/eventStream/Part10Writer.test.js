@@ -18,7 +18,7 @@ describe("Part10Writer — events to Part 10 bytes", () => {
                 "00020003": { vr: "UI", Value: ["1.2.3.4.5"] }
             },
             dict: {
-                "00100010": { vr: "PN", Value: [{ Alphabetic: "Wallace^Bill" }] },
+                "00100010": { vr: "PN", Value: [{ Alphabetic: "Doe^Jane" }] },
                 "00100020": { vr: "LO", Value: ["12345"] },
                 "00080008": { vr: "CS", Value: ["ORIGINAL", "PRIMARY"] },
                 "00081110": {
@@ -35,7 +35,7 @@ describe("Part10Writer — events to Part 10 bytes", () => {
         const back = DicomMessage.readFile(buffer);
         expect(back.dict["00100020"].Value).toEqual(["12345"]);
         expect(back.dict["00080008"].Value).toEqual(["ORIGINAL", "PRIMARY"]);
-        expect(back.dict["00100010"].Value[0].Alphabetic).toBe("Wallace^Bill");
+        expect(back.dict["00100010"].Value[0].Alphabetic).toBe("Doe^Jane");
         expect(back.dict["00081110"].Value[0]["00081150"].Value).toEqual(["1.2.3"]);
         // meta round-trips (group length is written into the bytes and consumed
         // by readFile, so it is not surfaced on back.meta).

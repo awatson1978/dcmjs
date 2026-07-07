@@ -40,7 +40,7 @@ const binBuf = new Uint8Array([9, 8, 7]).buffer;
 const sampleDataset = {
     meta: { "00020010": { vr: "UI", Value: ["1.2.840.10008.1.2.1"] } },
     dict: {
-        "00100010": { vr: "PN", Value: ["Wallace^Bill"] },
+        "00100010": { vr: "PN", Value: ["Doe^Jane"] },
         "00080008": { vr: "CS", Value: ["ORIGINAL", "PRIMARY"] },
         "00081110": {
             vr: "SQ",
@@ -104,7 +104,7 @@ describe("fromDataSet generator", () => {
         ]);
         expect(byName("value").map(c => c[1])).toEqual([
             "1.2.840.10008.1.2.1",
-            "Wallace^Bill",
+            "Doe^Jane",
             "ORIGINAL",
             "PRIMARY",
             "1.2.3"

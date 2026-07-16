@@ -48,7 +48,8 @@
         "pack-dictionary": "node generate/pack_dicom.mjs",
         "bench:dictionary": "bun run generate/bench-dictionary-load.mjs",
         "bench:parser": "node --expose-gc packages/parser/bench/parse-gate.cjs",
-        "gate:parser-bundle": "node packages/parser/bench/bundle-gate.mjs"
+        "gate:parser-bundle": "node packages/parser/bench/bundle-gate.mjs",
+        "corpus": "node scripts/corpus-runner.mjs"
     },
     "repository": {
         "type": "git",

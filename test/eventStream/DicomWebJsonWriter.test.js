@@ -12,7 +12,7 @@ describe("DicomWebJsonWriter — round-trips DICOMweb JSON", () => {
     test("JSON -> events -> JSON is identity (scalars, PN, sequence, bulk, inline)", async () => {
         const input = {
             "00080060": { vr: "CS", Value: ["CT"] },
-            "00100010": { vr: "PN", Value: [{ Alphabetic: "Wallace^Bill" }] },
+            "00100010": { vr: "PN", Value: [{ Alphabetic: "Doe^Jane" }] },
             "00100020": { vr: "LO", Value: ["12345"] },
             "00200013": { vr: "IS", Value: [12] },
             "00081110": {

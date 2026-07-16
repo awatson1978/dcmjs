@@ -92,16 +92,16 @@ export default class SplitDataView {
                 // Haven't finished consuming all the data in the current block
                 return;
             }
-            // Consume the entire buffer for now
+            // Consume the entire buffer for now.
+            // Capture the chunk index before the push so the listener receives
+            // the correct index, logical offset, and byte length of the chunk
+            // being released.  The three-argument contract is:
+            //   consumeListener(chunkIndex, logicalOffset, byteLength)
+            // where chunkIndex is the position in buffers[]/views[], logicalOffset
+            // is the chunk's logical byte start, and byteLength is its byte size.
+            const chunkIndex = this.consumed.length;
             this.consumed.push(
-                this.consumeListener?.(
-                    this.buffers,
-                    0,
-                    Math.min(
-                        this.buffers.length,
-                        nextOffset - this.consumeOffset
-                    )
-                )
+                this.consumeListener?.(chunkIndex, nextOffset, nextLength)
             );
             this.buffers[this.consumed.length - 1] = null;
             this.views[this.consumed.length - 1] = null;

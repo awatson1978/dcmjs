@@ -413,6 +413,17 @@ export async function fromPart10Stream(input, listener, options = {}) {
             // enough to ensure onData fires for every 16 KiB of inflated output,
             // giving the body loop bytes to parse before the raw stream ends.
             const inflater = new pako.Inflate({ raw: true, chunkSize: 16384 });
+            // K5 relay throttle (ED-1): pause the relay while the body loop
+            // holds more than RELAY_HIGH_WATER inflated bytes and has no
+            // pending demand — otherwise a fast feed + slow listener grows
+            // bodyStream without bound (the relay-balloon risk).  Because
+            // DEFLATE can expand >100× (a whole file's output can hide in a
+            // few hundred compressed bytes), pausing between network chunks
+            // is not enough: raw bytes are fed to the inflater in
+            // RELAY_RAW_SLICE sub-slices with a retention check between
+            // each, bounding the overshoot to one sub-slice's expansion.
+            const RELAY_HIGH_WATER = 16384;
+            const RELAY_RAW_SLICE = 128;
             inflater.onData = chunk => {
                 // chunk is a Uint8Array (pako 2.x). Slice to an owned
                 // ArrayBuffer so bodyStream's view doesn't alias pako's buffer.
@@ -446,14 +457,34 @@ export async function fromPart10Stream(input, listener, options = {}) {
                     stream.consume(relayPos);
                     // isLast: feed loop called setComplete() — no more chunks.
                     const isLast = done;
-                    inflater.push(rawSlice, isLast);
-                    if (inflater.err) {
-                        // pako 2.x stores the error message in inflater.msg.
-                        inflateError = new Error(
-                            `fromPart10Stream: deflate decompress failed: ${inflater.msg}`
+                    for (let s = 0; s < rawSlice.length; s += RELAY_RAW_SLICE) {
+                        const subEnd = Math.min(
+                            s + RELAY_RAW_SLICE,
+                            rawSlice.length
                         );
-                        bodyStream.setComplete(); // unblock waiting body parser
-                        return;
+                        const subLast = isLast && subEnd === rawSlice.length;
+                        inflater.push(rawSlice.subarray(s, subEnd), subLast);
+                        if (inflater.err) {
+                            // pako 2.x stores the error message in inflater.msg.
+                            inflateError = new Error(
+                                `fromPart10Stream: deflate decompress failed: ${inflater.msg}`
+                            );
+                            bodyStream.setComplete(); // unblock waiting body parser
+                            return;
+                        }
+                        if (subLast) break;
+                        // Throttle: wait for the body loop to consume below
+                        // the watermark before inflating more.  A consumer
+                        // blocked on ensureAvailable (pending demand) always
+                        // wins — the relay resumes immediately, so this can
+                        // never deadlock.
+                        while (
+                            bodyStream.getBufferMemoryInfo().totalSize >
+                                RELAY_HIGH_WATER &&
+                            !bodyStream.hasPendingDemand()
+                        ) {
+                            await bodyStream.awaitConsumerActivity();
+                        }
                     }
                     if (isLast) break;
                 } else {

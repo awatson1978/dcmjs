@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## 2026-08-02
+### Deprecated
+- **The lazy read core** (`core: "lazy"` / `DCMJS_CORE=lazy`) and the
+  byte-identity passthrough write path that depends on it. Stakeholder
+  decision: the event-stream API delivers ~90% of the benefit; the
+  remaining byte-identity 10% doesn't justify a second buffered read
+  engine. `DicomMessage.readFile` defaults to the **eager** core again;
+  selecting the lazy core emits a one-time warning. `src/lazy/` and the
+  passthrough path will be removed in the next release. Writes remain
+  correct DICOM but are re-encoded (no byte-for-byte identity guarantee).
+
+### Changed
+- Main test gate is hermetic (ED-2): `test_deflated` uses vendored
+  fixtures; the two multi-megabyte network-fixture suites skip unless
+  cached or `DCMJS_NETWORK_TESTS=1` (a non-blocking CI job keeps them
+  running).
+
 ## 2026-01-19
 Added multiple measurements for a single annotation in an SR object
 

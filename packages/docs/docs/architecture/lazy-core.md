@@ -2,11 +2,21 @@
 title: The lazy read core
 ---
 
-Since 1.0, `DicomMessage.readFile` is backed by the lazy read core in
-`src/lazy/LazyDicomReader.js`. This page explains how it works
-mechanically. For the user-facing API see [Reading DICOM](../guides/reading.md);
-for the byte-offset layer underneath see
-[The parser package](./parser-package.md).
+:::danger Deprecated — removal scheduled
+The lazy read core is **deprecated as of 2026-08-02** (stakeholder
+decision: the event stream delivers ~90% of the benefit; the remaining
+byte-identity/passthrough 10% does not justify a second buffered read
+engine). `DicomMessage.readFile` defaults to the **eager** core again;
+`core: "lazy"` / `DCMJS_CORE=lazy` remain as a one-release escape hatch
+and emit a one-time warning. `src/lazy/LazyDicomReader.js` and the
+passthrough write path will be removed in the next release.
+:::
+
+`DicomMessage.readFile` can be backed by the lazy read core in
+`src/lazy/LazyDicomReader.js` (deprecated, opt-in). This page explains how
+it works mechanically. For the user-facing API see
+[Reading DICOM](../guides/reading.md); for the byte-offset layer
+underneath see [The parser package](./parser-package.md).
 
 ## The pipeline
 

@@ -20,19 +20,25 @@ import { readFileLazy, isCleanForPassthrough } from "./lazy/LazyDicomReader.js";
 
 export const singleVRs = ["SQ", "OF", "OW", "OB", "UN", "LT"];
 
+// One-time deprecation notice for the lazy core (2026-08-02 stakeholder
+// decision: the event stream delivers the strategic benefit; the lazy core
+// and its byte-identity passthrough are deprecated for removal next release).
+let lazyCoreDeprecationWarned = false;
+
 export class DicomMessage {
     /**
-     * Default read core for readFile: 'lazy' (offsets-only tokenizer +
-     * on-access materialization, the 1.0 default) or 'eager' (the
-     * historical in-place reader, kept as the escape hatch). Overridable
-     * per call via options.core and globally via the DCMJS_CORE
-     * environment variable (DCMJS_CORE=eager restores the old behavior).
+     * Default read core for readFile: 'eager' (the proven in-place reader,
+     * the engine of record) or 'lazy' (offsets-only tokenizer + on-access
+     * materialization — DEPRECATED, scheduled for removal in the next
+     * release along with the byte-identity passthrough write path).
+     * Overridable per call via options.core and globally via the DCMJS_CORE
+     * environment variable (DCMJS_CORE=lazy restores the deprecated core).
      */
     static defaultCore =
         (typeof process !== "undefined" &&
             process.env &&
             process.env.DCMJS_CORE) ||
-        "lazy";
+        "eager";
 
     static _read(
         bufferStream,
@@ -138,6 +144,16 @@ export class DicomMessage {
     ) {
         const core = (options && options.core) || DicomMessage.defaultCore;
         if (core === "lazy") {
+            if (!lazyCoreDeprecationWarned) {
+                lazyCoreDeprecationWarned = true;
+                log.warn(
+                    "The 'lazy' read core (and its byte-identity passthrough " +
+                        "write path) is deprecated and will be removed in the " +
+                        "next release; the event-stream API is the go-forward " +
+                        "surface. Remove core:'lazy' / DCMJS_CORE=lazy to use " +
+                        "the default eager core."
+                );
+            }
             return readFileLazy(buffer, options);
         }
         if (core !== "eager") {

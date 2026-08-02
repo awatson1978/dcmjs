@@ -5,7 +5,11 @@ import path from "path";
 import { WriteBufferStream } from "../src/BufferStream";
 import dcmjs from "../src/index.js";
 import { log } from "./../src/log.js";
-import { getTestDataset, getZippedTestDataset } from "./testUtils.js";
+import {
+    getTestDataset,
+    getZippedTestDataset,
+    itIfNetworkFixture
+} from "./testUtils.js";
 
 import { promisify } from "util";
 import arrayItem from "./arrayItem.json";
@@ -203,7 +207,7 @@ it("test_json_1", () => {
     expect(dataset.StudyInstanceUID).toEqual(secondUID);
 });
 
-it("test_multiframe_1", async () => {
+itIfNetworkFixture("test_multiframe_1")("test_multiframe_1", async () => {
     const url =
         "https://github.com/dcmjs-org/data/releases/download/MRHead/MRHead.zip";
     const unzipPath = await getZippedTestDataset(
@@ -259,7 +263,7 @@ it("test_labelmapseg", async () => {
     expect(roundedSpacing).toEqual(1.0);
 });
 
-it("test_oneslice_seg", async () => {
+itIfNetworkFixture("test_oneslice_seg", "Lesion1_onesliceSEG.dcm")("test_oneslice_seg", async () => {
     const ctPelvisURL =
         "https://github.com/dcmjs-org/data/releases/download/CTPelvis/CTPelvis.zip";
     const segURL =
@@ -770,14 +774,17 @@ it("Writes encapsulated OB data which has an odd length with a padding byte in i
 });
 
 it("test_deflated", async () => {
-    const url =
-        "https://github.com/dcmjs-org/data/releases/download/deflate-transfer-syntax/deflate_tests.zip";
-    const unzipPath = await getZippedTestDataset(
-        url,
-        "deflate_tests.zip",
-        "deflate_tests"
+    // ED-2: the upstream deflate_tests.zip contents are already vendored in
+    // packages/parser/testImages/deflate/ (provenance in that dir's README),
+    // so read them locally instead of downloading.
+    const deflatedPath = path.join(
+        __dirname,
+        "..",
+        "packages",
+        "parser",
+        "testImages",
+        "deflate"
     );
-    const deflatedPath = path.join(unzipPath, "deflate_tests");
 
     const expected = [
         {

@@ -444,20 +444,27 @@ element. **Trigger to start:** a profiled allocation problem on a real dataset.
 
 ## Post-merge follow-ups (from final whole-branch review 2026-07-06)
 
-1. **[highest value] Move the implicit-SQ promotion into `decodeCore`.** The promotion is
-   currently triplicated: `fromPart10` trusts the parser's `el.items`; `fromPart10Stream`
-   hand-rolls a manual FFFE peek; `readFileLazy`/`decodeCore.classifyElement` does neither —
-   so the lazy core diverges from eager for defined-length unknown-implicit elements whose
-   value starts with an item tag. Fix: make `decodeCore.classifyElement`/`resolveVrInstance`
-   peek-aware — closes the lazy gap and deletes the triplication. One contract, one behavior.
+1. **[highest value] Move the implicit-SQ promotion into `decodeCore`.** ✅ RESOLVED
+   2026-08-02 (AD-1) — but **peek-FREE by eager parity**, not peek-aware: code
+   inspection showed the premise inverted. The eager reference never promoted
+   defined-length dictionary-miss elements (`_readTag`'s length rule promotes only
+   undefined lengths); the two event-stream sources *invented* the promotion. Fix
+   applied: deleted `fromPart10`'s `el.items` trust and `fromPart10Stream`'s
+   defined-length FFFE peek; restricted the parser's `isSequence()` peek to
+   undefined-length elements (also fixing its throw on defined-length values that
+   merely resemble item/delimiter tags); `resolveVrInstance` documented as the
+   single canonical contract. Pinned by `test/eventStream/fromPart10Stream.test.js`
+   "AD-1" suite (all four read paths) + `test/core/decodeCore.test.js` units.
 
 2. **Cosmetic renames.** Rename the `window` local in `fromPart10.js` (shadows the browser
    global). Rename `SplitDataView`'s `consumed[]` array to `consumedCount` for clarity.
 
-3. **Test strengthening.** Gate 5 (deflate bounded-memory) uses a tiny body that fits one
-   pako batch, so it does not exercise the K5 relay-balloon risk (fast feed + slow listener
-   growing `bodyStream`); add a large-deflate paced-feed case. Extract the duplicated
-   `compareTrees`/`DicomWriter` test helpers into `test/eventStream/helpers/`.
+3. **Test strengthening.** Gate 5 large-deflate paced-feed case: ✅ RESOLVED
+   2026-08-02 (ED-1) — Gate 5b added; it exposed the relay balloon for real
+   (856 compressed bytes ballooned to 103,600 retained bytes) and the relay now
+   throttles on bodyStream retention with a demand-aware deadlock guard
+   (128-byte sub-slice pushes, 16 KiB high water). Helper extraction
+   (`compareTrees`/`DicomWriter` → `test/eventStream/helpers/`) still open (ED-4).
 
 4. **Parity edges (low priority).** Truncation error-class differs: stream throws `Error`;
    buffered parser throws `{exception, dataSet}`. Mid-FMI truncation emits partial events

@@ -247,6 +247,39 @@ describe("classifyElement", () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
+// AD-1: resolveVrInstance is the single canonical implicit-VR contract
+// (eager parity — defined-length elements are never data-peek-promoted)
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe("AD-1: implicit-VR contract — no defined-length SQ promotion", () => {
+    const implicitWindow = { implicit: true };
+
+    test("implicit dict-miss, defined length → UN (el.items is framing metadata, ignored)", () => {
+        // (2222,2222) is in no dictionary; the parser may populate el.items
+        // via its framing peek, but the semantic contract ignores it for
+        // defined lengths — eager never promoted these.
+        const el = {
+            tagValue: 0x22222222,
+            hadUndefinedLength: false,
+            items: [{}]
+        };
+        const vr = resolveVrInstance(el, implicitWindow);
+        expect(vr.type).toBe("UN");
+        expect(classifyElement(el, vr)).toBe("value");
+    });
+
+    test("implicit dict-miss, hadUndefinedLength → SQ (length rule, no peek)", () => {
+        const el = { tagValue: 0x22222222, hadUndefinedLength: true };
+        expect(resolveVrInstance(el, implicitWindow).type).toBe("SQ");
+    });
+
+    test("implicit private dict-miss, defined length → UN", () => {
+        const el = { tagValue: 0x22212223, hadUndefinedLength: false };
+        expect(resolveVrInstance(el, implicitWindow).type).toBe("UN");
+    });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
 // seedReadContext (structural: buffers & syntax)
 // ──────────────────────────────────────────────────────────────────────────────
 

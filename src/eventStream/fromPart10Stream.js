@@ -524,7 +524,6 @@ export async function fromPart10Stream(input, listener, options = {}) {
     const releaseEnabled = true;
 
     const UNDEFINED_LEN = 0xffffffff;
-    const SQ_VR = ValueRepresentation.createByTypeString("SQ");
     const EMPTY_WIN = {
         arrayBuffer: new ArrayBuffer(0),
         baseOffset: 0,
@@ -797,22 +796,10 @@ export async function fromPart10Stream(input, listener, options = {}) {
         let vrInstance = resolveVrInstance(elLike, EMPTY_WIN);
 
         if (!undef) {
-            // Defined length. Mirror readDicomElementImplicit isSequence() peek
-            // for dictionary-unknown implicit elements.
-            if (
-                bodyImplicit &&
-                vrInstance.type !== "SQ" &&
-                (elGroup & 1) === 0 &&
-                valueLength >= 4 &&
-                (await ensureAbs(valueStartAbs + 4))
-            ) {
-                // Item/delimiter tags are little-endian in implicit LE (== body).
-                const pg = bsrc.view.getUint16(valueStartAbs, true);
-                const pe = bsrc.view.getUint16(valueStartAbs + 2, true);
-                if (pg === 0xfffe && (pe === 0xe000 || pe === 0xe0dd)) {
-                    vrInstance = SQ_VR;
-                }
-            }
+            // Defined length: resolveVrInstance is the single canonical
+            // implicit-VR contract (AD-1) — dictionary-miss elements resolve
+            // to UN and are never data-peek-promoted to SQ (eager parity).
+            // Only dictionary-known SQs take the sequence path here.
             if (vrInstance.type === "SQ") {
                 await emitSequence(
                     target,
@@ -836,6 +823,11 @@ export async function fromPart10Stream(input, listener, options = {}) {
 
         // Undefined length: classify SQ / encapsulated / eagerWindow leaf,
         // matching decodeCore.classifyElement + the parser's SQ resolution.
+        // The peek below is ROUTING-ONLY (AD-1): it chooses between streamed
+        // emitSequence and the delimiter-scanned eager-window leaf, both of
+        // which yield eager-SQ semantics for undefined-length dictionary-miss
+        // elements (resolveVrInstance's length rule). The semantic contract
+        // itself never data-peek-promotes defined-length elements.
         let treatAsSq = false;
         if (vrInstance.type === "SQ") {
             if (!bodyImplicit) {

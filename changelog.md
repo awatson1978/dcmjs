@@ -20,6 +20,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   fixtures; the two multi-megabyte network-fixture suites skip unless
   cached or `DCMJS_NETWORK_TESTS=1` (a non-blocking CI job keeps them
   running).
+- **One implicit-SQ behavior (AD-1)**: defined-length dictionary-unknown
+  implicit elements are never data-peek-promoted to SQ — they decode as
+  UN on every read path (eager parity;
+  `decodeCore.resolveVrInstance` is the single canonical contract).
+  Previously `fromPart10`/`fromPart10Stream` promoted them while
+  `readFile` returned UN. The parser's `isSequence()` peek now applies
+  only to undefined-length elements, which also fixes throws on
+  defined-length values resembling item/delimiter tags.
+
+### Fixed
+- Deflate relay bounded memory (ED-1): a fast feed + slow listener could
+  balloon the inflated `bodyStream` without bound (DEFLATE expands
+  >100×). The relay now feeds pako in small sub-slices and pauses on a
+  16 KiB retention watermark with a demand-aware deadlock guard; Gate 5b
+  pins the bound.
 
 ## 2026-01-19
 Added multiple measurements for a single annotation in an SR object

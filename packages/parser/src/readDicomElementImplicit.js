@@ -12,6 +12,18 @@ const isSequence = (element, byteStream) => {
     return (element.vr === 'SQ');
   }
 
+  // AD-1 (divergence from upstream dicom-parser): the data peek applies only
+  // to undefined-length elements, where framing genuinely needs it (there is
+  // no other way to find the element's end). A defined length already
+  // delimits the element, and the semantic contract
+  // (decodeCore.resolveVrInstance, eager parity) never promotes
+  // defined-length dictionary-miss elements to SQ — peeking here could also
+  // read past short values or misparse value bytes that merely resemble an
+  // item tag (e.g. a value starting with FFFE,E0DD).
+  if (!element.hadUndefinedLength) {
+    return false;
+  }
+
   if ((byteStream.position + 4) <= byteStream.byteArray.length) {
     // numeric peek without moving the stream position (replaces readTag() + seek(-4))
     const group = byteStream.byteArrayParser.readUint16(byteStream.byteArray, byteStream.position);

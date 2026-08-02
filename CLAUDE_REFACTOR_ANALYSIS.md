@@ -625,3 +625,31 @@ Testing contract: code-agreement gate (NaturalizedListener output over the fixtu
 must satisfy the catalog — the seed of slice H), tsc gate, determinism gate (regenerate →
 diff-clean in CI). Documentation deliverables include the docs guide page **and** a PR
 description that documents the public API surface (user requirement).
+
+## D28. Lazy core deprecated — event stream is the strategic surface (stakeholder decision, 2026-08-02)
+
+**Decision (stakeholder, Abigail ↔ Jarkko loop):** "We don't want the lazy parser —
+the event stream gets ~90% of the benefit; the remaining 10% isn't justified by cost."
+
+**What changes:** `DicomMessage.defaultCore` flips back to `"eager"`; the lazy core
+(`core:"lazy"` / `DCMJS_CORE=lazy`) is deprecated with a one-time warning and
+`src/lazy/LazyDicomReader.js` (~1,255 loc) plus the lazy test suites (~1,594 loc)
+are deleted in the NEXT release (soft landing: one release of escape hatch). The
+**byte-identity passthrough write guarantee is withdrawn** — it lives only in lazy
+entries (`_sourceSpan`/`_dirty`); eager writes are always correct DICOM, re-encoded.
+
+**What does NOT change:** the event stream (`fromPart10`/`fromPart10Stream`/
+`DicomEventStream`), shared `decodeCore`, `SplitDataView`, the backpatch writer, and
+the dictionary/schema stack — all strategic, all untouched. The eager loop
+(`_read`/`_readTag`) is the engine of record again, which also un-blocks nothing:
+AsyncDicomReader's `_read` dependency stops being a deletion blocker because the
+deletion it blocked is cancelled.
+
+**Inverts:** R2 ("lazy bridge is the default"), R7's deletion list ("delete the eager
+loop"), and the R4 passthrough engine's long-term status. See the roadmap banner.
+
+**Rationale:** cost/benefit — the lazy core's remaining exclusive value
+(byte-identical unmodified saves, lazy-access read speed) does not pay for a second
+buffered read engine's maintenance: dual-core test runs, divergence ledgers, the
+`DicomMessage ⇄ LazyDicomReader` cycle (AD-4), and reviewer cognitive load.
+Honeycomb's workload is read-heavy; correct-but-re-encoded writes are acceptable.

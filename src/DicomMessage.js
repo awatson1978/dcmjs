@@ -17,6 +17,7 @@ import { log } from "./log.js";
 import { deepEqual } from "./utilities/deepEqual";
 import { ValueRepresentation } from "./ValueRepresentation.js";
 import { readFileLazy, isCleanForPassthrough } from "./lazy/LazyDicomReader.js";
+import { normalizeSyntax } from "./core/normalizeSyntax.js";
 
 export const singleVRs = ["SQ", "OF", "OW", "OB", "UN", "LT"];
 
@@ -117,15 +118,9 @@ export class DicomMessage {
     }
 
     static _normalizeSyntax(syntax) {
-        if (
-            syntax == IMPLICIT_LITTLE_ENDIAN ||
-            syntax == EXPLICIT_LITTLE_ENDIAN ||
-            syntax == EXPLICIT_BIG_ENDIAN
-        ) {
-            return syntax;
-        } else {
-            return EXPLICIT_LITTLE_ENDIAN;
-        }
+        // Delegates to the zero-dependency core utility (AD-5) so streaming
+        // code can normalize syntaxes without importing the legacy reader.
+        return normalizeSyntax(syntax);
     }
 
     static isEncapsulated(syntax) {

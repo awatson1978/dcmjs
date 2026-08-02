@@ -33,7 +33,7 @@ import {
     IMPLICIT_LITTLE_ENDIAN,
     DEFLATED_EXPLICIT_LITTLE_ENDIAN
 } from "../constants/dicom.js";
-import { DicomMessage } from "../DicomMessage.js";
+import { normalizeSyntax } from "../core/normalizeSyntax.js";
 import { ValueRepresentation } from "../ValueRepresentation.js";
 import {
     resolveVrInstance,
@@ -318,10 +318,10 @@ export async function fromPart10Stream(input, listener, options = {}) {
         );
 
         // Capture TransferSyntaxUID for startDataSet and body-phase delegation.
-        // Matches seedReadContext's normalization via DicomMessage._normalizeSyntax.
+        // Matches seedReadContext's normalization (core normalizeSyntax).
         if (tagStr === "00020010" && values[0]) {
             rawTransferSyntaxUID = values[0];
-            transferSyntaxUID = DicomMessage._normalizeSyntax(values[0]);
+            transferSyntaxUID = normalizeSyntax(values[0]);
         }
 
         // Set meta end offset from (0002,0000) FileMetaInformationGroupLength

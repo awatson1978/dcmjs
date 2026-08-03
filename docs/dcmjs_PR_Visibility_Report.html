@@ -209,6 +209,19 @@
 <h2><span class="sec">6</span>Debt — what this work owes, in writing</h2>
 <p class="lede">Sourced from the repo's own final whole‑branch review (2026‑07‑06), the K7 assessment, and the living roadmap's 1.x backlog — plus what the diagrams above expose. Interest = what it costs while unpaid. Principal = the fix.</p>
 
+<div style="margin:14px 0;padding:14px 16px;border:1.4px solid #22C55E;border-left-width:6px;border-radius:8px;background:#F0FDF4;">
+<p style="margin:0 0 6px;font-weight:800;color:#166534;">Update — debt paid down (2026-08-03, PR #46 <code>technical-debt-cleanup</code> &rarr; <code>development</code>)</p>
+<p style="margin:0 0 8px;color:#14532D;">A focused paydown pass retired the highest-value structural debt and both medium engineering debts registered below, and re-set the core-selection default:</p>
+<ul style="margin:0 0 8px 18px;color:#14532D;">
+<li><b>AD-1 (HIGH) &mdash; resolved:</b> one implicit-SQ behavior across all readers; the duplicate FFFE peeks were deleted and <code>decodeCore</code> made peek-aware (<code>b9dd8d7</code>).</li>
+<li><b>AD-5 (LOW) &mdash; resolved:</b> the streaming source no longer imports the legacy reader; <code>normalizeSyntax</code> was extracted (<code>322eb9b</code>).</li>
+<li><b>ED-1 (MED) &mdash; resolved:</b> the deflate relay is memory-bounded, with a large-deflate paced-feed case (Gate 5b) (<code>d8f3012</code>).</li>
+<li><b>ED-2 (MED) &mdash; resolved:</b> the main gate is hermetic &mdash; deflate fixtures vendored, network suites gated &mdash; so a clean checkout runs green (<code>442fc7d</code>).</li>
+<li><b>Core default pivot (D28):</b> the lazy read core is deprecated and <b>eager is the default again</b> (<code>b9d8a9c</code>), narrowing AD-3 from a dual-default liability to a scheduled deletion. (The section-2 diagram's &ldquo;LazyDicomReader &middot; default core&rdquo; label predates this pivot.)</li>
+</ul>
+<p style="margin:0;color:#14532D;"><b>Downstream validation:</b> the event stream was independently exercised in a consuming application &mdash; <code>DicomEventStream.fromPart10(bytes).toNaturalized()</code> produced the same naturalized metadata as the eager reader across the fixture set, and <em>recovered</em> metadata on a malformed file where the eager reader throws. It now backs a real upload path there, guarded by a parity regression test &mdash; the UC-2 equivalence thesis holding outside its own suite.</p>
+</div>
+
 <h3>Architectural debt</h3>
 <table class="debt">
 <thead><tr><th>ID</th><th>Sev</th><th>Debt</th><th>Interest (cost while unpaid)</th><th>Principal (the fix)</th></tr></thead>
@@ -278,6 +291,8 @@
 <p class="lede" style="margin-top:6px">The same review discipline also <em>paid</em> debt — worth crediting, because it's the evidence the process finds real defects:</p>
 <table class="debt">
 <tbody>
+<tr><td><span class="sev sev-ok">PAID</span></td><td><b>Paydown pass (PR #46, 2026-08-03):</b> AD-1 implicit-SQ triplication collapsed to one behavior (<code>b9dd8d7</code>); AD-5 legacy-reader import removed from the streaming source (<code>322eb9b</code>); ED-1 deflate relay memory-bounded with a paced-feed gate (<code>d8f3012</code>); ED-2 main gate made hermetic (<code>442fc7d</code>); core default re-set to eager, lazy deprecated (D28, <code>b9d8a9c</code>).</td></tr>
+<tr><td><span class="sev sev-ok">PAID</span></td><td><b>Downstream equivalence confirmed:</b> <code>DicomEventStream.fromPart10(bytes).toNaturalized()</code> matched the eager reader across the fixture set in a consuming app (and recovered metadata on a malformed file where eager throws); shipped into a real upload path behind a parity regression test.</td></tr>
 <tr><td><span class="sev sev-ok">PAID</span></td><td>Five upstream bugs fixed with tests (#21): SR template leak, sync/async charset divergence, missing UV → BigInt, async over‑read past sentinel tags, Babel debt.</td></tr>
 <tr><td><span class="sev sev-ok">PAID</span></td><td>Three correlated <code>SplitDataView.consume</code> listener‑argument bugs (#36) — found <em>before</em> streaming depended on them for memory accounting.</td></tr>
 <tr><td><span class="sev sev-ok">PAID</span></td><td>Latent cross‑path bug: dictionary‑unknown implicit‑VR elements with item tags emitted as UN leaves instead of sequences (#39) — surfaced by equivalence testing (residual gap tracked as AD‑1).</td></tr>

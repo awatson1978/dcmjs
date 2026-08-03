@@ -142,6 +142,59 @@ Mapping notes (per the IHE Radiology MADO mapping):
 
 Tests: `pnpm exec jest packages/fhir`.
 
+## Event Stream (`dcmjs.eventStream`)
+
+A source-agnostic, SAX-style push parser. Sources emit a fixed vocabulary of
+events (`startElement`, `value`, `startSequence`, `startItem`,
+`bulkDataReference`, `binaryFragment`, …) to listeners/writers, with filter
+middleware and backpressure — an alternative to the eager, in-place
+`DicomMessage.readFile` reader that produces the same naturalized metadata by
+streaming rather than materializing the whole dataset up front.
+
+```javascript
+// Part 10 bytes -> naturalized dataset, via the event stream.
+// Equivalent to DicomMessage.readFile(...) + naturalizeDataset(...), streamed.
+const dataset = await dcmjs.eventStream.DicomEventStream
+    .fromPart10(arrayBuffer)
+    .toNaturalized();
+
+console.log(dataset.Modality, dataset.StudyInstanceUID, dataset.NumberOfFrames);
+```
+
+A `DicomEventStream` wraps a re-runnable source; choose a sink:
+
+```javascript
+const events = dcmjs.eventStream.DicomEventStream.fromPart10(arrayBuffer);
+
+const dataset = await events.toNaturalized();    // naturalized { ...keywords }
+const json    = await events.toDicomWebJson();   // DICOM JSON model
+const tree    = await events.toDataSet();         // { meta, dict } tag tree
+const bytes   = await events.toPart10();          // round-trip back to Part 10
+```
+
+Other sources — the same sinks apply to each:
+
+```javascript
+const { DicomEventStream } = dcmjs.eventStream;
+
+DicomEventStream.fromPart10Stream(chunksOrReadableStream); // chunked bytes, bounded memory
+DicomEventStream.fromDataSet({ meta, dict });              // an already-parsed dataset
+DicomEventStream.fromDicomWebJson(dicomJson);              // DICOM JSON model
+DicomEventStream.from(source);                             // auto-detect the above
+```
+
+For element-level work (progress, filtering, validation) without materializing
+the whole dataset, consume the events directly:
+
+```javascript
+for await (const { type, args } of
+        dcmjs.eventStream.DicomEventStream.fromPart10(arrayBuffer).asyncIterable()) {
+    // type: 'startElement' | 'value' | 'startSequence' | 'startItem' | ...
+}
+
+// …or drive a custom EventStreamListener subclass with events.process(listener).
+```
+
 ## For Developers
 
 Building and testing this repository requires **[pnpm](https://pnpm.io/)** and **Node.js 22.13 or newer** (pnpm 11 and this repo’s tooling expect that baseline; Rollup’s dependency chain expects a modern `crypto` global). CI runs tests on Node 22 and 24, and runs the production Rollup build on Node 24. The pnpm version is pinned under `packageManager` in `package.json`. Enable [Corepack](https://nodejs.org/api/corepack.html) (`corepack enable`) and use pnpm for every install and script:

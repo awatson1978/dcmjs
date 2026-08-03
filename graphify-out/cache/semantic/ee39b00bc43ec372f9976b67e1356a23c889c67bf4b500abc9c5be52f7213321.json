@@ -1,0 +1,1 @@
+{"nodes": [{"id": "_github_workflows_pnpm_audit_audit", "label": "GitHub Workflow: pnpm audit (fail on high/critical)", "file_type": "document", "source_file": ".github/workflows/pnpm-audit.yml", "source_location": null, "source_url": null, "captured_at": null, "author": null, "contributor": null}], "edges": [], "hyperedges": []}

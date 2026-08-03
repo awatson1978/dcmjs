@@ -1,0 +1,26 @@
+{
+  "runs": [
+    {
+      "date": "2026-08-02T17:28:53.633094+00:00",
+      "input_tokens": 1638830,
+      "output_tokens": 0,
+      "files": 394
+    },
+    {
+      "date": "2026-08-02T17:56:17.790794+00:00",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "files": 2,
+      "note": "debt-register images, host-agent extraction"
+    },
+    {
+      "date": "2026-08-02T22:11:47.609467+00:00",
+      "input_tokens": 354368,
+      "output_tokens": 0,
+      "files": 25,
+      "note": "visibility report + day-of-work code/doc changes"
+    }
+  ],
+  "total_input_tokens": 1993198,
+  "total_output_tokens": 0
+}

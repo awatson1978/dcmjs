@@ -350,13 +350,13 @@ class ValueRepresentation {
             if (type == "ox") {
                 // TODO: determine VR based on context (could be 1 byte pixel data)
                 // https://github.com/dgobbi/vtk-dicom/issues/38
-                validationLog.error("Invalid vr type", type, "- using OW");
+                validationLog.debug("Invalid vr type", type, "- using OW");
                 vr = VRinstances["OW"];
             } else if (type == "xs") {
-                validationLog.error("Invalid vr type", type, "- using US");
+                validationLog.debug("Invalid vr type", type, "- using US");
                 vr = VRinstances["US"];
             } else {
-                validationLog.error("Invalid vr type", type, "- using UN");
+                validationLog.warn("Invalid vr type", type, "- using UN");
                 vr = VRinstances["UN"];
             }
         }

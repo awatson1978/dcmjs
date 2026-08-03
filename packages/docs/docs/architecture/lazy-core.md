@@ -2,11 +2,21 @@
 title: The lazy read core
 ---
 
-Since 1.0, `DicomMessage.readFile` is backed by the lazy read core in
-`src/lazy/LazyDicomReader.js`. This page explains how it works
-mechanically. For the user-facing API see [Reading DICOM](../guides/reading.md);
-for the byte-offset layer underneath see
-[The parser package](./parser-package.md).
+:::danger Deprecated — removal scheduled
+The lazy read core is **deprecated as of 2026-08-02** (stakeholder
+decision: the event stream delivers ~90% of the benefit; the remaining
+byte-identity/passthrough 10% does not justify a second buffered read
+engine). `DicomMessage.readFile` defaults to the **eager** core again;
+`core: "lazy"` / `DCMJS_CORE=lazy` remain as a one-release escape hatch
+and emit a one-time warning. `src/lazy/LazyDicomReader.js` and the
+passthrough write path will be removed in the next release.
+:::
+
+`DicomMessage.readFile` can be backed by the lazy read core in
+`src/lazy/LazyDicomReader.js` (deprecated, opt-in). This page explains how
+it works mechanically. For the user-facing API see
+[Reading DICOM](../guides/reading.md); for the byte-offset layer
+underneath see [The parser package](./parser-package.md).
 
 ## The pipeline
 
@@ -50,7 +60,12 @@ produced up front. There is no behavioral cliff, only deferred work.
 
 ## Materialization: windowed streams over the existing VR classes
 
-The VR classes were not rewritten. `ReadBufferStream` supports
+The decode primitives — `resolveVrInstance`, `decodeElementValues`,
+`resolveCharacterSet`, `decodeWithEagerReadTag`, `seedReadContext` and helpers —
+live in `src/core/decodeCore.js` (extracted in slice J). The lazy reader and
+`fromPart10` both import from that module; see the [event-stream
+architecture](./event-stream.md#shared-decode-core) page for the `window`/`policy`
+contract. The VR classes were not rewritten. `ReadBufferStream` supports
 `{ start, stop }` windows over a buffer, so materializing an element is
 (`materializeElement`):
 

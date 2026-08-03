@@ -7,6 +7,14 @@ that defers all value decoding, a writer that copies clean bytes instead of
 re-encoding them, and standing gates that keep both from regressing. This page
 collects the measured numbers and — just as important — the caveats.
 
+:::caution 2026-08-02 update
+The lazy read core and the passthrough writer are **deprecated** (see
+[The lazy read core](./architecture/lazy-core.md)); the lazy-vs-eager read
+numbers and the passthrough write speedups below describe the deprecated
+opt-in path, not the default. The tokenizer benchmarks and the
+event-stream numbers are unaffected.
+:::
+
 :::note
 All timings on this page were measured on a single developer machine
 (macOS, Node). Treat them as relative indicators, not absolute promises;

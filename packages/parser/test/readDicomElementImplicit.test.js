@@ -54,8 +54,10 @@ describe('readDicomElementImplicit', () => {
     const element = readDicomElementImplicit(byteStream);
 
     // Assert
+    // AD-1: defined-length elements are never peeked, so the truncated
+    // buffer no longer produces the eof-while-peeking warning.
     expect(element).toBeTruthy();
-    expect(byteStream.warnings.length).toBe(1);
+    expect(byteStream.warnings.length).toBe(0);
   });
 
   it('should return the expected element and length (truncated element undefined)', () => {
@@ -83,9 +85,11 @@ describe('readDicomElementImplicit', () => {
     expect(byteStream.warnings.length).toBe(2);
   });
 
-  it('item tag successfully defines implicit SQ without callback (using peeking)', () => {
+  it('defined-length dictionary-unknown element is never peek-promoted to SQ (AD-1)', () => {
     // Arrange
-    // (0008,0006)                              18
+    // (0008,0006)                              18 — value bytes happen to
+    // start with an item tag, but the declared length already delimits the
+    // element, so it must be framed as a plain data blob (eager parity).
     const bytes = [0x08, 0x00, 0x06, 0x00, 0x12, 0x00, 0x00, 0x00,
       // (fffe,e000)                              10
       0xfe, 0xff, 0x00, 0xe0, 0x0A, 0x00, 0x00, 0x00,
@@ -98,14 +102,10 @@ describe('readDicomElementImplicit', () => {
     const element = readDicomElementImplicit(byteStream, undefined);
 
     // Assert
-    const itemStart = element.items[0];
-    const codeValue = itemStart.dataSet.elements['x00080100'];
-
-    expect(element.items.length).toBe(1);
-    expect(itemStart.tag).toBe('xfffee000');
-    expect(codeValue).toBeTruthy();
-    expect(codeValue.length).toBe(2);
-    expect(codeValue.dataOffset).toBe(24);
+    expect(element.tag).toBe('x00080006');
+    expect(element.items).toBe(undefined);
+    expect(element.length).toBe(18);
+    expect(element.endOffset).toBe(26);
   });
 
   it('implicit zero-length sequence with undefined length parses successfully without callback (using peeking)', () => {
@@ -128,7 +128,7 @@ describe('readDicomElementImplicit', () => {
     expect(element.items).toEqual([]);
   });
 
-  it('bytes resembling an item tag look like an implicit SQ item when not using a callback', () => {
+  it('defined-length pixel data with item-tag-lookalike bytes parses as a blob (AD-1, was: throw)', () => {
     // Arrange
     // (7fe0,0010)                               8
     const bytes = [0xe0, 0x7f, 0x10, 0x00, 0x08, 0x00, 0x00, 0x00,
@@ -136,14 +136,18 @@ describe('readDicomElementImplicit', () => {
       0xfe, 0xff, 0x00, 0xe0, 0x0A, 0x00, 0x00, 0x00,
     ];
     const byteStream = new ByteStream(littleEndianByteArrayParser, convertToByteArray(bytes));
-    const invoker = () => readDicomElementImplicit(byteStream, undefined);
 
-    // Act/Assert
-    // invalid value for parameter 'maxPosition'
-    expect(invoker).toThrow();
+    // Act
+    const element = readDicomElementImplicit(byteStream, undefined);
+
+    // Assert — the old peek misfired here and threw; defined lengths are
+    // no longer peeked, so the element frames cleanly.
+    expect(element.tag).toBe('x7fe00010');
+    expect(element.items).toBe(undefined);
+    expect(element.length).toBe(8);
   });
 
-  it('bytes resembling an item tag look like an implicit SQ item when using a callback that returns undefined', () => {
+  it('defined-length pixel data with item-tag-lookalike bytes parses as a blob with an undefined-returning callback (AD-1, was: throw)', () => {
     // Arrange
     // (7fe0,0010)                               8
     const bytes = [0xe0, 0x7f, 0x10, 0x00, 0x08, 0x00, 0x00, 0x00,
@@ -154,11 +158,14 @@ describe('readDicomElementImplicit', () => {
       return undefined;
     };
     const byteStream = new ByteStream(littleEndianByteArrayParser, convertToByteArray(bytes));
-    const invoker = () => readDicomElementImplicit(byteStream, undefined, callback);
 
-    // Act/Assert
-    // invalid value for parameter 'maxPosition'
-    expect(invoker).toThrow();
+    // Act
+    const element = readDicomElementImplicit(byteStream, undefined, callback);
+
+    // Assert
+    expect(element.tag).toBe('x7fe00010');
+    expect(element.items).toBe(undefined);
+    expect(element.length).toBe(8);
   });
 
   it('bytes resembling an item tag are not treated like an SQ item when using a callback (callback overrides peeking)', () => {
@@ -183,7 +190,7 @@ describe('readDicomElementImplicit', () => {
     expect(element.length).toBe(8);
   });
 
-  it('bytes resembling an end-of-sequence tag look like an implicit SQ item when not using a callback', () => {
+  it('defined-length pixel data with delimiter-lookalike bytes parses as a blob (AD-1, was: throw)', () => {
     // Arrange
     // (7fe0,0010)                                           11
     const bytes = [0xe0, 0x7f, 0x10, 0x00, 0x0B, 0x00, 0x00, 0x00,
@@ -192,14 +199,18 @@ describe('readDicomElementImplicit', () => {
       0x12, 0x43, 0x98,
     ];
     const byteStream = new ByteStream(littleEndianByteArrayParser, convertToByteArray(bytes));
-    const invoker = () => readDicomElementImplicit(byteStream, undefined);
 
-    // Act/Assert
-    // item tag (FFFE,E000) not found at offset 8
-    expect(invoker).toThrow();
+    // Act
+    const element = readDicomElementImplicit(byteStream, undefined);
+
+    // Assert — the old peek misfired here and threw; defined lengths are
+    // no longer peeked, so the element frames cleanly.
+    expect(element.tag).toBe('x7fe00010');
+    expect(element.items).toBe(undefined);
+    expect(element.length).toBe(11);
   });
 
-  it('bytes resembling an end-of-sequence tag look like an implicit SQ item when using a callback that returns undefined', () => {
+  it('defined-length pixel data with delimiter-lookalike bytes parses as a blob with an undefined-returning callback (AD-1, was: throw)', () => {
     // Arrange
     // (7fe0,0010)                                           11
     const bytes = [0xe0, 0x7f, 0x10, 0x00, 0x0B, 0x00, 0x00, 0x00,
@@ -211,11 +222,14 @@ describe('readDicomElementImplicit', () => {
       return undefined;
     };
     const byteStream = new ByteStream(littleEndianByteArrayParser, convertToByteArray(bytes));
-    const invoker = () => readDicomElementImplicit(byteStream, undefined, callback);
 
-    // Act/Assert
-    // item tag (FFFE,E000) not found at offset 8
-    expect(invoker).toThrow();
+    // Act
+    const element = readDicomElementImplicit(byteStream, undefined, callback);
+
+    // Assert
+    expect(element.tag).toBe('x7fe00010');
+    expect(element.items).toBe(undefined);
+    expect(element.length).toBe(11);
   });
 
   it('bytes resembling an end-of-sequence tag are not treated like an SQ item when using a callback (callback overrides peeking)', () => {

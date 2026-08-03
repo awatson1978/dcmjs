@@ -51,7 +51,7 @@ describe("fromPart10 — explicit little endian scalars", () => {
     };
     const dict = {
         "00080060": { vr: "CS", Value: ["CT"] },
-        "00100010": { vr: "PN", Value: ["Wallace^Bill"] },
+        "00100010": { vr: "PN", Value: ["Doe^Jane"] },
         "00100020": { vr: "LO", Value: ["12345"] },
         "00200013": { vr: "IS", Value: [12] },
         "00080008": { vr: "CS", Value: ["ORIGINAL", "PRIMARY"] }
@@ -59,6 +59,94 @@ describe("fromPart10 — explicit little endian scalars", () => {
 
     test("round-trips from raw bytes equivalently to readFile", async () => {
         const buffer = buildPart10(meta, dict);
+        const source = DicomMessage.readFile(buffer.slice(0));
+
+        const listener = new CollectorListener();
+        await fromPart10(buffer.slice(0), listener);
+
+        const problems = compareTrees(source, listener.result);
+        expect(problems).toEqual([]);
+    });
+});
+
+// --- slice J4a: undefined-length non-SQ element decoded natively -------------
+
+/**
+ * Build a minimal DICOM Part 10 file that contains a private UN element
+ * (0099,0001) with undefined length and zero-length items, followed by a
+ * sequence delimiter.  This is the "eagerWindow" hard-case in emitElement
+ * (el.hadUndefinedLength, not SQ, not encapsulated pixel data) that
+ * previously caused fromPart10 to throw HARD and delegate the whole file.
+ *
+ * The items deliberately have zero-length data so that @dcmjs/parser's
+ * parseDicom call SUCCEEDS (parseDicomDataSetImplicit with maxPosition ==
+ * currentPosition never iterates, avoiding the buffer-overrun that a 4-byte
+ * implicit truncation would cause).  That lets the control flow reach
+ * emitElement → HARD → delegate, rather than the outer parseDicom-catch →
+ * delegate path, which is the path that the slice-J4a fix must eliminate.
+ */
+function buildUndefinedLengthFixture() {
+    const meta = {
+        "00020010": { vr: "UI", Value: ["1.2.840.10008.1.2.1"] },
+        "00020002": { vr: "UI", Value: ["1.2.840.10008.5.1.4.1.1.7"] },
+        "00020003": { vr: "UI", Value: ["1.2.3.4.5.6.7.8.9"] }
+    };
+    // buildPart10 with an empty dict produces a file with just the meta group.
+    const base = buildPart10(meta, {});
+
+    // Append a private UN element (0099,0001) with undefined length.
+    // Structure: tag(4) + VR"UN"(2) + reserved(2) + len(4=0xFFFFFFFF)
+    //            + empty-offset-table item (FFFE,E000, len=0, 8 bytes)
+    //            + zero-length data item  (FFFE,E000, len=0, 8 bytes)
+    //            + sequence delimiter     (FFFE,E0DD, len=0, 8 bytes)
+    // Total appended: 12 + 8 + 8 + 8 = 36 bytes.
+    const unElement = new Uint8Array([
+        // Tag (0099,0001) little-endian
+        0x99, 0x00, 0x01, 0x00,
+        // VR "UN"
+        0x55, 0x4e,
+        // Reserved
+        0x00, 0x00,
+        // Undefined length (0xFFFFFFFF)
+        0xff, 0xff, 0xff, 0xff,
+        // Empty offset-table item (FFFE,E000, length 0)
+        0xfe, 0xff, 0x00, 0xe0,
+        0x00, 0x00, 0x00, 0x00,
+        // Zero-length data item (FFFE,E000, length 0)
+        0xfe, 0xff, 0x00, 0xe0,
+        0x00, 0x00, 0x00, 0x00,
+        // Sequence delimiter (FFFE,E0DD, length 0)
+        0xfe, 0xff, 0xdd, 0xe0,
+        0x00, 0x00, 0x00, 0x00
+    ]);
+    const baseBytes = new Uint8Array(base);
+    const out = new Uint8Array(baseBytes.length + unElement.length);
+    out.set(baseBytes);
+    out.set(unElement, baseBytes.length);
+    return out.buffer;
+}
+
+describe("fromPart10 — undefined-length non-SQ element (slice J4a)", () => {
+    test("does not call DicomMessage.readFile for undefined-length non-SQ element", async () => {
+        // RED before fix: fromPart10 throws HARD on el.hadUndefinedLength and
+        // delegates to DicomMessage.readFile.  After fix it decodes natively.
+        const buffer = buildUndefinedLengthFixture();
+        const readFileSpy = jest.spyOn(DicomMessage, "readFile");
+        let readFileCallCount = 0;
+        try {
+            const listener = new CollectorListener();
+            await fromPart10(buffer, listener);
+        } finally {
+            // Capture BEFORE mockRestore — mockRestore internally calls mockReset()
+            // which clears mock.calls, so any assertion after mockRestore sees 0.
+            readFileCallCount = readFileSpy.mock.calls.length;
+            readFileSpy.mockRestore();
+        }
+        expect(readFileCallCount).toBe(0);
+    });
+
+    test("produces the same output as DicomMessage.readFile for undefined-length non-SQ element", async () => {
+        const buffer = buildUndefinedLengthFixture();
         const source = DicomMessage.readFile(buffer.slice(0));
 
         const listener = new CollectorListener();
@@ -90,6 +178,12 @@ const FIXTURES = [
     ...discoverFixtures(PARSER_IMAGES_DIR, n => !n.toLowerCase().endsWith(".md")),
     ...discoverFixtures(TEST_DIR, n => /\.(dcm|dicom|lei)$/i.test(n))
 ].map(full => [path.relative(REPO_ROOT, full), full]);
+
+// Deflate-specific fixtures for slice J4b gate.
+const DEFLATE_FIXTURES = discoverFixtures(
+    path.join(PARSER_IMAGES_DIR, "deflate"),
+    n => !n.toLowerCase().endsWith(".md")
+).map(full => [path.relative(REPO_ROOT, full), full]);
 
 function readBuffer(full) {
     const data = fs.readFileSync(full);
@@ -178,6 +272,53 @@ function compareEntry(a, b, where, problems) {
     }
     deepCompare(av, bv, `${where}.Value`, problems);
 }
+
+// --- slice J4b: deflate transfer syntax decoded natively --------------------
+
+describe("fromPart10 — deflate native (slice J4b)", () => {
+    test.each(DEFLATE_FIXTURES)(
+        "%s — native decode (no readFile delegation)",
+        async (_rel, full) => {
+            let source;
+            try {
+                source = DicomMessage.readFile(readBuffer(full));
+            } catch {
+                return; // skip files both cores reject
+            }
+
+            let readFileCallCount = 0;
+            const readFileSpy = jest.spyOn(DicomMessage, "readFile");
+            try {
+                const listener = new CollectorListener();
+                await fromPart10(readBuffer(full), listener);
+                // Capture before mockRestore (mockRestore clears mock.calls).
+                readFileCallCount = readFileSpy.mock.calls.length;
+
+                const problems = [];
+                compareSection(
+                    source.meta || {},
+                    listener.result.meta || {},
+                    "meta",
+                    problems
+                );
+                compareSection(
+                    source.dict || {},
+                    listener.result.dict || {},
+                    "dict",
+                    problems
+                );
+                expect(problems).toEqual([]);
+            } finally {
+                readFileSpy.mockRestore();
+            }
+            // RED before fix: deflate files delegated to readFile (1+ calls).
+            // GREEN after fix: seedReadContext handles inflation natively.
+            expect(readFileCallCount).toBe(0);
+        }
+    );
+});
+
+// --- corpus gate: raw bytes -> events, equivalent to readFile ---------------
 
 describe("fromPart10 — corpus round-trip equivalence (raw bytes -> events)", () => {
     test.each(FIXTURES)("%s", async (_rel, full) => {

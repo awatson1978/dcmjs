@@ -16,6 +16,7 @@ export { DicomWebJsonWriter } from "./DicomWebJsonWriter.js";
 export { Part10Writer } from "./Part10Writer.js";
 export { fromDataSet } from "./fromDataSet.js";
 export { fromPart10 } from "./fromPart10.js";
+export { fromPart10Stream } from "./fromPart10Stream.js";
 export { fromDicomWebJson } from "./fromDicomWebJson.js";
 export { createEventAsyncIterable } from "./asyncIterator.js";
 export { DicomEventStream, Naturalized, DicomWebJson } from "./api.js";
@@ -31,6 +32,7 @@ import { DicomWebJsonWriter } from "./DicomWebJsonWriter.js";
 import { Part10Writer } from "./Part10Writer.js";
 import { fromDataSet } from "./fromDataSet.js";
 import { fromPart10 } from "./fromPart10.js";
+import { fromPart10Stream } from "./fromPart10Stream.js";
 import { fromDicomWebJson } from "./fromDicomWebJson.js";
 import { createEventAsyncIterable } from "./asyncIterator.js";
 import { DicomEventStream, Naturalized, DicomWebJson } from "./api.js";
@@ -45,6 +47,7 @@ export default {
     Part10Writer,
     fromDataSet,
     fromPart10,
+    fromPart10Stream,
     fromDicomWebJson,
     createEventAsyncIterable,
     DicomEventStream,

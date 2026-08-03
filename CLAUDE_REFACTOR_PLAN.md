@@ -24,23 +24,42 @@ the preferred application-facing representation.
 
 Each slice is its own spec → plan → implement cycle. Dependency-ordered:
 
+> **Namespace note.** Three numbering systems coexist: slice letters (this table),
+> this plan's follow-up items **plan-R1–R4** (§ "Remaining Items"), and
+> **roadmap-R0–R8** in `packages/docs/docs/development/roadmap.md`. They are NOT the
+> same "R"s. The streaming work approved 2026-07-06 promotes **plan-R3** ("one read
+> core") and **roadmap-R6** ("streaming") to slices **J** and **K** below.
+
 | # | Slice | Depends on | Status |
 |---|---|---|---|
 | **A** | **Event-stream contract** | — | **DONE** — `src/eventStream/`, 79 tests, corpus round-trip green |
-| **B** | **Part 10 (raw bytes) → generator** | A | **DONE** — `fromPart10`, 31-fixture corpus gate green |
+| **B** | **Part 10 (raw bytes) → generator** | A | **DONE** — `fromPart10`, 31-fixture corpus gate green. ⚠ Buffered-replay source: walks `@dcmjs/parser` offsets tree, whole input in memory, whole-file delegation for deflate / hard undefined-length / tokenizer-reject — resolved by J+K |
 | **C** | **DICOMweb JSON → generator** | A | **DONE** — `fromDicomWebJson`, source-agnostic structural gate green |
 | **D1** | **Naturalized value model (core)** | A, B, C | **DONE** — `NaturalizedListener`, generator-agnostic corpus gate green |
 | **D2a** | **Naturalized Person Name proxy (§17)** | D1 | **DONE** — `.Alphabetic` + `String()`→raw PN, reuses `pnAddValueAccessors` |
 | **D2b** | **Naturalized private-tag grouping (§18)** | D1 | **DONE** — `<slot>:<creator>` groups incl. registered names (§18.1–§18.5) |
 | **D2c** | **Naturalized precision/raw retention (§16/§27)** | D1, A | **DONE** — raw-value channel + round-trip retention; DS precision preserved |
+| **D22** | **Machine-readable schema** (naturalized-model catalog) | D1 | **DONE** — rule catalog generator + committed catalog, TS projection + tsc gate, JSON-Schema 2020-12 projection, code-agreement gate vs `NaturalizedListener` corpus, `dcmjs/schema` subpath export |
 | **E1** | **DICOMweb JSON writer (sink)** | A | **DONE** — `DicomWebJsonWriter`, JSON round-trip + end-to-end gate green |
-| E2 | Part 10 byte writer (passthrough via sourceSpan) | A | not started |
+| **E2** | **Part 10 byte writer (sink)** | A, E1 | **DONE** — `Part10Writer` layers over the canonical `DicomDict.write`; corpus semantic round-trip green |
 | **F** | **Public source/sink API (§32)** | A–E1 | **DONE** — `DicomEventStream` + `Naturalized.from` / `DicomWebJson.from` |
 | **G** | **Cross-source equivalence matrix (§31)** | A–F | **DONE** — 30-fixture three-source (bytes/dict/DICOMweb JSON) naturalize-identically gate |
-| **E2** | **Part 10 byte writer (sink)** | A, E1 | **DONE** — `Part10Writer` layers over the canonical `DicomDict.write`; corpus semantic round-trip green |
-| E | Writers (Part 10 + DICOMweb) on event stream | A | not started |
-| F | Public source/sink API + compat wrappers | A–E | not started |
-| G | Cross-source equivalence suite (§31) | A–F | not started |
+| **FHIR** | **FHIR sink** (`@dcmjs/fhir`, `toFhir()`) | D1, F | **DONE** — merged PR #4 + worked-examples guide; consumed downstream (honeycomb DICOM→FHIR mapping collapsed onto it) |
+| **J** | **One read core** (= plan-R3) — extract `src/core/decodeCore.js` from `LazyDicomReader`; repoint `readFileLazy` + `fromPart10`; delete `fromPart10`'s delegation paths | A, B | **DONE** — `src/core/decodeCore.js` extracted (8f77614), lazy + fromPart10 repointed; fromPart10 delegation removed; deflate and undefined-length now native. 1249 tests both cores. |
+| **K** | **Streaming Part 10 source** (= roadmap-R6) — `fromPart10Stream`, chunked bounded-memory, full 15-verb vocabulary | J, A | **DONE** — `src/eventStream/fromPart10Stream.js` shipped (stages K1–K6): chunked AsyncIterable/ReadableStream input, clearBuffers bounded memory, incremental FMI, full body element loop (defined-length/undefined-length/SQ/deflate/encapsulated), 29-fixture corpus equivalence, bounded-memory + backpressure + truncation gates, 1422 tests both cores. R6.7 (`AsyncDicomReader` re-platform onto fromPart10Stream): **deferred to 1.x** — pixel-data frame-splitting and compressed-frame-assembly semantics are not reproducible by a thin shim; deferred cleanly with no src changes; see task-K7-report.md. |
+| **H** | **Conformance validation layer** | D1, D22 | **in scope** — confirmed 2026-07-03 (D26); needs planning pass |
+| **I** | **Curation / normalization layer** (dicom-curate) | D1, D2b, D2c, E2, F, H | **in scope** — confirmed 2026-07-03 (D26); needs planning pass |
+| plan-R1 | Legacy compatibility wrappers (§32.2) | F | parked — behavior-changing at call sites (OHIF/Cornerstone3D); needs own planning pass |
+| plan-R2 | Streaming + passthrough Part 10 byte **encoder** (write side; deferred per D15) | E2 | parked — trigger: real multi-GB write need. Distinct from K (read side) |
+| plan-R4 | §15.4 low-allocation micro-tuning | D1 | parked — trigger: profiled GC pressure on real workload |
+| roadmap-R3 (rem.) | Lazy keyword facade + VM-driven shapes | — | PARTIAL per roadmap — remainder on 1.x backlog |
+| roadmap-R7 (rem.) | Eager-loop deletion (eager core = beta escape hatch) | K (R6.7) | PARTIAL per roadmap — final deletion on 1.x backlog (R8 item) |
+
+Slices **H** and **I** came out of the first external review (Steve Pieper); see
+`CLAUDE_REFACTOR_ANALYSIS.md` **Review Round 1 (D16–D25)** and the scope confirmation (**D26**).
+They are deliberately outside the A–G core line — both are optional sinks over the event stream —
+and each gets its own brainstorm → design → plan cycle (§ "Slices H & I" below). Work is drafted
+on the `dcmjs-unified-schema` branch, D22 (schema) first, without blocking on reviewer bandwidth.
 
 ---
 
@@ -166,7 +185,7 @@ case the walker can't faithfully decode (detected mid-walk → abort → delegat
 
 **Follow-up (not slice B):** extract the trapped decode core out of `readFileLazy` into a
 shared module so the lazy reader and this walker share one decode path
-("one read core", roadmap goal). Tracked as a future slice.
+("one read core", roadmap goal). Done as Slice J.
 
 **Status — DONE.** `src/eventStream/fromPart10.js` (exposed as
 `dcmjs.eventStream.fromPart10`). Routes leaf elements by decoded value type (buffer →
@@ -174,7 +193,7 @@ binary sub-stream; else `value()`) — not by `isBinary()`, which is true for nu
 Tests in `test/eventStream/fromPart10.test.js`: a synthesized explicit-LE round-trip plus
 the 31-fixture corpus gate (non-binary exact, binary at concatenated-fragment-byte level,
 group-length + SpecificCharacterSet exempt). Deflate and hard undefined-length cases
-delegate. Full suite green on both cores (990 tests).
+delegated at the time of B; both are now native (see Slice J). Full suite green on both cores (990 tests).
 
 **Verification:** corpus gate like slice A but from raw bytes —
 `fromPart10(buffer)` → `CollectorListener` vs `DicomMessage.readFile(buffer)`:
@@ -296,6 +315,70 @@ Full suite green on both cores (1038 tests).
 
 ---
 
+# Slices H & I — Conformance & Curation  *(in scope — confirmed 2026-07-03, D26)*
+
+Scope surfaced by the first external review of the Architecture Proposal (Steve Pieper).
+Full reasoning + drafted answers: `CLAUDE_REFACTOR_ANALYSIS.md` **Review Round 1 (D16–D25)**;
+scope confirmed in **D26** (both are optional sinks, so they proceed without blocking on
+reviewer bandwidth). Both are **outside the A–G core** and gated on the naturalized model +
+the machine-readable schema. Each gets its own brainstorm → design → plan cycle; D22 first.
+
+**Prerequisite that both share — the schema (D22).** Component 1's prose spec must be joined by
+a **machine-readable schema** of the naturalized representation: generated TypeScript types
+(`PatientID: string`, `ImageType: string[]`) *and* a JSON-Schema-style conformance schema, both
+derived from the same VR/VM cardinality rules (§5/§12) so they cannot drift. The schema is the
+definition of "supported" in 1.0; H validates against it, I is versioned independently of it.
+
+## Slice H — Conformance validation layer  *(proposed, D20)*
+
+**Goal:** a validator that checks DICOM data against the D22 schema + the standard and emits
+**structured diagnostics** (warning/error) rather than throwing. It is **just another event-stream
+listener** (the hub model) — one more sink, no new path. Reuses the cardinality-violation
+diagnostic channel already built in D12 (`listener.violations`), generalized from "VM violation"
+to "any non-conformance."
+
+**Scope sketch:** define the conformance schema (D22) → validator listener over `DicomEventStream`
+→ structured diagnostic model (tag, VR, declared vs. observed, failed rule) → a **redacted
+non-conformance serializer** (structure only, values stripped) safe to paste into an issue,
+optionally prompting the user to share the offending sample → wire into the slice G corpus so
+"supported" is measured, not asserted.
+
+**Depends on:** D1 (naturalized model), D22 (schema). **Feeds:** the dicompare oracle (D19) and
+the phantom-generator corpus.
+
+## Slice I — Curation / normalization layer via `dicom-curate`  *(proposed, D21/D25)*
+
+**Goal:** an **opt-in, separately-versioned** transform layer for loss-*correcting* operations —
+de-identification (PS3.15E), private→standard remapping, UID hashing, identity mapping — kept
+**out of the preserve-first core** so it can never reintroduce §3.1 source-dependent drift.
+
+**Key finding (D25):** `github.com/clintools/dicom-curate` is not a competing implementation —
+it is **already a dcmjs read-modify-write consumer** (`dcmjs ^0.51.1`): async-read →
+`naturalizeDataset` → lodash mutate per a `TCurationSpecification` → `denaturalizeDataset` →
+manual private-tag restore → `DicomDict.write` → stream sink. Pinned to legacy dcmjs, it
+currently **works around the exact defects 1.0 fixes** (proxy/VM-collapse shape → D1;
+private-creator loss → D2b; raw-value drop on RMW → D2c; separate metaheader handling → D5).
+Its whole value proposition — "change a few tags, keep the rest byte-unchanged" — **is** the D16
+per-element-passthrough requirement, which it cannot fully honor on legacy dcmjs today.
+
+**Integration approach:** adopt its rule engine, migrate it onto the new contract.
+- Adopt `TCurationSpecification` + PS3.15E profiles + CSV mapping + UID hashing as the curation
+  rule catalog (don't rebuild).
+- **Migrate it off legacy `naturalizeDataset`/`denaturalizeDataset` + `DicomDict.write` onto the
+  event-stream sources/sinks + the D1 model** — which lets it delete its four workarounds.
+- It should **supersede** dcmjs's existing `data/anonymizer`, not stack a third de-id path.
+- It becomes the **flagship migration/equivalence consumer** for F/R1 and G, paired with the
+  dicompare oracle (D19) as one clinical-tools verification trio (same ecosystem — a governance +).
+
+**Open before starting:** license/governance compat; depend on rule *semantics* (it is pre-1.0,
+"APIs may change") rather than pinning its current API. Scope itself is confirmed (D26) — it is
+loss-correction, deliberately opt-in.
+
+**Depends on:** D1, D2b, D2c, E2 (writer), F (public API), H (validation). Highest-integration,
+last in order.
+
+---
+
 # Remaining Items — Each Needs Its Own Planning Pass
 
 The core architecture (slices A–G, D1–D2c, E1–E2, F, §15.4) is complete, fully bidirectional,
@@ -328,9 +411,15 @@ gate against the existing passthrough writer; decide whether it supersedes or su
 `DicomDict.write`.
 
 ### R3. "One read core" extraction (decouple slice B from the lazy core)
-**Why a planning pass:** `fromPart10` currently **delegates** deflate and hard
+> **DONE (Slice J) — 2026-07-06.** `src/core/decodeCore.js` is the shared module: callers
+> pass a `window` (`{arrayBuffer, baseOffset, syntax, littleEndian, implicit, decoder}`) and a
+> `policy` (`{forceStoreRaw, noCopy, ignoreErrors}`). Both `readFileLazy` and `fromPart10`
+> consume it; `fromPart10` now handles deflate + undefined-length natively with zero whole-file
+> delegation. 1249 tests green both cores.
+
+**Why a planning pass:** `fromPart10` previously **delegated** deflate and hard
 undefined-length / unknown-VR cases to the lazy core (`readFileLazy`), because the decode
-primitives are closures trapped inside it (see D9). The roadmap's "one read core" goal is to
+primitives were closures trapped inside it (see D9). The roadmap's "one read core" goal is to
 extract `materializeElement`/`resolveVrInstance`/charset/ctx-setup into a shared module used
 by **both** the lazy reader and `fromPart10`, removing the delegation. This is a refactor of
 the 56KB `src/lazy/LazyDicomReader.js` core — guarded by 1128 tests + the corpus gates, but
@@ -338,6 +427,11 @@ still the highest-risk remaining change.
 **Scope sketch:** extract a `decodeElement` core module → repoint `readFileLazy` at it (prove
 the 1059 read tests + dual-core gate stay green) → repoint `fromPart10` at it → delete the
 delegation paths → confirm deflate + undefined-length now decode natively.
+**Structural risk note (2026-07-03, from the codebase graph):** the parser's recursive-descent
+core has three import cycles — `parseDicomDataSet ↔ readDicomElement{Explicit,Implicit} ↔
+readSequenceElement{Explicit,Implicit}` (`packages/parser/src/`). Inherent to sequence
+recursion, but any core-extraction refactor that touches these modules must preserve or
+deliberately break the cycles (e.g. via an injected recursion callback), not trip over them.
 
 ### R4. §15.4 low-allocation micro-tuning (optional)
 **Why a planning pass:** scale is already validated (100k items ~76 ms; 500-deep ~16 ms) and
@@ -345,3 +439,33 @@ linear, so this is **not** currently needed. If a profiled real workload (large 
 enhanced multi-frame) shows GC pressure, the spec's "reusable state objects by nesting depth"
 (§15.4) is the lever: pool the listener's frame objects by depth instead of allocating per
 element. **Trigger to start:** a profiled allocation problem on a real dataset.
+
+---
+
+## Post-merge follow-ups (from final whole-branch review 2026-07-06)
+
+1. **[highest value] Move the implicit-SQ promotion into `decodeCore`.** ✅ RESOLVED
+   2026-08-02 (AD-1) — but **peek-FREE by eager parity**, not peek-aware: code
+   inspection showed the premise inverted. The eager reference never promoted
+   defined-length dictionary-miss elements (`_readTag`'s length rule promotes only
+   undefined lengths); the two event-stream sources *invented* the promotion. Fix
+   applied: deleted `fromPart10`'s `el.items` trust and `fromPart10Stream`'s
+   defined-length FFFE peek; restricted the parser's `isSequence()` peek to
+   undefined-length elements (also fixing its throw on defined-length values that
+   merely resemble item/delimiter tags); `resolveVrInstance` documented as the
+   single canonical contract. Pinned by `test/eventStream/fromPart10Stream.test.js`
+   "AD-1" suite (all four read paths) + `test/core/decodeCore.test.js` units.
+
+2. **Cosmetic renames.** Rename the `window` local in `fromPart10.js` (shadows the browser
+   global). Rename `SplitDataView`'s `consumed[]` array to `consumedCount` for clarity.
+
+3. **Test strengthening.** Gate 5 large-deflate paced-feed case: ✅ RESOLVED
+   2026-08-02 (ED-1) — Gate 5b added; it exposed the relay balloon for real
+   (856 compressed bytes ballooned to 103,600 retained bytes) and the relay now
+   throttles on bodyStream retention with a demand-aware deadlock guard
+   (128-byte sub-slice pushes, 16 KiB high water). Helper extraction
+   (`compareTrees`/`DicomWriter` → `test/eventStream/helpers/`) still open (ED-4).
+
+4. **Parity edges (low priority).** Truncation error-class differs: stream throws `Error`;
+   buffered parser throws `{exception, dataSet}`. Mid-FMI truncation emits partial events
+   before throwing where buffered throws first.

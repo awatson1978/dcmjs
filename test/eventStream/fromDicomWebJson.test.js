@@ -33,7 +33,7 @@ describe("fromDicomWebJson generator", () => {
     test("emits scalars, PN-as-{Alphabetic}, and sequences losslessly", async () => {
         const json = {
             "00080060": { vr: "CS", Value: ["CT"] },
-            "00100010": { vr: "PN", Value: [{ Alphabetic: "Wallace^Bill" }] },
+            "00100010": { vr: "PN", Value: [{ Alphabetic: "Doe^Jane" }] },
             "00100020": { vr: "LO", Value: ["12345"] },
             "00200013": { vr: "IS", Value: [12] },
             "00081110": {
@@ -46,7 +46,7 @@ describe("fromDicomWebJson generator", () => {
 
         expect(listener.result.dict).toEqual({
             "00080060": { vr: "CS", Value: ["CT"] },
-            "00100010": { vr: "PN", Value: [{ Alphabetic: "Wallace^Bill" }] },
+            "00100010": { vr: "PN", Value: [{ Alphabetic: "Doe^Jane" }] },
             "00100020": { vr: "LO", Value: ["12345"] },
             "00200013": { vr: "IS", Value: [12] },
             "00081110": {

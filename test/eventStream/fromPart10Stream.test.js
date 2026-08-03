@@ -15,6 +15,7 @@ import { fromPart10 } from "../../src/eventStream/fromPart10.js";
 import { fromPart10Stream } from "../../src/eventStream/fromPart10Stream.js";
 import { CollectorListener } from "../../src/eventStream/CollectorListener.js";
 import { DicomEventStream } from "../../src/eventStream/api.js";
+import { DicomMessage } from "../../src/DicomMessage.js";
 import { deepCompare } from "../helper/equivalence.js";
 
 const REPO_ROOT = path.join(__dirname, "..", "..");
@@ -1110,22 +1111,28 @@ describe("fromPart10Stream — K3: implicit-little-endian corpus equivalence (na
 });
 
 // ---------------------------------------------------------------------------
-// K3 Test 16: Implicit SQ-detection divergence — data-peek parity
+// AD-1: implicit-SQ handling — ONE behavior, eager parity
 //
-// The buffered parser (readDicomElementImplicit.js isSequence()) peeks at the
-// first 4 value bytes of a dictionary-unknown, non-private implicit element:
-// if they are an item tag (FFFE,E000) or sequence delimiter (FFFE,E0DD) the
-// element is treated as an implicit SQ.  fromPart10Stream must mirror this.
-//
-// Synthesized file uses tag (2222,2222) — even group, not in any standard
-// DICOM dictionary — so both paths use the peek heuristic, not a VR lookup.
+// The canonical implicit-VR contract is decodeCore.resolveVrInstance, which
+// matches the eager reference: a DEFINED-length, dictionary-unknown implicit
+// element is never data-peek-promoted to SQ — it decodes as a UN leaf no
+// matter what its value bytes look like.  (The parser's isSequence() peek and
+// fromPart10Stream's undefined-length routing peek are framing mechanics
+// only; UNDEFINED-length dictionary-miss elements resolve to SQ by the
+// length rule.)  Historically fromPart10 trusted the parser's el.items and
+// fromPart10Stream hand-rolled an FFFE peek, promoting these elements to SQ
+// while readFile (both cores) decoded them as UN — three behaviors where the
+// architecture promises one.  These tests pin all four read paths to the
+// single eager-parity behavior.
 // ---------------------------------------------------------------------------
 
 /**
  * Build a minimal Implicit Little Endian Part 10 file whose body contains
- * exactly one element with the given tag and raw value bytes.
+ * exactly one element with the given tag and raw value bytes.  Pass
+ * `lengthOverride` (e.g. 0xffffffff) to declare a length different from
+ * valueBytes.length (undefined-length elements).
  */
-function buildImplicitBodyFile(tagGroup, tagElement, valueBytes) {
+function buildImplicitBodyFile(tagGroup, tagElement, valueBytes, lengthOverride) {
     const ILE_TS = "1.2.840.10008.1.2\0";
 
     const fmiOB = new DicomWriter();
@@ -1148,7 +1155,7 @@ function buildImplicitBodyFile(tagGroup, tagElement, valueBytes) {
     const bodyElem = new DicomWriter();
     bodyElem.u16(tagGroup);
     bodyElem.u16(tagElement);
-    bodyElem.u32(valueBytes.length);
+    bodyElem.u32(lengthOverride ?? valueBytes.length);
     bodyElem._push(valueBytes instanceof Uint8Array ? valueBytes : new Uint8Array(valueBytes));
 
     const file = new DicomWriter();
@@ -1158,56 +1165,105 @@ function buildImplicitBodyFile(tagGroup, tagElement, valueBytes) {
     file._push(fmiOB.toUint8Array());
     file._push(fmiTS.toUint8Array());
     file._push(bodyElem.toUint8Array());
+    // Trailing sentinel element (2222,2299), 8-byte non-item value.  The
+    // parser's readPart10Header lookahead misparses the first body element
+    // as explicit while hunting for the end of the 0002 group; when a short
+    // element sits at EOF that misparse reads past the buffer (pre-existing
+    // parser quirk, unrelated to VR semantics).  A trailing element keeps
+    // every fixture clear of that edge so these tests pin VR behavior only.
+    const sentinel = new DicomWriter();
+    sentinel.u16(0x2222);
+    sentinel.u16(0x2299);
+    sentinel.u32(8);
+    sentinel._push(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
+    file._push(sentinel.toUint8Array());
     return file.toArrayBuffer();
 }
 
-describe("fromPart10Stream — K3: implicit SQ-detection data-peek parity", () => {
-    // Positive case: value starts with FFFE,E000 (item tag) — treat as SQ.
-    // Both buffered (via isSequence() peek) and stream (via mirrored peek)
-    // must emit an SQ with one empty item.
-    test(
-        "dictionary-unknown implicit element: value starts with item tag → SQ matches buffered",
-        async () => {
-            // One empty item: FFFE,E000 (LE) + length=0
-            const itemBytes = new Uint8Array([
-                0xfe, 0xff, 0x00, 0xe0, // FFFE,E000 item tag (LE)
-                0x00, 0x00, 0x00, 0x00  // item length = 0
-            ]);
-            const buffer = buildImplicitBodyFile(0x2222, 0x2222, itemBytes);
+/** Read the same buffer through all four read paths. */
+async function readAllFour(buffer) {
+    return {
+        eager: DicomMessage.readFile(buffer.slice(0), { core: "eager" }),
+        lazy: DicomMessage.readFile(buffer.slice(0), { core: "lazy" }),
+        buffered: await runBuffered(buffer.slice(0)),
+        stream: await runStream(buffer.slice(0))
+    };
+}
 
-            const expected = await runBuffered(buffer.slice(0));
-            const actual   = await runStream(buffer.slice(0));
+describe("AD-1: one implicit-SQ behavior across all four read paths", () => {
+    const ITEM_START = [0xfe, 0xff, 0x00, 0xe0, 0x00, 0x00, 0x00, 0x00];
+    const DELIM_START = [0xfe, 0xff, 0xdd, 0xe0, 0x00, 0x00, 0x00, 0x00];
 
+    const UN_CASES = [
+        ["value starts with item tag FFFE,E000", 0x2222, 0x2222, ITEM_START],
+        ["value starts with delimiter FFFE,E0DD", 0x2222, 0x2222, DELIM_START],
+        ["private tag, item-tag-start value", 0x2221, 0x2223, ITEM_START],
+        ["FFFE group but wrong element", 0x2222, 0x2222,
+            [0xfe, 0xff, 0x34, 0x12, 0x00, 0x00, 0x00, 0x00]],
+        ["value shorter than 4 bytes", 0x2222, 0x2222, [0xfe, 0xff]]
+    ];
+
+    test.each(UN_CASES)(
+        "defined-length dict-miss: %s → UN leaf everywhere",
+        async (_name, group, element, bytes) => {
+            const tagStr = (
+                group.toString(16).padStart(4, "0") +
+                element.toString(16).padStart(4, "0")
+            ).toUpperCase();
+            const buffer = buildImplicitBodyFile(
+                group, element, new Uint8Array(bytes)
+            );
+
+            const { eager, lazy, buffered, stream } = await readAllFour(buffer);
+
+            for (const [pathName, dict] of [
+                ["eager", eager.dict],
+                ["lazy", lazy.dict],
+                ["buffered", buffered.dict],
+                ["stream", stream.dict]
+            ]) {
+                expect({ path: pathName, entry: !!dict[tagStr] }).toEqual({
+                    path: pathName, entry: true
+                });
+                expect({ path: pathName, vr: dict[tagStr].vr }).toEqual({
+                    path: pathName, vr: "UN"
+                });
+            }
+
+            // Full stream-vs-buffered parity.
             const problems = [];
-            compareSection(expected.meta || {}, actual.meta || {}, "meta", problems);
-            compareSection(expected.dict || {}, actual.dict || {}, "dict", problems);
+            compareSection(buffered.meta || {}, stream.meta || {}, "meta", problems);
+            compareSection(buffered.dict || {}, stream.dict || {}, "dict", problems);
             expect(problems).toEqual([]);
-
-            // Sanity: both sides must actually have the element
-            expect(expected.dict["22222222"]).toBeDefined();
-            expect(actual.dict["22222222"]).toBeDefined();
         }
     );
 
-    // Negative case: value does NOT start with an item tag — emit UN leaf.
-    // Both paths must agree without the peek heuristic firing.
     test(
-        "dictionary-unknown implicit element: value NOT item tag → UN leaf matches buffered",
+        "positive control: UNDEFINED-length dict-miss with item content → SQ everywhere",
         async () => {
-            // Arbitrary non-item bytes (first byte 0x41 ≠ 0xfe)
-            const leafBytes = new Uint8Array([0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48]);
-            const buffer = buildImplicitBodyFile(0x2222, 0x2222, leafBytes);
+            // Body: one empty item + sequence delimiter.
+            const content = new Uint8Array([...ITEM_START, ...DELIM_START]);
+            const buffer = buildImplicitBodyFile(
+                0x2222, 0x2222, content, 0xffffffff
+            );
 
-            const expected = await runBuffered(buffer.slice(0));
-            const actual   = await runStream(buffer.slice(0));
+            const { eager, lazy, buffered, stream } = await readAllFour(buffer);
+
+            for (const [pathName, dict] of [
+                ["eager", eager.dict],
+                ["lazy", lazy.dict],
+                ["buffered", buffered.dict],
+                ["stream", stream.dict]
+            ]) {
+                expect({ path: pathName, vr: dict["22222222"]?.vr }).toEqual({
+                    path: pathName, vr: "SQ"
+                });
+            }
 
             const problems = [];
-            compareSection(expected.meta || {}, actual.meta || {}, "meta", problems);
-            compareSection(expected.dict || {}, actual.dict || {}, "dict", problems);
+            compareSection(buffered.meta || {}, stream.meta || {}, "meta", problems);
+            compareSection(buffered.dict || {}, stream.dict || {}, "dict", problems);
             expect(problems).toEqual([]);
-
-            expect(expected.dict["22222222"]).toBeDefined();
-            expect(actual.dict["22222222"]).toBeDefined();
         }
     );
 });

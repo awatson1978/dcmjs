@@ -146,6 +146,15 @@ consumers, dcmjs fixed and aligned the following (each pinned by tests in
 6. **`omitPrivateAttributes` rename** (`util/dataSetToJS.js`). The
    `explicitDataSetToJS` option was misspelled `omitPrivateAttibutes`
    upstream; dcmjs uses the corrected spelling.
+7. **Undefined-length-only implicit SQ peek** (`readDicomElementImplicit.js`,
+   AD-1 2026-08-02). The `isSequence()` data peek (first 4 value bytes =
+   item tag / sequence delimiter) applies only to undefined-length
+   dictionary-unknown elements, where framing genuinely needs it. Upstream
+   also peeked defined-length elements, which (a) contradicted the dcmjs
+   semantic contract (`decodeCore.resolveVrInstance`, eager parity: defined
+   lengths are never promoted to SQ) and (b) threw on defined-length values
+   that merely resemble item/delimiter tags (e.g. pixel data starting with
+   FFFE bytes) or are shorter than the 4-byte peek.
 
 On top of these come the element-model additions described above
 (`tagValue`, `startOffset`, `endOffset`, the stable single-shape object

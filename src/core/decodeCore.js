@@ -83,6 +83,14 @@ function toUint8Array(buffer) {
  * replicating DicomMessage._readTag's VR resolution rules
  * (src/DicomMessage.js, explicit + implicit branches).
  *
+ * THIS IS THE SINGLE CANONICAL IMPLICIT-VR CONTRACT (AD-1). Every read
+ * path — eager, lazy, fromPart10, fromPart10Stream — resolves implicit
+ * VRs here, with eager parity: a DEFINED-length dictionary-miss element
+ * resolves to UN (or OW/LO by tag rules) and is NEVER data-peek-promoted
+ * to SQ, regardless of its value bytes; an UNDEFINED-length dictionary
+ * miss resolves to SQ by the length rule. The parser's el.items (its
+ * framing peek) is metadata only and must not influence VR resolution.
+ *
  * `window.implicit` is already resolved by the caller: a meta window
  * always carries implicit=false; a body window carries the negotiated value.
  * The lazy source computed `ctx.implicit && !isMeta`; here the caller

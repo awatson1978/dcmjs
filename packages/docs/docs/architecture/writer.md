@@ -11,6 +11,15 @@ syntax. Inside that unchanged shape, the 1.0 writer has two engines: a
 bytes. For the user-facing API see
 [Writing and editing](../guides/writing-and-editing.md).
 
+:::caution Byte-identity guarantee withdrawn
+The passthrough fast path only operates on entries produced by the
+**deprecated lazy read core** (they carry `_sourceSpan`/`_dirty`); it is
+scheduled for removal with that core (2026-08-02 stakeholder decision).
+With the default eager core, every write re-encodes: the output is always
+**correct** DICOM, but not byte-for-byte identical to the source
+(character-set labels normalize, padding may differ).
+:::
+
 ## Re-encoding: direct writes with length backpatching
 
 The 0.x writer encoded every element into its own temporary

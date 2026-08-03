@@ -45,18 +45,16 @@ Every entry has the same observable shape on both cores:
 - `_rawValue` - the unformatted value as stored in the file, retained for
   raw-storing VRs (or for all VRs with `forceStoreRaw: true`).
 
-With the default **lazy** core, `Value` and `_rawValue` are non-enumerable
-*getters*: the element's bytes are decoded through the regular VR classes
-on first access and the result is cached, so repeated access returns the
-same object and never re-decodes. `Object.keys(entry)` still yields
+With the default **eager** core, `Value` and `_rawValue` are plain data
+properties, decoded during `readFile` through the regular VR classes.
+
+With the **deprecated lazy** core (`core: "lazy"`), they are
+non-enumerable *getters*: the element's bytes are decoded on first access
+and cached. `Object.keys(entry)` still yields
 `["vr", "Value", "_rawValue"]`, and `JSON.stringify` or any deep iteration
 simply materializes everything it touches - the same end state as the
-eager core. Sequence (`SQ`) values materialize *structurally*: accessing
-the SQ's `Value` builds the array of item dicts, but each nested element
-stays lazy until its own `Value` is accessed.
-
-Entries also carry non-enumerable writer-facing state (`_sourceSpan`,
-`_dirty`, and friends) used by the
+eager core. Lazy entries also carry non-enumerable writer-facing state
+(`_sourceSpan`, `_dirty`, and friends) used by the
 [passthrough writer](writing-and-editing.md); treat those as internal.
 
 ## Options reference
@@ -64,20 +62,23 @@ Entries also carry non-enumerable writer-facing state (`_sourceSpan`,
 ### `core` and the `DCMJS_CORE` environment variable
 
 `core: "lazy" | "eager"` selects the read core per call. The default comes
-from `DicomMessage.defaultCore`, which is `"lazy"` unless the `DCMJS_CORE`
-environment variable is set (so `DCMJS_CORE=eager` globally restores the
-historical 0.x reader). Any other value throws
+from `DicomMessage.defaultCore`, which is `"eager"` unless the `DCMJS_CORE`
+environment variable is set. Any other value throws
 `Unknown DicomMessage.readFile core`.
 
 ```js
-const lazy = DicomMessage.readFile(buffer); // default: lazy
-const eager = DicomMessage.readFile(buffer, { core: "eager" });
+const eager = DicomMessage.readFile(buffer); // default: eager
+const lazy = DicomMessage.readFile(buffer, { core: "lazy" }); // deprecated
 ```
 
-The eager core is the pre-1.0 reader, kept as an escape hatch for the beta
-period; it decodes every value during `readFile` and produces plain data
-properties instead of getters. It is scheduled for deletion after the beta
-soak (see the [Lazy core](../architecture/lazy-core.md) page).
+:::caution Deprecated
+The lazy core (and with it the byte-identity passthrough write path) is
+**deprecated as of 2026-08-02 and scheduled for removal in the next
+release** — the event-stream API delivers the strategic streaming/memory
+benefits without a second buffered read engine. `core: "lazy"` /
+`DCMJS_CORE=lazy` remain as an escape hatch for one release and emit a
+one-time warning. See the [Lazy core](../architecture/lazy-core.md) page.
+:::
 
 ### `untilTag`
 

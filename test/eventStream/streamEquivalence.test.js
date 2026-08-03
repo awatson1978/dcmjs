@@ -1033,6 +1033,71 @@ describe("K6 Gate 5: bounded-memory — deflate synthetic body (10 × 1 KB eleme
 });
 
 // ===========================================================================
+// Gate 5b (ED-1) — Bounded-memory gate: LARGE deflate body under a slow
+// listener.
+//
+// Gate 5's body fits in a single pako output batch, which masked the K5
+// relay-balloon risk: the relay was throttled only by raw-feed rate, so a
+// fast feed + slow listener grew bodyStream without bound.  This gate feeds
+// a ~100 KB inflated body (7 pako batches) through a drain-gated listener
+// that yields a macrotask per element — the exact balloon shape.
+//
+// The relay now pauses when bodyStream retains more than RELAY_HIGH_WATER
+// (2 × 16 KiB pako batches) and the body loop has no pending demand
+// (fromPart10Stream.js).  Bound: high water + one in-flight pako batch +
+// slack.  Without the throttle, peak retention reaches the whole inflated
+// body (~100 KB) and this gate goes red.
+// ===========================================================================
+
+describe("K6 Gate 5b (ED-1): bounded-memory — large deflate body, paced listener", () => {
+    test(
+        "peak bodyStream stays under high-water + 1 batch with a slow listener",
+        async () => {
+            const NUM_ELEMS = 100; // 100 × 1036 B ≈ 101 KB inflated → 7 pako batches
+            const CHUNK_SIZE = 512; // raw feed chunk size
+
+            const buffer = buildSyntheticDeflateFile(NUM_ELEMS);
+
+            const memSamples = [];
+            const listener = new CollectorListener();
+            // Slow listener: yield a macrotask on every drain so the raw feed
+            // and relay run far ahead of the body loop.
+            listener.setDrain(
+                () => new Promise(resolve => setTimeout(resolve, 0))
+            );
+
+            await fromPart10Stream(
+                chunked(buffer.slice(0), CHUNK_SIZE),
+                listener,
+                { onConsume: info => memSamples.push(info) }
+            );
+
+            // onConsume must fire per body element.
+            expect(memSamples.length).toBeGreaterThanOrEqual(NUM_ELEMS);
+
+            // All elements must arrive despite the throttle.
+            const bodyTags = Object.keys(listener.result.dict).filter(t =>
+                t.startsWith("6001")
+            );
+            expect(bodyTags.length).toBe(NUM_ELEMS);
+
+            // Peak inflated (bodyStream) retention: relay high water (32 KiB)
+            // + one in-flight pako batch (16 KiB) + element/header slack.
+            const HIGH_WATER = 2 * 16384;
+            const PAKO_BATCH = 16384;
+            const SLACK = 8 * 1024;
+            const BOUND = HIGH_WATER + PAKO_BATCH + SLACK; // 56 KiB ≪ 101 KB body
+            const peakBody = Math.max(...memSamples.map(s => s.totalSize));
+            expect(peakBody).toBeLessThan(BOUND);
+
+            // Final retention: all elements consumed.
+            const last = memSamples[memSamples.length - 1];
+            expect(last.totalSize).toBeLessThan(5 * 1024);
+        }
+    );
+});
+
+// ===========================================================================
 // Gate 6 — Backpressure gate
 //
 // Verifies that setDrain() actually blocks the body loop:

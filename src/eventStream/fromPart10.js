@@ -5,7 +5,6 @@ import {
     decodeWithEagerReadTag,
     seedReadContext
 } from "../core/decodeCore.js";
-import { ValueRepresentation } from "../ValueRepresentation.js";
 
 /**
  * fromPart10 — a genuine raw-bytes Part 10 -> event-stream generator.
@@ -145,17 +144,11 @@ function emitElement(
         : decoder
         ? { ...bodyWindow, decoder }
         : bodyWindow;
-    let vrInstance = resolveVrInstance(el, window);
-
-    // Mirror readDicomElementImplicit.js isSequence() peek for implicit-VR
-    // body elements: @dcmjs/parser populates el.items when it detects an
-    // implicit sequence via the data-peek heuristic (non-private elements
-    // whose first 4 value bytes are an item tag or sequence delimiter).
-    // resolveVrInstance is dictionary-only and returns UN for unknown tags,
-    // so we must promote to SQ here when the parser already found items.
-    if (!isMeta && window.implicit && vrInstance.type !== "SQ" && el.items) {
-        vrInstance = ValueRepresentation.createByTypeString("SQ");
-    }
+    // resolveVrInstance is the single canonical implicit-VR contract (AD-1):
+    // defined-length dictionary-miss elements resolve to UN — never data-peek
+    // promoted to SQ (eager parity). The parser may still populate el.items
+    // via its framing peek; that metadata is deliberately ignored here.
+    const vrInstance = resolveVrInstance(el, window);
 
     // Plain sequence (defined or undefined length).
     if (vrInstance.type === "SQ" && el.items) {

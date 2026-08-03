@@ -27,6 +27,30 @@ The end state we are building toward:
 
 ## Where we are
 
+:::danger 2026-08-02 pivot — lazy core deprecated, engine roles inverted
+Stakeholder decision (Abigail ↔ Jarkko loop): **"We don't want the lazy
+parser — the event stream gets ~90% of the benefit; the remaining 10%
+isn't justified by cost."** Consequences, executed on
+`technical-debt-cleanup`:
+
+- `DicomMessage.readFile` defaults to the **eager** core again; the lazy
+  core (`core:"lazy"` / `DCMJS_CORE=lazy`) is deprecated with a one-time
+  warning and will be **deleted next release** together with the
+  byte-identity passthrough write path (guarantee withdrawn — writes stay
+  correct DICOM, re-encoded).
+- This **inverts R2 ("lazy bridge is the default") and R7's deletion
+  list**: the eager loop is the engine of record and stays; `src/lazy/`
+  is what gets deleted. R4's passthrough engine goes with it; the
+  backpatch re-encoder remains the writer.
+- The event stream (`fromPart10` / `fromPart10Stream` / `DicomEventStream`)
+  and its shared `decodeCore` are the strategic surface — unaffected.
+- AsyncDicomReader's `_read` dependency is no longer a deletion blocker
+  (nothing is waiting to delete `_read` anymore); the K7 re-platform
+  remains an optional 1.x consolidation.
+
+Status notes below this banner predate the pivot and are kept for history.
+:::
+
 Status as of 2026-06-10 — executed through step 6, version 1.0.0-beta.0 (NOT published).
 
 | Section | Status | Commit |
@@ -363,13 +387,21 @@ TextDecoder/Encoder singletons, SplitDataView cached-chunk fast path) remain.
 > re-platform + beta confidence. The circular-dependency setters in index.js
 > also remain until the package split makes them unnecessary.
 
-The remaining deletion list, executed once the gates allow:
+The remaining deletion list — **REWRITTEN by the 2026-08-02 pivot** (the
+eager loop is the engine of record and STAYS; see the banner at the top):
 
-- `DicomMessage._read`, `_readTag` — the entire eager loop.
-- `SequenceOfItems.readBytes` scan-rewind reader and the eager
-  `BinaryRepresentation.readBytes` frame logic (replaced by the parser toolkit).
+- ~~`DicomMessage._read`, `_readTag` — the entire eager loop.~~ KEPT — engine
+  of record after the pivot.
+- **`src/lazy/LazyDicomReader.js`** (~1,255 lines) + the lazy test suites
+  (`test/lazy-*.test.js`) — next release, after one release of deprecation.
+- **The passthrough fast path** in `DicomMessage.write` (`isCleanForPassthrough`
+  consumption) — dies with the lazy entries that feed it; the backpatch
+  re-encoder remains the writer.
+- `SequenceOfItems.readBytes` scan-rewind reader: stays with the eager loop.
 - The circular-dependency setters (`setDicomMessageClass` / `setTagClass`) —
-  package layering makes them unnecessary.
+  still deferred to the 1.x package split; the `DicomMessage ⇄
+  LazyDicomReader` import cycle half of AD-4 dissolves when `src/lazy/` is
+  deleted.
 
 ---
 
@@ -402,12 +434,16 @@ The remaining deletion list, executed once the gates allow:
 
 ### 1.x backlog
 
+- [ ] **Delete the lazy core** (`src/lazy/` + lazy test suites + the
+      passthrough write path) — next release, per the 2026-08-02 pivot
+      (deprecation shipped on `technical-debt-cleanup`).
 - [ ] Re-platform AsyncDicomReader onto `fromPart10Stream` (K7/R6.7) — requires
       reimplementing pixel-data frame-split and compressed-frame-assembly in the
       adapter, or changing `fromPart10Stream` to emit per-frame events. Deferred
-      per task-K7-report.md assessment.
-- [ ] Delete the eager read loop (`_read`/`_readTag` + eager element classes)
-      once AsyncDicomReader is re-platformed and the beta has soaked.
+      per task-K7-report.md assessment. (Post-pivot this is optional
+      consolidation, no longer a deletion blocker.)
+- [ ] ~~Delete the eager read loop~~ — SUPERSEDED by the 2026-08-02 pivot: the
+      eager loop is the engine of record and stays.
 - [ ] Packaging: subpath exports / workspace-package split (data, dictionary,
       streaming, features), `sideEffects: false`, types entry — deferred since
       nothing is being published yet.

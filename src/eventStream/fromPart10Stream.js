@@ -33,7 +33,7 @@ import {
     IMPLICIT_LITTLE_ENDIAN,
     DEFLATED_EXPLICIT_LITTLE_ENDIAN
 } from "../constants/dicom.js";
-import { DicomMessage } from "../DicomMessage.js";
+import { normalizeSyntax } from "../core/normalizeSyntax.js";
 import { ValueRepresentation } from "../ValueRepresentation.js";
 import {
     resolveVrInstance,
@@ -318,10 +318,10 @@ export async function fromPart10Stream(input, listener, options = {}) {
         );
 
         // Capture TransferSyntaxUID for startDataSet and body-phase delegation.
-        // Matches seedReadContext's normalization via DicomMessage._normalizeSyntax.
+        // Matches seedReadContext's normalization (core normalizeSyntax).
         if (tagStr === "00020010" && values[0]) {
             rawTransferSyntaxUID = values[0];
-            transferSyntaxUID = DicomMessage._normalizeSyntax(values[0]);
+            transferSyntaxUID = normalizeSyntax(values[0]);
         }
 
         // Set meta end offset from (0002,0000) FileMetaInformationGroupLength
@@ -413,6 +413,17 @@ export async function fromPart10Stream(input, listener, options = {}) {
             // enough to ensure onData fires for every 16 KiB of inflated output,
             // giving the body loop bytes to parse before the raw stream ends.
             const inflater = new pako.Inflate({ raw: true, chunkSize: 16384 });
+            // K5 relay throttle (ED-1): pause the relay while the body loop
+            // holds more than RELAY_HIGH_WATER inflated bytes and has no
+            // pending demand — otherwise a fast feed + slow listener grows
+            // bodyStream without bound (the relay-balloon risk).  Because
+            // DEFLATE can expand >100× (a whole file's output can hide in a
+            // few hundred compressed bytes), pausing between network chunks
+            // is not enough: raw bytes are fed to the inflater in
+            // RELAY_RAW_SLICE sub-slices with a retention check between
+            // each, bounding the overshoot to one sub-slice's expansion.
+            const RELAY_HIGH_WATER = 16384;
+            const RELAY_RAW_SLICE = 128;
             inflater.onData = chunk => {
                 // chunk is a Uint8Array (pako 2.x). Slice to an owned
                 // ArrayBuffer so bodyStream's view doesn't alias pako's buffer.
@@ -446,14 +457,34 @@ export async function fromPart10Stream(input, listener, options = {}) {
                     stream.consume(relayPos);
                     // isLast: feed loop called setComplete() — no more chunks.
                     const isLast = done;
-                    inflater.push(rawSlice, isLast);
-                    if (inflater.err) {
-                        // pako 2.x stores the error message in inflater.msg.
-                        inflateError = new Error(
-                            `fromPart10Stream: deflate decompress failed: ${inflater.msg}`
+                    for (let s = 0; s < rawSlice.length; s += RELAY_RAW_SLICE) {
+                        const subEnd = Math.min(
+                            s + RELAY_RAW_SLICE,
+                            rawSlice.length
                         );
-                        bodyStream.setComplete(); // unblock waiting body parser
-                        return;
+                        const subLast = isLast && subEnd === rawSlice.length;
+                        inflater.push(rawSlice.subarray(s, subEnd), subLast);
+                        if (inflater.err) {
+                            // pako 2.x stores the error message in inflater.msg.
+                            inflateError = new Error(
+                                `fromPart10Stream: deflate decompress failed: ${inflater.msg}`
+                            );
+                            bodyStream.setComplete(); // unblock waiting body parser
+                            return;
+                        }
+                        if (subLast) break;
+                        // Throttle: wait for the body loop to consume below
+                        // the watermark before inflating more.  A consumer
+                        // blocked on ensureAvailable (pending demand) always
+                        // wins — the relay resumes immediately, so this can
+                        // never deadlock.
+                        while (
+                            bodyStream.getBufferMemoryInfo().totalSize >
+                                RELAY_HIGH_WATER &&
+                            !bodyStream.hasPendingDemand()
+                        ) {
+                            await bodyStream.awaitConsumerActivity();
+                        }
                     }
                     if (isLast) break;
                 } else {
@@ -493,7 +524,6 @@ export async function fromPart10Stream(input, listener, options = {}) {
     const releaseEnabled = true;
 
     const UNDEFINED_LEN = 0xffffffff;
-    const SQ_VR = ValueRepresentation.createByTypeString("SQ");
     const EMPTY_WIN = {
         arrayBuffer: new ArrayBuffer(0),
         baseOffset: 0,
@@ -766,22 +796,10 @@ export async function fromPart10Stream(input, listener, options = {}) {
         let vrInstance = resolveVrInstance(elLike, EMPTY_WIN);
 
         if (!undef) {
-            // Defined length. Mirror readDicomElementImplicit isSequence() peek
-            // for dictionary-unknown implicit elements.
-            if (
-                bodyImplicit &&
-                vrInstance.type !== "SQ" &&
-                (elGroup & 1) === 0 &&
-                valueLength >= 4 &&
-                (await ensureAbs(valueStartAbs + 4))
-            ) {
-                // Item/delimiter tags are little-endian in implicit LE (== body).
-                const pg = bsrc.view.getUint16(valueStartAbs, true);
-                const pe = bsrc.view.getUint16(valueStartAbs + 2, true);
-                if (pg === 0xfffe && (pe === 0xe000 || pe === 0xe0dd)) {
-                    vrInstance = SQ_VR;
-                }
-            }
+            // Defined length: resolveVrInstance is the single canonical
+            // implicit-VR contract (AD-1) — dictionary-miss elements resolve
+            // to UN and are never data-peek-promoted to SQ (eager parity).
+            // Only dictionary-known SQs take the sequence path here.
             if (vrInstance.type === "SQ") {
                 await emitSequence(
                     target,
@@ -805,6 +823,11 @@ export async function fromPart10Stream(input, listener, options = {}) {
 
         // Undefined length: classify SQ / encapsulated / eagerWindow leaf,
         // matching decodeCore.classifyElement + the parser's SQ resolution.
+        // The peek below is ROUTING-ONLY (AD-1): it chooses between streamed
+        // emitSequence and the delimiter-scanned eager-window leaf, both of
+        // which yield eager-SQ semantics for undefined-length dictionary-miss
+        // elements (resolveVrInstance's length rule). The semantic contract
+        // itself never data-peek-promotes defined-length elements.
         let treatAsSq = false;
         if (vrInstance.type === "SQ") {
             if (!bodyImplicit) {

@@ -1,0 +1,14 @@
+{
+    "name": "@dcmjs/cli",
+    "version": "0.0.0",
+    "private": true,
+    "description": "dcmjs command line: convert, dump, anonymize, validate DICOM Part 10 files, plus PDF in / PDF out via the Encapsulated PDF IOD.",
+    "main": "src/cli.mjs",
+    "bin": {
+        "dcmjs": "bin/dcmjs.mjs"
+    },
+    "scripts": {
+        "test": "jest --rootDir ../.. packages/cli"
+    },
+    "license": "MIT"
+}

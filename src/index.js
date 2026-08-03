@@ -36,6 +36,12 @@ import {
     StructuredReport,
     ParametricMap
 } from "./derivations/index.js";
+// Encapsulated documents (PDF in / PDF out)
+import {
+    encapsulatePdf,
+    extractEncapsulatedPdf,
+    ENCAPSULATED_PDF_SOP_CLASS_UID
+} from "./encapsulated/index.js";
 // Normalizers
 
 import { Normalizer } from "./normalizers.js";
@@ -103,6 +109,12 @@ const anonymizer = {
     getTagsNameToEmpty
 };
 
+const encapsulated = {
+    encapsulatePdf,
+    extractEncapsulatedPdf,
+    ENCAPSULATED_PDF_SOP_CLASS_UID
+};
+
 // FHIR sink (@dcmjs/fhir) plus a Part 10 convenience that composes the
 // parser and naturalizer — turns a .dcm ArrayBuffer straight into FHIR.
 const fhir = {
@@ -129,6 +141,7 @@ const dcmjs = {
     constants,
     data,
     derivations,
+    encapsulated,
     eventStream,
     fhir,
     normalizers,
@@ -151,6 +164,7 @@ export {
     constants,
     data,
     derivations,
+    encapsulated,
     eventStream,
     fhir,
     normalizers,

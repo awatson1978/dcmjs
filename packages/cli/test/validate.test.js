@@ -23,7 +23,10 @@ beforeAll(() => {
     // A clean file and a truncated (unparseable) sibling
     fs.copyFileSync(FIXTURE, path.join(tmpDir, "good.dcm"));
     const bytes = fs.readFileSync(FIXTURE);
-    fs.writeFileSync(path.join(tmpDir, "truncated.dcm"), bytes.subarray(0, 160));
+    fs.writeFileSync(
+        path.join(tmpDir, "truncated.dcm"),
+        bytes.subarray(0, 160)
+    );
 });
 
 afterAll(() => {

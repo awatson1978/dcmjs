@@ -34,14 +34,20 @@ export function sniffKind(filePath) {
     try {
         fd = fs.openSync(filePath, "r");
         const dicm = Buffer.alloc(4);
-        if (fs.readSync(fd, dicm, 0, 4, 128) === 4 && dicm.toString("ascii") === "DICM") {
+        if (
+            fs.readSync(fd, dicm, 0, 4, 128) === 4 &&
+            dicm.toString("ascii") === "DICM"
+        ) {
             return "dicom";
         }
         const pdf = Buffer.alloc(5);
-        if (fs.readSync(fd, pdf, 0, 5, 0) === 5 && pdf.toString("ascii") === "%PDF-") {
+        if (
+            fs.readSync(fd, pdf, 0, 5, 0) === 5 &&
+            pdf.toString("ascii") === "%PDF-"
+        ) {
             return "pdf";
         }
-    } catch (err) {
+    } catch {
         // fall through to extension check
     } finally {
         if (fd !== undefined) {

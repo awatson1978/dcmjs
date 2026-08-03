@@ -26,7 +26,9 @@ function instanceFromDataset(dataset) {
         uid: sopInstanceUid,
         sopClass: {
             system: "urn:ietf:rfc:3986",
-            code: uidToUrn(dataset.SOPClassUID) || "urn:oid:1.2.840.10008.5.1.4.1.1.2"
+            code:
+                uidToUrn(dataset.SOPClassUID) ||
+                "urn:oid:1.2.840.10008.5.1.4.1.1.2"
         }
     };
 
@@ -38,7 +40,9 @@ function instanceFromDataset(dataset) {
     if (numberOfFrames !== null) {
         instance.numberOfFrames = numberOfFrames;
     }
-    const title = asString(dataset.SeriesDescription) || asString(dataset.StudyDescription);
+    const title =
+        asString(dataset.SeriesDescription) ||
+        asString(dataset.StudyDescription);
     if (title) {
         instance.title = title;
     }
@@ -70,11 +74,17 @@ function seriesShellFromDataset(dataset) {
     }
     const bodyPart = asString(dataset.BodyPartExamined);
     if (bodyPart) {
-        series.bodySite = { system: "http://snomed.info/sct", display: bodyPart };
+        series.bodySite = {
+            system: "http://snomed.info/sct",
+            display: bodyPart
+        };
     }
     const laterality = asString(dataset.Laterality);
     if (laterality) {
-        series.laterality = { system: "http://snomed.info/sct", display: laterality };
+        series.laterality = {
+            system: "http://snomed.info/sct",
+            display: laterality
+        };
     }
 
     return series;
@@ -192,7 +202,10 @@ export function imagingStudyFromDatasets(datasets, options = {}) {
     // Study-level modality union (distinct series modalities)
     const modalities = [];
     series.forEach(entry => {
-        if (entry.modality && !modalities.some(m => m.code === entry.modality.code)) {
+        if (
+            entry.modality &&
+            !modalities.some(m => m.code === entry.modality.code)
+        ) {
             modalities.push(entry.modality);
         }
     });

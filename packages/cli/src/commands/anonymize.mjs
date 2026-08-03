@@ -30,7 +30,8 @@ export async function runAnonymize({
 
     const parsed = path.parse(input);
     const output =
-        values.output || path.join(parsed.dir, `${parsed.name}-anon${parsed.ext || ".dcm"}`);
+        values.output ||
+        path.join(parsed.dir, `${parsed.name}-anon${parsed.ext || ".dcm"}`);
 
     if (path.resolve(output) === path.resolve(input)) {
         stderr("anonymize: refusing to overwrite the input file in place");

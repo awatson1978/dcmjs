@@ -23,7 +23,7 @@ const bundlePath = path.join(repoRoot, "build", "dcmjs.js");
 let dcmjs;
 try {
     dcmjs = require(bundlePath);
-} catch (err) {
+} catch {
     console.error(
         `dcmjs CLI needs the built bundle (${bundlePath}).\n` +
             "Run `pnpm run build` in the dcmjs repo first."

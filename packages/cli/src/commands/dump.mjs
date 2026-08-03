@@ -58,7 +58,9 @@ function dumpGroup(group, { dictionary, stdout, indent = "" }) {
             });
         } else {
             stdout(
-                `${indent}${punctuated} ${element.vr} ${keyword}: ${formatValue(element)}`
+                `${indent}${punctuated} ${element.vr} ${keyword}: ${formatValue(
+                    element
+                )}`
             );
         }
     }

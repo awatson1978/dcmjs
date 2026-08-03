@@ -19,7 +19,10 @@ import { assertSupportedFhirVersion } from "./helpers.js";
 
 export * from "./helpers.js";
 export { patientFromDataset } from "./patient.js";
-export { imagingStudyFromDataset, imagingStudyFromDatasets } from "./imagingStudy.js";
+export {
+    imagingStudyFromDataset,
+    imagingStudyFromDatasets
+} from "./imagingStudy.js";
 export { documentReferenceFromDataset } from "./documentReference.js";
 
 /**

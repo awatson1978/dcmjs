@@ -6,7 +6,12 @@
 //   .dcm → json | dicomweb-json | fhir | dcm | pdf (extract encapsulated)
 //   .pdf → dcm (Encapsulated PDF wrap) | fhir (DocumentReference)
 
-import { readFileArrayBuffer, sniffKind, binaryReplacer, writeOutput } from "../io.mjs";
+import {
+    readFileArrayBuffer,
+    sniffKind,
+    binaryReplacer,
+    writeOutput
+} from "../io.mjs";
 
 export const convertUsage = `usage: dcmjs convert <input> --to <format> [options]
 
@@ -26,8 +31,6 @@ Options:
     --study-uid <uid>        pdf input: attach to an existing StudyInstanceUID
     --series-uid <uid>       pdf input: SeriesInstanceUID
 `;
-
-const JSON_TARGETS = new Set(["json", "dicomweb-json", "fhir"]);
 
 function stringify(value, pretty) {
     return JSON.stringify(value, binaryReplacer("base64"), pretty ? 4 : 0);
@@ -53,7 +56,7 @@ function pdfOptionsFromValues(values) {
     return options;
 }
 
-async function convertDicom({ dcmjs, arrayBuffer, to, values, stdout }) {
+async function convertDicom({ dcmjs, arrayBuffer, to, values }) {
     const { DicomMessage, DicomMetaDictionary } = dcmjs.data;
     const fhirVersion = values["fhir-version"] || "R4B";
 
@@ -153,7 +156,7 @@ export async function runConvert({
         const arrayBuffer = readFileArrayBuffer(input);
         const result =
             kind === "dicom"
-                ? await convertDicom({ dcmjs, arrayBuffer, to, values, stdout })
+                ? await convertDicom({ dcmjs, arrayBuffer, to, values })
                 : await convertPdf({ dcmjs, arrayBuffer, to, values });
 
         const written = writeOutput({

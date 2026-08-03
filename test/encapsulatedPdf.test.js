@@ -130,9 +130,7 @@ it("round-trips through Part 10 write and read", () => {
     const readBack = DicomMetaDictionary.naturalizeDataset(dicomDict.dict);
     expect(readBack.SOPClassUID).toEqual(ENCAPSULATED_PDF_SOP_CLASS_UID);
     expect(readBack.Modality).toEqual("DOC");
-    expect(readBack.MIMETypeOfEncapsulatedDocument).toEqual(
-        "application/pdf"
-    );
+    expect(readBack.MIMETypeOfEncapsulatedDocument).toEqual("application/pdf");
 
     // Payload survives; the writer may add one NUL pad byte (odd OB)
     let payload = readBack.EncapsulatedDocument;

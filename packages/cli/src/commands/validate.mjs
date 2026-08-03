@@ -80,7 +80,9 @@ export async function runValidate({
     }
 
     stdout(
-        `${records.length - failures}/${records.length} clean, ${failures} failed`
+        `${records.length - failures}/${
+            records.length
+        } clean, ${failures} failed`
     );
 
     if (values.json) {

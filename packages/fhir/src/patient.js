@@ -27,7 +27,9 @@ export function patientFromDataset(dataset) {
     }
 
     const patientId = asString(dataset.PatientID);
-    const humanName = personNameToHumanName(parsePersonName(dataset.PatientName));
+    const humanName = personNameToHumanName(
+        parsePersonName(dataset.PatientName)
+    );
 
     if (!patientId && !humanName) {
         return null;
@@ -68,9 +70,10 @@ export function patientFromDataset(dataset) {
     const dicomSex = asString(dataset.PatientSex);
     patient.gender = sexToGender(dicomSex);
 
-    const extensions = [birthSexExtension(dicomSex), sexExtension(dicomSex)].filter(
-        Boolean
-    );
+    const extensions = [
+        birthSexExtension(dicomSex),
+        sexExtension(dicomSex)
+    ].filter(Boolean);
     if (extensions.length > 0) {
         patient.extension = extensions;
     }

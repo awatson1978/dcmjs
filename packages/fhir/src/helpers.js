@@ -264,6 +264,35 @@ export function modalityCoding(modalityCode) {
 }
 
 /**
+ * Uint8Array → base64 string without Node's Buffer (this package ships in
+ * the browser bundle). Chunked to stay under argument-length limits.
+ */
+export function bytesToBase64(bytes) {
+    const CHUNK = 0x8000;
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += CHUNK) {
+        binary += String.fromCharCode(...bytes.subarray(offset, offset + CHUNK));
+    }
+    if (typeof btoa === "function") {
+        return btoa(binary);
+    }
+    // Manual encoder for runtimes without btoa
+    const ALPHABET =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let result = "";
+    for (let i = 0; i < binary.length; i += 3) {
+        const a = binary.charCodeAt(i);
+        const b = i + 1 < binary.length ? binary.charCodeAt(i + 1) : 0;
+        const c = i + 2 < binary.length ? binary.charCodeAt(i + 2) : 0;
+        result += ALPHABET[a >> 2];
+        result += ALPHABET[((a & 3) << 4) | (b >> 4)];
+        result += i + 1 < binary.length ? ALPHABET[((b & 15) << 2) | (c >> 6)] : "=";
+        result += i + 2 < binary.length ? ALPHABET[c & 63] : "=";
+    }
+    return result;
+}
+
+/**
  * Guard: only R4B is implemented. Throws on anything else so callers
  * never silently receive the wrong flavor of JSON.
  */

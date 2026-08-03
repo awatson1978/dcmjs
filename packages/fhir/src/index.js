@@ -6,7 +6,7 @@
 // Deliberately simple: standard FHIR out, nothing deployment-specific.
 // Consumers assign resource ids, storage references, and meta.tags.
 //
-//   const { patient, imagingStudy } = toFhir(dataset);
+//   const { patient, imagingStudy, documentReference } = toFhir(dataset);
 //   const bundle = toBundle([dataset1, dataset2]);
 
 import { patientFromDataset } from "./patient.js";
@@ -14,25 +14,40 @@ import {
     imagingStudyFromDataset,
     imagingStudyFromDatasets
 } from "./imagingStudy.js";
+import { documentReferenceFromDataset } from "./documentReference.js";
 import { assertSupportedFhirVersion } from "./helpers.js";
 
 export * from "./helpers.js";
 export { patientFromDataset } from "./patient.js";
 export { imagingStudyFromDataset, imagingStudyFromDatasets } from "./imagingStudy.js";
+export { documentReferenceFromDataset } from "./documentReference.js";
 
 /**
  * Map one naturalized dataset to its FHIR resources.
+ *
+ * Encapsulated document instances (e.g. Encapsulated PDF from a PACS) map
+ * to a DocumentReference and no ImagingStudy; image instances map to an
+ * ImagingStudy and no DocumentReference. The 3-key shape is stable either
+ * way.
  * @param {Object} dataset - DicomMetaDictionary.naturalizeDataset output
  * @param {Object} [options]
  * @param {string} [options.fhirVersion='R4B'] - R4/R4B only; throws otherwise
- * @param {Object} [options.subject] - FHIR Reference for ImagingStudy.subject
- * @returns {{ patient: Object|null, imagingStudy: Object|null }}
+ * @param {Object} [options.subject] - FHIR Reference for
+ *   ImagingStudy.subject / DocumentReference.subject
+ * @param {boolean} [options.includeData=true] - inline document bytes as
+ *   base64 in DocumentReference attachments
+ * @returns {{ patient: Object|null, imagingStudy: Object|null,
+ *   documentReference: Object|null }}
  */
 export function toFhir(dataset, options = {}) {
     assertSupportedFhirVersion(options);
+    const documentReference = documentReferenceFromDataset(dataset, options);
     return {
         patient: patientFromDataset(dataset),
-        imagingStudy: imagingStudyFromDataset(dataset, options)
+        imagingStudy: documentReference
+            ? null
+            : imagingStudyFromDataset(dataset, options),
+        documentReference
     };
 }
 
@@ -61,7 +76,22 @@ export function toBundle(datasets, options = {}) {
         entries.push({ resource: patient });
     }
 
-    const imagingStudy = imagingStudyFromDatasets(list, options);
+    // Encapsulated documents each become a DocumentReference; the
+    // remaining (image) datasets aggregate into one ImagingStudy.
+    const imageDatasets = [];
+    for (const dataset of list) {
+        const documentReference = documentReferenceFromDataset(
+            dataset,
+            options
+        );
+        if (documentReference) {
+            entries.push({ resource: documentReference });
+        } else {
+            imageDatasets.push(dataset);
+        }
+    }
+
+    const imagingStudy = imagingStudyFromDatasets(imageDatasets, options);
     if (imagingStudy) {
         entries.push({ resource: imagingStudy });
     }

@@ -125,11 +125,17 @@ export function dicomDateTimeToIso(dicomDate, dicomTime) {
         return null;
     }
 
-    let iso = `${date.substring(0, 4)}-${date.substring(4, 6)}-${date.substring(6, 8)}`;
+    let iso = `${date.substring(0, 4)}-${date.substring(4, 6)}-${date.substring(
+        6,
+        8
+    )}`;
 
     const time = asString(dicomTime);
     if (time && time.length >= 6) {
-        iso += `T${time.substring(0, 2)}:${time.substring(2, 4)}:${time.substring(4, 6)}`;
+        iso += `T${time.substring(0, 2)}:${time.substring(
+            2,
+            4
+        )}:${time.substring(4, 6)}`;
     }
 
     return iso;
@@ -261,6 +267,38 @@ export function modalityCoding(modalityCode) {
         code,
         display: MODALITY_DISPLAY[code] || code
     };
+}
+
+/**
+ * Uint8Array → base64 string without Node's Buffer (this package ships in
+ * the browser bundle). Chunked to stay under argument-length limits.
+ */
+export function bytesToBase64(bytes) {
+    const CHUNK = 0x8000;
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += CHUNK) {
+        binary += String.fromCharCode(
+            ...bytes.subarray(offset, offset + CHUNK)
+        );
+    }
+    if (typeof btoa === "function") {
+        return btoa(binary);
+    }
+    // Manual encoder for runtimes without btoa
+    const ALPHABET =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let result = "";
+    for (let i = 0; i < binary.length; i += 3) {
+        const a = binary.charCodeAt(i);
+        const b = i + 1 < binary.length ? binary.charCodeAt(i + 1) : 0;
+        const c = i + 2 < binary.length ? binary.charCodeAt(i + 2) : 0;
+        result += ALPHABET[a >> 2];
+        result += ALPHABET[((a & 3) << 4) | (b >> 4)];
+        result +=
+            i + 1 < binary.length ? ALPHABET[((b & 15) << 2) | (c >> 6)] : "=";
+        result += i + 2 < binary.length ? ALPHABET[c & 63] : "=";
+    }
+    return result;
 }
 
 /**

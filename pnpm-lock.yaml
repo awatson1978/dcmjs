@@ -42,9 +42,6 @@ importers:
       '@babel/register':
         specifier: 7.23.7
         version: 7.23.7(@babel/core@7.23.7)
-      '@dcmjs/cli':
-        specifier: file:packages/cli
-        version: link:packages/cli
       '@dcmjs/fhir':
         specifier: file:packages/fhir
         version: link:packages/fhir
@@ -117,8 +114,6 @@ importers:
       xml2js:
         specifier: 0.6.2
         version: 0.6.2
-
-  packages/cli: {}
 
   packages/docs:
     dependencies:

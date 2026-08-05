@@ -49,8 +49,7 @@
         "bench:dictionary": "bun run generate/bench-dictionary-load.mjs",
         "bench:parser": "node --expose-gc packages/parser/bench/parse-gate.cjs",
         "gate:parser-bundle": "node packages/parser/bench/bundle-gate.mjs",
-        "corpus": "node scripts/corpus-runner.mjs",
-        "cli": "node packages/cli/bin/dcmjs.mjs"
+        "corpus": "node scripts/corpus-runner.mjs"
     },
     "repository": {
         "type": "git",
@@ -67,7 +66,6 @@
         "@babel/plugin-transform-runtime": "7.23.7",
         "@babel/preset-env": "7.29.5",
         "@babel/register": "7.23.7",
-        "@dcmjs/cli": "file:packages/cli",
         "@dcmjs/fhir": "file:packages/fhir",
         "@dcmjs/parser": "file:packages/parser",
         "@eslint/js": "9.39.4",

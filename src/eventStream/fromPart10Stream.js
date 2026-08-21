@@ -48,6 +48,16 @@ import {
 // ---------------------------------------------------------------------------
 
 /**
+ * K5b: how far (in retained, unconsumed bytes) the raw feed loop may run
+ * ahead of the parse before throttling itself. Pending demand always wins —
+ * a consumer blocked in ensureAvailable wakes the feed regardless of the
+ * watermark — so an element or fragment larger than this still accumulates
+ * fully and the gate cannot deadlock. Overridable per call via
+ * `options.feedHighWater`.
+ */
+const FEED_HIGH_WATER = 4 * 1024 * 1024;
+
+/**
  * fromPart10Stream — parse a chunked DICOM Part 10 byte source into events.
  *
  * Accepted `input` forms (all normalized to AsyncIterable internally):
@@ -77,9 +87,28 @@ import {
  * @param {Object} [options]
  * @param {boolean} [options.forceStoreRaw]   Thread to the decode core.
  * @param {boolean} [options.ignoreErrors]    Thread to the decode core.
+ * @param {number}  [options.feedHighWater]   K5b feed throttle watermark in
+ *        bytes (default {@link FEED_HIGH_WATER}); see the constant's JSDoc.
  * @returns {Promise<void>}
  */
-export async function fromPart10Stream(input, listener, options = {}) {
+export function fromPart10Stream(input, listener, options = {}) {
+    // Settlement handshake for the K5b feed gate: when the parse settles
+    // (success OR error, from any of the many exit points), a throttled feed
+    // must wake and wind down instead of waiting forever for consumer
+    // activity that will never come.
+    const parseState = { done: false, resolveDone: null };
+    parseState.donePromise = new Promise(
+        resolve => (parseState.resolveDone = resolve)
+    );
+    return fromPart10StreamImpl(input, listener, options, parseState).finally(
+        () => {
+            parseState.done = true;
+            parseState.resolveDone();
+        }
+    );
+}
+
+async function fromPart10StreamImpl(input, listener, options, parseState) {
     const iterable = normalizeInput(input);
 
     // K4: clearBuffers:true — the incremental body loop consume()s each
@@ -90,11 +119,28 @@ export async function fromPart10Stream(input, listener, options = {}) {
     const stream = new ReadBufferStream(null, true, { clearBuffers: true });
 
     // Feed runs unawaited so the FMI parse can proceed concurrently.
+    const feedHighWater = options.feedHighWater ?? FEED_HIGH_WATER;
     let feedError = null;
     const feedPromise = (async () => {
         try {
             for await (const chunk of iterable) {
                 stream.addBuffer(toArrayBuffer(chunk));
+                // K5b: throttle against the parse loop. Without this, a
+                // listener stalled on its drain gate (e.g. a write sink
+                // flushing a fragment to disk) lets the feed buffer the
+                // entire remaining input. Pending demand always wins so a
+                // starved consumer can never deadlock; parse settlement
+                // (parseState) wakes the gate on early exit or error.
+                while (
+                    !parseState.done &&
+                    stream.getBufferMemoryInfo().totalSize > feedHighWater &&
+                    !stream.hasPendingDemand()
+                ) {
+                    await Promise.race([
+                        stream.awaitConsumerActivity(),
+                        parseState.donePromise
+                    ]);
+                }
             }
             stream.setComplete();
         } catch (e) {

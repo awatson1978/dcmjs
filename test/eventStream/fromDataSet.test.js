@@ -167,3 +167,83 @@ describe("fromDataSet generator", () => {
         expect(order).toContain("drain-released");
     });
 });
+
+describe("fromDataSet — {InlineBinary} wrapper values (naturalized binary form)", () => {
+    // Both DicomMetaDictionary.naturalizeDataset and NaturalizedListener
+    // represent binary element values as { InlineBinary: <bytes> } (§22).
+    // fromDataSet must unwrap that form and emit binary events, exactly as
+    // fromDicomWebJson does — otherwise the wrapper object reaches
+    // BinaryRepresentation.writeBytes and throws (the UN round-trip crash).
+
+    const unBytes = new Uint8Array([1, 2, 3, 4]).buffer;
+
+    test("single ArrayBuffer InlineBinary emits binary events with the bytes", async () => {
+        const dataset = {
+            "20011003": { vr: "UN", Value: [{ InlineBinary: unBytes }] }
+        };
+        const listener = recordingListener();
+        await fromDataSet(dataset, listener);
+
+        const names = listener.calls.map(c => c[0]);
+        expect(names).toContain("startBinary");
+        expect(names).toContain("binaryFragment");
+        expect(names).toContain("endBinary");
+        expect(names).not.toContain("value");
+
+        const frag = listener.calls.find(c => c[0] === "binaryFragment")[1];
+        expect(new Uint8Array(frag)).toEqual(new Uint8Array([1, 2, 3, 4]));
+    });
+
+    test("fragment-array InlineBinary emits one binaryFragment per fragment", async () => {
+        const dataset = {
+            "20011003": {
+                vr: "UN",
+                Value: [
+                    {
+                        InlineBinary: [
+                            new Uint8Array([1, 2]).buffer,
+                            new Uint8Array([3, 4]).buffer
+                        ]
+                    }
+                ]
+            }
+        };
+        const listener = recordingListener();
+        await fromDataSet(dataset, listener);
+
+        const frags = listener.calls.filter(c => c[0] === "binaryFragment");
+        expect(frags.length).toBe(2);
+        expect(new Uint8Array(frags[0][1])).toEqual(new Uint8Array([1, 2]));
+        expect(new Uint8Array(frags[1][1])).toEqual(new Uint8Array([3, 4]));
+    });
+
+    test("base64-string InlineBinary is decoded (DICOMweb JSON parity)", async () => {
+        const dataset = {
+            "20011003": {
+                vr: "UN",
+                Value: [
+                    { InlineBinary: Buffer.from([1, 2, 3, 4]).toString("base64") }
+                ]
+            }
+        };
+        const listener = recordingListener();
+        await fromDataSet(dataset, listener);
+
+        const frag = listener.calls.find(c => c[0] === "binaryFragment")[1];
+        expect(new Uint8Array(frag)).toEqual(new Uint8Array([1, 2, 3, 4]));
+    });
+
+    test("bare wrapper entry ({ InlineBinary } beside vr, no Value) also emits binary", async () => {
+        // naturalizeDataset stores type-2-with-InlineBinary entries as the
+        // wrapper directly on the entry, with no Value array.
+        const dataset = {
+            "20011003": { vr: "UN", InlineBinary: unBytes }
+        };
+        const listener = recordingListener();
+        await fromDataSet(dataset, listener);
+
+        const frag = listener.calls.find(c => c[0] === "binaryFragment");
+        expect(frag).toBeDefined();
+        expect(new Uint8Array(frag[1])).toEqual(new Uint8Array([1, 2, 3, 4]));
+    });
+});

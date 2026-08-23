@@ -95,7 +95,7 @@ function isMetaTag(tag) {
 }
 
 /** Decode a base64 string into an ArrayBuffer (Node and browser). */
-function base64ToArrayBuffer(b64) {
+export function base64ToArrayBuffer(b64) {
     if (typeof Buffer !== "undefined") {
         const buf = Buffer.from(b64, "base64");
         return buf.buffer.slice(

@@ -14,6 +14,7 @@ import path from "path";
 import { fromPart10 } from "../../src/eventStream/fromPart10.js";
 import { fromPart10Stream } from "../../src/eventStream/fromPart10Stream.js";
 import { CollectorListener } from "../../src/eventStream/CollectorListener.js";
+import { EventStreamListener } from "../../src/eventStream/EventStreamListener.js";
 import { DicomEventStream } from "../../src/eventStream/api.js";
 import { DicomMessage } from "../../src/DicomMessage.js";
 import { deepCompare } from "../helper/equivalence.js";
@@ -2151,5 +2152,156 @@ describe("fromPart10Stream — K5: deflate chunk release is live", () => {
         // Retained total size in raw stream must be far below the compressed file size
         // (~26 kB compressed), proving the relay released chunks as it advanced.
         expect(rawLast.totalSize).toBeLessThan(50 * 1024);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// K5b: feed backpressure — the raw feed loop must throttle against a stalled
+// consumer instead of buffering the whole input.
+//
+// Scenario this guards (found on a 21.8 GB Sup 225 video rewrite): the
+// listener's drain gate is closed for a long time (disk flush of a written
+// fragment). The feed loop previously kept pulling the source at full speed
+// into the parse buffer, so the entire remaining input accumulated in memory.
+// With the gate, the feed may run at most `feedHighWater` ahead unless the
+// parser is actively demanding bytes (pending demand always wins, so a
+// fragment larger than the watermark still accumulates and cannot deadlock).
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a synthesized encapsulated Part 10 file (JPEG baseline transfer
+ * syntax) whose pixel data holds `fragCount` fragments of `fragSize` bytes
+ * (fragSize must be even). Fragment i is filled with the byte (i & 0xff).
+ */
+function buildSyntheticEncapsulatedFile(fragCount, fragSize) {
+    const tsStr = "1.2.840.10008.1.2.4.50\0\0"; // JPEG baseline, even length
+
+    const fmiOB = new DicomWriter();
+    fmiOB.elemLong(0x0002, 0x0001, "OB", new Uint8Array([0, 1]));
+
+    const fmiTS = new DicomWriter();
+    fmiTS.elemStd(
+        0x0002, 0x0010, "UI",
+        new Uint8Array(tsStr.split("").map(c => c.charCodeAt(0)))
+    );
+
+    const restFmiLen =
+        fmiOB.toUint8Array().length + fmiTS.toUint8Array().length;
+    const glBytes = new Uint8Array(4);
+    new DataView(glBytes.buffer).setUint32(0, restFmiLen, true);
+    const fmiGL = new DicomWriter();
+    fmiGL.elemStd(0x0002, 0x0000, "UL", glBytes);
+
+    const body = new DicomWriter();
+    body.elemStd(0x0008, 0x0060, "CS", new Uint8Array([0x43, 0x54])); // "CT"
+    // (7FE0,0010) OB, undefined length
+    body.u16(0x7fe0); body.u16(0x0010);
+    body.ascii("OB"); body.u16(0);
+    body.u32(0xffffffff);
+    // Empty Basic Offset Table
+    body.u16(0xfffe); body.u16(0xe000); body.u32(0);
+    for (let i = 0; i < fragCount; i++) {
+        body.u16(0xfffe); body.u16(0xe000); body.u32(fragSize);
+        const frag = new Uint8Array(fragSize);
+        frag.fill(i & 0xff);
+        body._push(frag);
+    }
+    // Sequence delimiter
+    body.u16(0xfffe); body.u16(0xe0dd); body.u32(0);
+
+    const file = new DicomWriter();
+    file.zeros(128);
+    file.ascii("DICM");
+    file._push(fmiGL.toUint8Array());
+    file._push(fmiOB.toUint8Array());
+    file._push(fmiTS.toUint8Array());
+    file._push(body.toUint8Array());
+    return file.toUint8Array();
+}
+
+describe("fromPart10Stream — K5b: feed throttles against a stalled listener drain", () => {
+    test("feed pulls at most feedHighWater ahead while drain is blocked", async () => {
+        const FRAG_COUNT = 64;
+        const FRAG_SIZE = 8 * 1024;
+        const CHUNK = 4 * 1024;
+        const HIGH_WATER = 16 * 1024;
+
+        const fileBytes = buildSyntheticEncapsulatedFile(FRAG_COUNT, FRAG_SIZE);
+        expect(fileBytes.length).toBeGreaterThan(500 * 1024);
+
+        // Instrumented source: counts bytes the feed loop has pulled.
+        let yielded = 0;
+        async function* countingSource() {
+            for (let off = 0; off < fileBytes.length; off += CHUNK) {
+                const end = Math.min(off + CHUNK, fileBytes.length);
+                yield fileBytes.subarray(off, end);
+                yielded = end;
+            }
+        }
+
+        // Listener that blocks its drain gate once the first encapsulated
+        // fragment has arrived, until the test releases it.
+        let releaseGate;
+        const gate = new Promise(resolve => (releaseGate = resolve));
+        let signalFirstFragment;
+        const firstFragment = new Promise(
+            resolve => (signalFirstFragment = resolve)
+        );
+
+        // Subclass, not post-construction assignment: EventStreamListener
+        // builds its method chains in the constructor, so _base* overrides
+        // must exist on the prototype before construction.
+        class GatedListener extends EventStreamListener {
+            encapsulated = false;
+            blocking = false;
+            fragments = [];
+            _baseStartBinary(opts) {
+                this.encapsulated = !!opts?.encapsulated;
+            }
+            _baseBinaryFragment(buf) {
+                if (!this.encapsulated) return;
+                const bytes =
+                    buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+                this.fragments.push(bytes.slice());
+                if (this.fragments.length === 1) {
+                    this.blocking = true;
+                    signalFirstFragment();
+                }
+            }
+        }
+        const base = new GatedListener();
+        const { fragments } = base;
+        base.setDrain(async () => {
+            if (base.blocking) {
+                await gate;
+                base.blocking = false;
+            }
+        });
+
+        const parsePromise = fromPart10Stream(countingSource(), base, {
+            feedHighWater: HIGH_WATER
+        });
+
+        await firstFragment;
+        const yieldedAtBlock = yielded;
+
+        // Give the feed loop ample opportunity to over-pull.
+        await new Promise(resolve => setTimeout(resolve, 50));
+        const yieldedDuringStall = yielded - yieldedAtBlock;
+
+        releaseGate();
+        await parsePromise;
+
+        // Correctness: every fragment arrived intact.
+        expect(fragments.length).toBe(FRAG_COUNT);
+        fragments.forEach((frag, i) => {
+            expect(frag.byteLength).toBe(FRAG_SIZE);
+            expect(frag[0]).toBe(i & 0xff);
+        });
+
+        // The throttle bound: watermark plus a few chunks of slack. Without
+        // the feed gate the loop pulls the whole remaining file here
+        // (~500 kB), so this cleanly distinguishes fixed from broken.
+        expect(yieldedDuringStall).toBeLessThanOrEqual(HIGH_WATER + 4 * CHUNK);
     });
 });

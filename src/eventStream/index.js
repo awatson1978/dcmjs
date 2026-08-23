@@ -14,6 +14,7 @@ export { CollectorListener } from "./CollectorListener.js";
 export { NaturalizedListener } from "./NaturalizedListener.js";
 export { DicomWebJsonWriter } from "./DicomWebJsonWriter.js";
 export { Part10Writer } from "./Part10Writer.js";
+export { StreamingPart10Writer } from "./StreamingPart10Writer.js";
 export { fromDataSet } from "./fromDataSet.js";
 export { fromPart10 } from "./fromPart10.js";
 export { fromPart10Stream } from "./fromPart10Stream.js";
@@ -30,6 +31,7 @@ import { CollectorListener } from "./CollectorListener.js";
 import { NaturalizedListener } from "./NaturalizedListener.js";
 import { DicomWebJsonWriter } from "./DicomWebJsonWriter.js";
 import { Part10Writer } from "./Part10Writer.js";
+import { StreamingPart10Writer } from "./StreamingPart10Writer.js";
 import { fromDataSet } from "./fromDataSet.js";
 import { fromPart10 } from "./fromPart10.js";
 import { fromPart10Stream } from "./fromPart10Stream.js";
@@ -45,6 +47,7 @@ export default {
     NaturalizedListener,
     DicomWebJsonWriter,
     Part10Writer,
+    StreamingPart10Writer,
     fromDataSet,
     fromPart10,
     fromPart10Stream,

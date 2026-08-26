@@ -7,6 +7,8 @@ import { fromPart10Stream } from "./fromPart10Stream.js";
 import { fromDicomWebJson } from "./fromDicomWebJson.js";
 import { fromDataSet } from "./fromDataSet.js";
 import { createEventAsyncIterable } from "./asyncIterator.js";
+import { buildImageDataset } from "../image/buildImageDataset.js";
+import { datasetToDict } from "../datasetToBlob.js";
 
 /**
  * The recommended public source/sink API (spec §32) — thin, ergonomic wrappers
@@ -94,6 +96,29 @@ export class DicomEventStream {
     /** A parsed dcmjs dataset ({ meta, dict }) source. */
     static fromDataSet(dataset) {
         return new DicomEventStream(listener => fromDataSet(dataset, listener));
+    }
+
+    /**
+     * An already-decoded image source: builds a full instance dataset via
+     * image/buildImageDataset (geometry from the pixels, context from
+     * options.metadata / keyword overrides, derived-instance conformance),
+     * then streams it. The dataset is built eagerly so minted UIDs are
+     * stable across re-runs of the same stream.
+     *
+     * @param {Object} decodedImage - { pixels, rows, columns, ... }
+     * @param {Object} [options] - buildImageDataset options
+     * @returns {DicomEventStream}
+     */
+    static fromImage(decodedImage, options = {}) {
+        const dataset = buildImageDataset(decodedImage, options);
+        const dicomDict = datasetToDict(dataset);
+        if (options.encapsulated && dicomDict.dict["7FE00010"]) {
+            // fromDataSet reads this flag to emit startBinary({encapsulated:true})
+            dicomDict.dict["7FE00010"].encapsulatedPixelData = true;
+        }
+        return new DicomEventStream(listener =>
+            fromDataSet(dicomDict, listener)
+        );
     }
 
     /**

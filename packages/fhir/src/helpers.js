@@ -255,6 +255,94 @@ export function sexExtension(dicomSex) {
 }
 
 /**
+ * FHIR administrative gender → DICOM PatientSex (0010,0040).
+ *
+ * QUICKSAND, TREAD SLOWLY. FHIR `Patient.gender` is *administrative
+ * gender*; DICOM PatientSex is a three-letter administrative repertoire
+ * (M / F / O, Type 2 so empty is legal). These are not the same concept as
+ * clinical sex or gender identity, and this mapping deliberately consults
+ * ONLY `Patient.gender` — never US Core birthsex / sex-for-clinical-use
+ * extensions, which carry different semantics and belong to profiles, not
+ * the base resource. The mapping is lossy by design:
+ *
+ *   male    → M
+ *   female  → F
+ *   other   → O    (as does any unrecognized non-empty value — DICOM has
+ *                   no better bucket, and inventing codes would be worse)
+ *   unknown → ""   (DICOM PatientSex is Type 2: present-but-empty is the
+ *                   standard way to say "not known")
+ *   absent/blank → ""
+ *
+ * Mirrors sexToGender above, so M/F/O round-trip exactly and empty ⇄
+ * unknown round-trips to empty.
+ */
+export function genderToSex(gender) {
+    const value = asString(gender);
+    if (!value) {
+        return "";
+    }
+    const normalized = value.toLowerCase();
+    if (normalized === "male") {
+        return "M";
+    }
+    if (normalized === "female") {
+        return "F";
+    }
+    if (normalized === "unknown") {
+        return "";
+    }
+    return "O";
+}
+
+/**
+ * FHIR HumanName → DICOM PN string ("Family^Given^Middle^Prefix^Suffix").
+ * Inverse of parsePersonName/personNameToHumanName: given[0] is the given
+ * name, given[1] the middle; only the first prefix/suffix survive (PN has
+ * one slot each). Trailing empty components are trimmed per PN convention.
+ * @returns {string|null} null when the name carries no usable parts
+ */
+export function humanNameToPersonName(humanName) {
+    if (!humanName || typeof humanName !== "object") {
+        return null;
+    }
+    const given = Array.isArray(humanName.given) ? humanName.given : [];
+    const components = [
+        asString(humanName.family) || "",
+        asString(given[0]) || "",
+        asString(given[1]) || "",
+        asString(
+            Array.isArray(humanName.prefix) ? humanName.prefix[0] : null
+        ) || "",
+        asString(
+            Array.isArray(humanName.suffix) ? humanName.suffix[0] : null
+        ) || ""
+    ];
+    while (components.length && components[components.length - 1] === "") {
+        components.pop();
+    }
+    const pn = components.join("^");
+    return pn.length > 0 ? pn : null;
+}
+
+/**
+ * FHIR date (ISO 8601) → DICOM DA (YYYYMMDD). Inverse of
+ * dicomDateTimeToIso for the date part. FHIR allows partial dates (YYYY,
+ * YYYY-MM); DICOM DA does not — partial dates return null rather than a
+ * fabricated day.
+ */
+export function isoDateToDicom(isoDate) {
+    const value = asString(isoDate);
+    if (!value) {
+        return null;
+    }
+    if (/^\d{8}$/.test(value)) {
+        return value;
+    }
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return match ? `${match[1]}${match[2]}${match[3]}` : null;
+}
+
+/**
  * FHIR Coding for a DICOM modality code.
  */
 export function modalityCoding(modalityCode) {

@@ -7,8 +7,6 @@
 
 [![CI](https://github.com/dcmjs-org/dcmjs/actions/workflows/publish-package.yml/badge.svg)](https://github.com/dcmjs-org/dcmjs/actions?query=workflow:publish-package)
 
-**Note: master is the 1.0.0-beta line — a major architecture release (not yet published to npm).**
-
 This is a community effort so please help improve support for a wide range of DICOM data and use cases.
 
 See [live examples here](https://master--dcmjs2.netlify.app/)
@@ -25,6 +23,11 @@ dcmjs 1.0 absorbs the dicom-parser tokenizer as its read core and is now a pnpm 
   transfer syntax is now actually written deflated (a long-standing 0.x bug).
 - **Monorepo.** The vendored tokenizer lives in `packages/parser` (private), the
   documentation site in `packages/docs`, and the main `dcmjs` package at the root.
+- **Directory parsing.** DICOMDIR — the index file on DICOM interchange media —
+  reads like any other dataset, and `dcmjs.media` builds new DICOMDIRs with
+  correct byte offsets (see Images and Directories below).
+- **Interoperability support.** The `@dcmjs/fhir` package maps between DICOM
+  and FHIR in both directions (see Fast Healthcare Interoperability below).
 - **Removed:** the deprecated `DicomMessage.read`/`readTag` statics and the legacy
   `DICOMWEB` class (use [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client)).
 
@@ -85,63 +88,6 @@ pnpm add dcmjs@dev   # latest code merged to master
 
 The same versions can be installed with `npm install` or Yarn in **your** project; those clients are fine for consuming the published package. **Building this repository** is pnpm-only (see below).
 
-## FHIR Sink (`dcmjs.fhir`)
-
-The `@dcmjs/fhir` workspace package maps DICOM Part 10 elements into FHIR
-R4B resources — deliberately simple: the DICOM patient module becomes a
-`Patient`, the study/series/instance hierarchy becomes an `ImagingStudy`.
-Standard FHIR only; resource ids, storage references, and `meta.tag`s are
-the consumer's job.
-
-```javascript
-// One call from a .dcm ArrayBuffer to FHIR:
-const { patient, imagingStudy } = dcmjs.fhir.fromPart10(arrayBuffer);
-
-// Or from an already-naturalized dataset:
-const dicomDict = dcmjs.data.DicomMessage.readFile(arrayBuffer);
-const dataset = dcmjs.data.DicomMetaDictionary.naturalizeDataset(dicomDict.dict);
-const { patient, imagingStudy } = dcmjs.fhir.toFhir(dataset);
-
-// Many instances of one study -> a collection Bundle
-// (one Patient + one aggregated ImagingStudy, instances grouped by series):
-const bundle = dcmjs.fhir.toBundle([dataset1, dataset2, dataset3]);
-
-// Attach a subject reference the caller resolved:
-dcmjs.fhir.toFhir(dataset, {
-    subject: { reference: "Patient/123", display: "Doe, John" }
-});
-```
-
-API surface (all also importable from `@dcmjs/fhir` inside this repo):
-
-| Function | Input | Output |
-| --- | --- | --- |
-| `fromPart10(arrayBuffer, options?)` | Part 10 ArrayBuffer | `{ patient, imagingStudy }` |
-| `toFhir(dataset, options?)` | naturalized dataset | `{ patient, imagingStudy }` |
-| `toBundle(datasets, options?)` | naturalized dataset array (one study) | FHIR `Bundle` (`type: collection`) |
-| `patientFromDataset(dataset)` | naturalized dataset | FHIR `Patient` or `null` |
-| `imagingStudyFromDataset(dataset, options?)` | naturalized dataset | FHIR `ImagingStudy` or `null` |
-| `imagingStudyFromDatasets(datasets, options?)` | naturalized dataset array | one aggregated `ImagingStudy` or `null` |
-
-Options: `fhirVersion` (`'R4'`/`'R4B'`, default `'R4B'` — anything else
-throws), `subject` (FHIR Reference for `ImagingStudy.subject`),
-`readOptions` (`fromPart10` only, passed to `DicomMessage.readFile`).
-
-Mapping notes (per the IHE Radiology MADO mapping):
-
-- `Patient`: `PatientID` -> MR identifier, `PatientName` (PN) -> `HumanName`,
-  `PatientBirthDate` -> ISO `birthDate`, `PatientSex` -> `gender` plus
-  US Core `birthsex` / `sex-for-clinical-use` extensions.
-- `ImagingStudy`: `StudyInstanceUID` -> `urn:dicom:uid` identifier
-  (`urn:oid:` value), `AccessionNumber` -> ACSN identifier,
-  `StudyDate`/`Time` -> `started`, series `Modality` -> DCM ontology coding
-  (with a study-level modality union), `SeriesNumber`/`InstanceNumber`
-  (IS) emitted as numbers, `SOPClassUID` -> `urn:ietf:rfc:3986` sopClass.
-- Absent elements are omitted entirely — no empty strings or nulls in the
-  output (permissive in, strict out).
-
-Tests: `pnpm exec jest packages/fhir`.
-
 ## Event Stream (`dcmjs.eventStream`)
 
 A source-agnostic, SAX-style push parser. Sources emit a fixed vocabulary of
@@ -197,20 +143,20 @@ for await (const { type, args } of
 
 ## Images and Directories
 
-Forward-migration primitives for legacy DICOM (this fork's development
-branch, arriving via PRs #52–#54). The consuming CLI/MCP tooling lives in
-the sibling [dcmjs-commands](https://github.com/awatson1978/dcmjs-commands)
-(see its `architecture-design.md` for the layering and roadmap).
+Utilities for rebuilding DICOM instances from plain images, and for reading
+and writing DICOMDIR indexes.
 
 ### Instances from decoded pixels (`dcmjs.image`)
 
-`DicomEventStream.fromImage` / `buildImageDataset`. Codec-free: callers
-decode (Canvas in the browser, pngjs in node) and hand over pixels +
-geometry; the library owns the conformance rules — actual geometry always
-beats metadata claims, and when the metadata identifies an original
-instance the result is a proper derived instance (fresh SOPInstanceUID,
-`DERIVED\SECONDARY`, SourceImageSequence — original UIDs are never reused
-for rebuilt pixel data).
+A DICOM image is more than pixels: every instance carries patient, study,
+and acquisition context, and is identified by globally unique UIDs.
+`buildImageDataset` and `DicomEventStream.fromImage` build a complete,
+valid instance from pixels you have already decoded. dcmjs includes no
+image codecs, so decode with whatever fits your environment — Canvas in
+the browser, a library such as pngjs in Node — and pass the pixel array
+plus its geometry. Metadata for the instance (for example, exported
+alongside the image from the original DICOM file) can be supplied in DICOM
+JSON or naturalized form.
 
 ```js
 const events = DicomEventStream.fromImage(
@@ -220,24 +166,128 @@ const events = DicomEventStream.fromImage(
 const part10 = await events.toPart10();
 ```
 
+Two rules keep the output honest. First, measurements taken from the
+actual pixels (rows, columns, bit depth, samples per pixel) always
+override whatever the metadata claims. Second, when the metadata
+identifies an original instance, the result is written as a *derived*
+image: it receives a newly generated SOPInstanceUID, its ImageType is
+marked `DERIVED\SECONDARY`, and a SourceImageSequence points back at the
+original. Reusing the original UID would assert that the rebuilt file *is*
+the original, which it is not — the pixels passed through an export and
+back.
+
 ### DICOMDIR builder (`dcmjs.media`)
 
-`buildDicomDirDataset` / `writeDicomDir`. Builds a valid Media Storage
-Directory from a file-set description, including exact byte offsets in the
-directory records (measure-then-write: offsets are fixed-width UL, so one
-measurement pass yields the final layout and the file is written once).
+A DICOMDIR is the index file on DICOM interchange media (CDs, DVDs, USB
+filesets): one DICOM file whose directory records point at the
+patient/study/series/image files. Reading one needs nothing special — it
+parses like any other dataset. Writing one is harder, because each
+directory record refers to the next by its absolute byte position in the
+finished file. `buildDicomDirDataset` assembles the record hierarchy from
+a file-set description; `writeDicomDir` computes the offsets by
+serializing the records once to measure the layout, then writes the file
+with the real values filled in. This is reliable because the offset
+elements have a fixed four-byte encoding, so their values cannot change
+the layout that was measured.
 
-### FHIR, both directions (`@dcmjs/fhir`)
+## Fast Healthcare Interoperability (`dcmjs.fhir`)
 
-The existing sink (naturalized datasets → FHIR Patient / ImagingStudy /
-DocumentReference — see the FHIR Sink section above) is joined by a source:
-`patientToDataset(patient)` maps a FHIR Patient onto DICOM patient-module
-attributes — official name over maiden, MR-typed identifier preferred, and
-a deliberately narrow administrative-gender table (`male→M`, `female→F`,
-other/unrecognized→`O`, unknown/absent→empty; `Patient.gender` only, never
-profile extensions). Deterministic overwrite: all four attributes are
-always returned, empty for absent fields, so applying a Patient replaces
-the whole module.
+[FHIR](https://hl7.org/fhir/) (Fast Healthcare Interoperability Resources)
+is the HL7 standard for exchanging healthcare data as JSON resources —
+`Patient`, `ImagingStudy`, `DocumentReference`, and so on. DICOM and FHIR
+describe the same patients and studies in different vocabularies, and most
+imaging systems eventually need both: DICOM for the images themselves,
+FHIR for how the rest of the healthcare system refers to them. The
+`@dcmjs/fhir` workspace package maps between the two in both directions.
+
+### DICOM → FHIR
+
+The mapping is deliberately direct: the DICOM patient module becomes a
+`Patient`, the study/series/instance hierarchy becomes an `ImagingStudy`,
+and an encapsulated document (such as a PDF report) becomes a
+`DocumentReference`.
+
+```javascript
+// One call from a .dcm ArrayBuffer to FHIR:
+const { patient, imagingStudy } = dcmjs.fhir.fromPart10(arrayBuffer);
+
+// Or from an already-naturalized dataset:
+const dicomDict = dcmjs.data.DicomMessage.readFile(arrayBuffer);
+const dataset = dcmjs.data.DicomMetaDictionary.naturalizeDataset(dicomDict.dict);
+const { patient, imagingStudy } = dcmjs.fhir.toFhir(dataset);
+
+// Many instances of one study -> a collection Bundle
+// (one Patient + one aggregated ImagingStudy, instances grouped by series):
+const bundle = dcmjs.fhir.toBundle([dataset1, dataset2, dataset3]);
+
+// Attach a subject reference the caller resolved:
+dcmjs.fhir.toFhir(dataset, {
+    subject: { reference: "Patient/123", display: "Doe, John" }
+});
+```
+
+API surface (all also importable from `@dcmjs/fhir` inside this repo):
+
+| Function | Input | Output |
+| --- | --- | --- |
+| `fromPart10(arrayBuffer, options?)` | Part 10 ArrayBuffer | `{ patient, imagingStudy }` |
+| `toFhir(dataset, options?)` | naturalized dataset | `{ patient, imagingStudy }` |
+| `toBundle(datasets, options?)` | naturalized dataset array (one study) | FHIR `Bundle` (`type: collection`) |
+| `patientFromDataset(dataset)` | naturalized dataset | FHIR `Patient` or `null` |
+| `imagingStudyFromDataset(dataset, options?)` | naturalized dataset | FHIR `ImagingStudy` or `null` |
+| `imagingStudyFromDatasets(datasets, options?)` | naturalized dataset array | one aggregated `ImagingStudy` or `null` |
+| `patientToDataset(patient)` | FHIR `Patient` | DICOM patient-module attributes |
+
+Options: `fhirVersion` (`'R4'`/`'R4B'`, default `'R4B'` — anything else
+throws), `subject` (FHIR Reference for `ImagingStudy.subject`),
+`readOptions` (`fromPart10` only, passed to `DicomMessage.readFile`).
+
+Mapping notes (per the IHE Radiology MADO mapping):
+
+- `Patient`: `PatientID` -> MR identifier, `PatientName` (PN) -> `HumanName`,
+  `PatientBirthDate` -> ISO `birthDate`, `PatientSex` -> `gender` plus
+  US Core `birthsex` / `sex-for-clinical-use` extensions.
+- `ImagingStudy`: `StudyInstanceUID` -> `urn:dicom:uid` identifier
+  (`urn:oid:` value), `AccessionNumber` -> ACSN identifier,
+  `StudyDate`/`Time` -> `started`, series `Modality` -> DCM ontology coding
+  (with a study-level modality union), `SeriesNumber`/`InstanceNumber`
+  (IS) emitted as numbers, `SOPClassUID` -> `urn:ietf:rfc:3986` sopClass.
+- Absent elements are omitted entirely — no empty strings or nulls in the
+  output (permissive in, strict out).
+
+### FHIR → DICOM
+
+`patientToDataset(patient)` maps a FHIR `Patient` resource onto the DICOM
+patient module — the PatientName, PatientID, PatientBirthDate, and
+PatientSex attributes carried in every instance. This is the primitive for
+updating a study's demographics from a FHIR source.
+
+```javascript
+dcmjs.fhir.patientToDataset(patientResource);
+// -> { PatientName: "FOX^JANE", PatientID: "22446688",
+//      PatientBirthDate: "19800415", PatientSex: "F" }
+```
+
+Where FHIR is richer than DICOM, the mapping has to choose, and the
+choices are fixed here rather than left to each caller:
+
+- A `Patient` may carry several names; the `official` name is used, never
+  the `maiden` — so a resource holding both a married and a maiden name
+  maps to the married one regardless of array order.
+- Among multiple identifiers, one typed MR (medical record number) is
+  preferred.
+- `Patient.gender` is an administrative field, not clinical sex, and it is
+  the only field consulted (profile extensions such as US Core birthsex
+  are not): `male` -> `M`, `female` -> `F`, `other` or any unrecognized
+  value -> `O`, `unknown` or absent -> empty. Empty is deliberate: DICOM
+  defines PatientSex as Type 2 (must be present, may be empty), and an
+  empty value is the standard way to record "not known".
+- The result always contains all four attributes, with empty strings for
+  anything the resource does not carry. Applying it therefore replaces the
+  previous identity completely, rather than leaving stale values from a
+  prior patient behind.
+
+Tests: `pnpm exec jest packages/fhir`.
 
 ## For Developers
 

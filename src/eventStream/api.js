@@ -9,6 +9,12 @@ import { fromDataSet } from "./fromDataSet.js";
 import { createEventAsyncIterable } from "./asyncIterator.js";
 import { buildImageDataset } from "../image/buildImageDataset.js";
 import { datasetToDict } from "../datasetToBlob.js";
+import { dicomDictFromFhir } from "./fromFhir.js";
+import {
+    encapsulatePdf,
+    extractEncapsulatedPdf
+} from "../encapsulated/encapsulatedPdf.js";
+import { toFhir as mapToFhir } from "@dcmjs/fhir";
 
 /**
  * The recommended public source/sink API (spec §32) — thin, ergonomic wrappers
@@ -122,6 +128,43 @@ export class DicomEventStream {
     }
 
     /**
+     * A content-carrying FHIR resource source: a DocumentReference or
+     * Media whose attachment embeds inline data (or a Bundle holding one,
+     * plus optionally a Patient for demographics). An embedded PDF becomes
+     * an Encapsulated PDF instance; an embedded JPEG (the key-image case)
+     * is carried verbatim as encapsulated PixelData — JPEG is a DICOM
+     * transfer syntax, so only the frame header is read, never the pixels.
+     * Context-only resources are rejected with corrective errors.
+     *
+     * @param {Object} resource - DocumentReference | Media | Bundle
+     * @param {Object} [options] - { patient, overrides } (see fromFhir.js)
+     * @returns {DicomEventStream}
+     */
+    static fromFhir(resource, options = {}) {
+        const { dicomDict } = dicomDictFromFhir(resource, options);
+        return new DicomEventStream(listener =>
+            fromDataSet(dicomDict, listener)
+        );
+    }
+
+    /**
+     * A PDF source: wraps the bytes into an Encapsulated PDF instance
+     * (encapsulatePdf) and streams it. Options are the encapsulatePdf
+     * naturalized keyword overrides (PatientName, DocumentTitle,
+     * StudyInstanceUID, ...).
+     *
+     * @param {ArrayBuffer|Uint8Array} pdfBytes
+     * @param {Object} [options]
+     * @returns {DicomEventStream}
+     */
+    static fromPdf(pdfBytes, options = {}) {
+        const dicomDict = datasetToDict(encapsulatePdf(pdfBytes, options));
+        return new DicomEventStream(listener =>
+            fromDataSet(dicomDict, listener)
+        );
+    }
+
+    /**
      * Auto-detecting source factory: an ArrayBuffer/typed array is treated as
      * Part 10 bytes; an object with a `dict` (or `meta`) is a parsed dataset;
      * any other object is the DICOM JSON model.
@@ -172,6 +215,28 @@ export class DicomEventStream {
         const collector = new CollectorListener();
         await this._run(collector);
         return collector.result;
+    }
+
+    /**
+     * Map this instance to FHIR resources (@dcmjs/fhir toFhir over the
+     * naturalized dataset): { patient, imagingStudy, documentReference }.
+     * Covers ONE instance — aggregating a whole study into a single
+     * ImagingStudy is a multi-stream operation: collect naturalized
+     * datasets and use fhir.imagingStudyFromDatasets / fhir.toBundle.
+     *
+     * @param {Object} [options] - toFhir options (fhirVersion, subject, ...)
+     */
+    async toFhir(options = {}) {
+        return mapToFhir(await this.toNaturalized(), options);
+    }
+
+    /**
+     * Extract the embedded PDF from an Encapsulated PDF instance:
+     * { bytes, mimeType, title }. Throws (naming the expected SOP class)
+     * when the stream is not an Encapsulated PDF instance.
+     */
+    async toPdf() {
+        return extractEncapsulatedPdf(await this.toNaturalized());
     }
 
     /** Consume the stream as an async-iterable of `{ type, args }` events. */

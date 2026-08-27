@@ -166,6 +166,27 @@ function extractEncapsulatedPdf(dataset) {
     if (Array.isArray(payload)) {
         payload = payload[0];
     }
+    // The event-stream naturalizer wraps binary as { InlineBinary } (an
+    // ArrayBuffer, a view, or a base64 string); unwrap before extracting.
+    if (
+        payload &&
+        typeof payload === "object" &&
+        !(payload instanceof ArrayBuffer) &&
+        !ArrayBuffer.isView(payload) &&
+        payload.InlineBinary !== undefined
+    ) {
+        payload = Array.isArray(payload.InlineBinary)
+            ? payload.InlineBinary[0]
+            : payload.InlineBinary;
+    }
+    if (typeof payload === "string") {
+        const binary = atob(payload);
+        const decoded = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+            decoded[i] = binary.charCodeAt(i);
+        }
+        payload = decoded;
+    }
     let bytes = ArrayBuffer.isView(payload)
         ? new Uint8Array(payload.buffer, payload.byteOffset, payload.byteLength)
         : new Uint8Array(payload);

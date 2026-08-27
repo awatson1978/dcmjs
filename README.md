@@ -60,11 +60,6 @@ and Massachusetts General Hospital. Updates include:
 - **Removed:** the deprecated `DicomMessage.read`/`readTag` statics and the legacy
   `DICOMWEB` class (use [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client)).
 
-Full details: the documentation site under `packages/docs` (run
-`pnpm --filter @dcmjs/docs start`), the migration guide at
-`packages/docs/docs/migration/from-0x.md`, and the step-by-step roadmap at
-`packages/docs/docs/development/roadmap.md`.
-
 # Goals
 
 _Overall the code should:_

@@ -233,7 +233,7 @@ plus its geometry. Metadata for the instance (for example, exported
 alongside the image from the original DICOM file) can be supplied in DICOM
 JSON or naturalized form.
 
-```js
+```javascript
 const events = DicomEventStream.fromImage(
     { pixels, rows: 256, columns: 256, bitsStored: 12 },
     { metadata: dicomWebJson, PatientName: "FOX^JANE" }
@@ -427,7 +427,7 @@ pnpm add -g git-cz
 
 - how to commit
 
-```
+```bash
 git-cz --non-interactive --type=fix --subject="commit message"
 ```
 
@@ -466,7 +466,7 @@ The fast dictionary was introduced to significantly improve library load perform
 
 **Performance Benchmark Results (Bun):**
 
-```
+```text
 Old dictionary (generate/dictionary.mjs): 181.16 ms
 New dictionary (src/dictionary.fast.js):    19.04 ms
 Performance improvement: 9.52x faster

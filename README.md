@@ -53,6 +53,11 @@ and Massachusetts General Hospital. Updates include:
   package maps between the two in both directions — datasets out to FHIR
   resources, and FHIR Patient demographics back onto DICOM. See Fast
   Healthcare Interoperability below.
+- **Video support.** An MP4's H.264 stream can travel inside a DICOM
+  video instance *verbatim* (Supplement 225) — `fromVideo`/`toVideo`
+  encapsulate and recover it byte-identically, with no transcoding and no
+  pixel decoding, streaming at any file size. See Images and Directories
+  below.
 - **Monorepo.** The repository now hosts several packages: the vendored
   tokenizer in `packages/parser` (private), the FHIR mappers in
   `packages/fhir`, the documentation site in `packages/docs`, and the main
@@ -142,6 +147,7 @@ const tree    = await events.toDataSet();         // { meta, dict } tag tree
 const bytes   = await events.toPart10();          // round-trip back to Part 10
 const fhir    = await events.toFhir();            // { patient, imagingStudy, documentReference }
 const pdf     = await events.toPdf();             // embedded PDF out of an Encapsulated PDF instance
+const video   = await events.toVideo();           // byte-identical MP4 out of a video instance
 ```
 
 Other sources — the same sinks apply to each:
@@ -155,6 +161,8 @@ DicomEventStream.fromDicomWebJson(dicomJson);              // DICOM JSON model
 DicomEventStream.fromImage(decoded, options);              // decoded pixels (see Images and Directories)
 DicomEventStream.fromPdf(pdfBytes, options);               // PDF -> Encapsulated PDF instance
 DicomEventStream.fromFhir(resource, options);              // content-carrying FHIR resource (below)
+DicomEventStream.fromVideo(mp4Bytes, options);             // MP4 -> video instance (see Images and Directories)
+DicomEventStream.fromVideoStream(reader, options);         // same, from a { size, read } reader — any file size
 DicomEventStream.from(source);                             // auto-detect Part 10 / dataset / DICOM JSON
 ```
 
@@ -250,6 +258,35 @@ marked `DERIVED\SECONDARY`, and a SourceImageSequence points back at the
 original. Reusing the original UID would assert that the rebuilt file *is*
 the original, which it is not — the pixels passed through an export and
 back.
+
+### Video encapsulation (`dcmjs.encapsulated`)
+
+DICOM can carry an H.264 video stream *verbatim*: the MP4's bytes become
+the encapsulated PixelData of a Video Photographic Image instance, split
+into fragments that are consecutive byte ranges of the one stream
+(Supplement 225). No transcoding, no pixel decoding — so extraction is
+concatenation and the round trip is byte-identical. `parseMp4Info` reads
+the MP4's own metadata for geometry, frame count, and frame rate, and the
+H.264 profile/level selects the transfer syntax (Baseline/Main/High up to
+Level 4.2; anything else gets an error naming the ffmpeg transcode to run
+first). The instance records the exact stream length in the `(7FE0,0003)`
+uint64 element, so the pad byte a Part 10 writer must add to an odd-length
+final fragment is dropped precisely on the way out.
+
+```javascript
+const events = DicomEventStream.fromVideo(mp4Bytes, {
+    PatientName: "DOE^JANE"
+});
+const part10 = await events.toPart10();
+
+const { bytes } = await DicomEventStream.fromPart10(part10).toVideo();
+// bytes are identical to mp4Bytes
+```
+
+For files too large to buffer, `fromVideoStream` takes a random-access
+reader (`{ size, read(offset, length) }`) and reads one fragment at a
+time; paired with `StreamingPart10Writer`, a 21.8 GB recording encapsulates
+with peak memory of about one fragment.
 
 ### DICOMDIR builder (`dcmjs.media`)
 

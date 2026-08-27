@@ -35,7 +35,7 @@ test("toPart10 round trip: geometry, meta group, byte-identical pixels", async (
     const pixels = ramp16(8, 8);
     const events = DicomEventStream.fromImage(
         { pixels, rows: 8, columns: 8, bitsStored: 12 },
-        { PatientName: "MEYER^ABBIE", PatientID: "22446688" }
+        { PatientName: "FOX^JANE", PatientID: "22446688" }
     );
 
     const buffer = await events.toPart10();
@@ -45,7 +45,7 @@ test("toPart10 round trip: geometry, meta group, byte-identical pixels", async (
     expect(dataset.Columns).toBe(8);
     expect(dataset.BitsAllocated).toBe(16);
     expect(dataset.BitsStored).toBe(12);
-    expect(String(dataset.PatientName)).toBe("MEYER^ABBIE");
+    expect(String(dataset.PatientName)).toBe("FOX^JANE");
     expect(dataset.PatientID).toBe("22446688");
 
     expect(meta.MediaStorageSOPInstanceUID).toBe(dataset.SOPInstanceUID);

@@ -14,7 +14,7 @@ validationLog.setLevel(5);
 const { buildImageDataset, SECONDARY_CAPTURE_SOP_CLASS_UID } = dcmjs.image;
 
 const MR_SOP_CLASS_UID = "1.2.840.10008.5.1.4.1.1.4";
-const SOURCE_SOP_INSTANCE_UID = "1.3.12.2.1107.5.2.32.35161.201107211449";
+const SOURCE_SOP_INSTANCE_UID = "2.25.111222333444";
 
 function grayPixels(rows = 4, columns = 4) {
     return {
@@ -172,8 +172,8 @@ describe("validation", () => {
 describe("metadata forms", () => {
     const tagKeyed = {
         "00080060": { vr: "CS", Value: ["MR"] },
-        "00100010": { vr: "PN", Value: [{ Alphabetic: "WATSON^ABIGAIL" }] },
-        "00100020": { vr: "LO", Value: ["316265"] },
+        "00100010": { vr: "PN", Value: [{ Alphabetic: "DOE^JANE" }] },
+        "00100020": { vr: "LO", Value: ["998877"] },
         "0020000D": { vr: "UI", Value: ["1.2.3.4"] }
     };
 
@@ -182,7 +182,7 @@ describe("metadata forms", () => {
             metadata: tagKeyed
         });
         expect(dataset.Modality).toBe("MR");
-        expect(dataset.PatientID).toBe("316265");
+        expect(dataset.PatientID).toBe("998877");
         expect(dataset.StudyInstanceUID).toBe("1.2.3.4");
     });
 
@@ -190,12 +190,12 @@ describe("metadata forms", () => {
         const dataset = buildImageDataset(grayPixels(), {
             metadata: {
                 Modality: "MR",
-                PatientID: "316265",
+                PatientID: "998877",
                 StudyInstanceUID: "1.2.3.4"
             }
         });
         expect(dataset.Modality).toBe("MR");
-        expect(dataset.PatientID).toBe("316265");
+        expect(dataset.PatientID).toBe("998877");
         expect(dataset.StudyInstanceUID).toBe("1.2.3.4");
     });
 
@@ -216,12 +216,12 @@ describe("metadata forms", () => {
 
     test("keyword overrides beat metadata", () => {
         const dataset = buildImageDataset(grayPixels(), {
-            metadata: { PatientID: "316265" },
+            metadata: { PatientID: "998877" },
             PatientID: "22446688",
-            PatientName: "MEYER^ABBIE"
+            PatientName: "FOX^JANE"
         });
         expect(dataset.PatientID).toBe("22446688");
-        expect(dataset.PatientName).toBe("MEYER^ABBIE");
+        expect(dataset.PatientName).toBe("FOX^JANE");
     });
 });
 

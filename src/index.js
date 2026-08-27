@@ -62,6 +62,8 @@ import { DSRNormalizer } from "./normalizers.js";
 import adapters from "./adapters/index.js";
 import utilities from "./utilities/index.js";
 import eventStream from "./eventStream/index.js";
+// Media storage (PS3.10): DICOMDIR builder
+import media from "./media/index.js";
 import sr from "./sr/index.js";
 import * as constants from "./constants/dicom.js";
 import * as fhirSink from "@dcmjs/fhir";
@@ -155,6 +157,7 @@ const dcmjs = {
     eventStream,
     fhir,
     image,
+    media,
     normalizers,
     sr,
     utilities,
@@ -179,6 +182,7 @@ export {
     eventStream,
     fhir,
     image,
+    media,
     normalizers,
     sr,
     utilities,

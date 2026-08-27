@@ -1,13 +1,18 @@
 // packages/fhir/src/index.js
 //
-// @dcmjs/fhir — the FHIR sink. Turns naturalized DICOM Part 10 datasets
-// (DicomMetaDictionary.naturalizeDataset output) into FHIR R4B resources.
+// @dcmjs/fhir — FHIR both ways.
 //
-// Deliberately simple: standard FHIR out, nothing deployment-specific.
+// The sink: naturalized DICOM Part 10 datasets
+// (DicomMetaDictionary.naturalizeDataset output) → FHIR R4B resources.
+// The source: a FHIR Patient → DICOM patient-module attributes
+// (patientToDataset), for demographics injection.
+//
+// Deliberately simple: standard FHIR, nothing deployment-specific.
 // Consumers assign resource ids, storage references, and meta.tags.
 //
 //   const { patient, imagingStudy, documentReference } = toFhir(dataset);
 //   const bundle = toBundle([dataset1, dataset2]);
+//   const attrs = patientToDataset(patientResource);  // → { PatientName, ... }
 
 import { patientFromDataset } from "./patient.js";
 import {
@@ -19,6 +24,7 @@ import { assertSupportedFhirVersion } from "./helpers.js";
 
 export * from "./helpers.js";
 export { patientFromDataset } from "./patient.js";
+export { patientToDataset } from "./patientToDataset.js";
 export {
     imagingStudyFromDataset,
     imagingStudyFromDatasets

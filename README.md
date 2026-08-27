@@ -32,11 +32,11 @@ and Massachusetts General Hospital. Updates include:
   gigabytes — larger than available RAM — and the streaming pipeline has
   been exercised against a 21.8 GB video instance while holding only a
   couple of gigabytes in memory.
-- **A second read core.** dcmjs absorbed the dicom-parser tokenizer and
-  grew a "lazy" reader that records where each element lives and only
-  materializes values when touched. After evaluation, the proven eager
-  reader (read everything up front) remains the default engine of record;
-  the lazy core is deprecated (`DCMJS_CORE=lazy` or
+- **Deprecation of the lazy reader.** dcmjs absorbed the dicom-parser
+  tokenizer and grew a "lazy" reader that records where each element lives
+  and only materializes values when touched. After evaluation, the proven
+  eager reader (read everything up front) remains the default engine of
+  record; the lazy core is deprecated (`DCMJS_CORE=lazy` or
   `readFile(buffer, { core: "lazy" })`) and scheduled for removal.
 - **More correct writing.** Element lengths are recomputed (backpatched)
   as files are written, and the deflated transfer syntax — a DICOM

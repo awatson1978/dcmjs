@@ -33,6 +33,46 @@ Full details: the documentation site under `packages/docs` (run
 `packages/docs/docs/migration/from-0x.md`, and the step-by-step roadmap at
 `packages/docs/docs/development/roadmap.md`.
 
+# What's new on this fork (development branch)
+
+This fork ([awatson1978/dcmjs](https://github.com/awatson1978/dcmjs)) adds
+forward-migration primitives for legacy DICOM, arriving via PRs #52–#54.
+The consuming CLI/MCP tooling lives in the sibling
+[dcmjs-commands](https://github.com/awatson1978/dcmjs-commands) (see its
+`architecture-design.md` for the layering and roadmap).
+
+**`dcmjs.image` — instances from decoded pixels** (`DicomEventStream.fromImage`,
+`buildImageDataset`). Codec-free: callers decode (Canvas in the browser,
+pngjs in node) and hand over pixels + geometry; the library owns the
+conformance rules — actual geometry always beats metadata claims, and when
+the metadata identifies an original instance the result is a proper derived
+instance (fresh SOPInstanceUID, `DERIVED\SECONDARY`, SourceImageSequence —
+original UIDs are never reused for rebuilt pixel data).
+
+```js
+const events = DicomEventStream.fromImage(
+    { pixels, rows: 256, columns: 256, bitsStored: 12 },
+    { metadata: dicomWebJson, PatientName: "FOX^JANE" }
+);
+const part10 = await events.toPart10();
+```
+
+**`dcmjs.media` — DICOMDIR builder** (`buildDicomDirDataset`, `writeDicomDir`).
+Builds a valid Media Storage Directory from a file-set description,
+including exact byte offsets in the directory records (measure-then-write:
+offsets are fixed-width UL, so one measurement pass yields the final
+layout and the file is written once).
+
+**`@dcmjs/fhir` — now both directions.** The existing sink (naturalized
+datasets → FHIR Patient / ImagingStudy / DocumentReference) is joined by a
+source: `patientToDataset(patient)` maps a FHIR Patient onto DICOM
+patient-module attributes — official name over maiden, MR-typed identifier
+preferred, and a deliberately narrow administrative-gender table
+(`male→M`, `female→F`, other/unrecognized→`O`, unknown/absent→empty;
+`Patient.gender` only, never profile extensions). Deterministic overwrite:
+all four attributes are always returned, empty for absent fields, so
+applying a Patient replaces the whole module.
+
 # Goals
 
 _Overall the code should:_

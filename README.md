@@ -129,6 +129,7 @@ const { DicomEventStream } = dcmjs.eventStream;
 DicomEventStream.fromPart10Stream(chunksOrReadableStream); // chunked bytes, bounded memory
 DicomEventStream.fromDataSet({ meta, dict });              // an already-parsed dataset
 DicomEventStream.fromDicomWebJson(dicomJson);              // DICOM JSON model
+DicomEventStream.fromImage(decoded, options);              // decoded pixels (see Images and Directories)
 DicomEventStream.from(source);                             // auto-detect the above
 ```
 
@@ -143,6 +144,26 @@ for await (const { type, args } of
 
 // …or drive a custom EventStreamListener subclass with events.process(listener).
 ```
+
+For file-to-file processing that never holds the whole dataset, pair the
+streaming source with the streaming sink: `StreamingPart10Writer` emits
+Part 10 bytes chunk by chunk as events arrive, with filters applied
+in-stream, so memory stays bounded by the largest pixel fragment no matter
+how large the input file is:
+
+```javascript
+const { fromPart10Stream, StreamingPart10Writer } = dcmjs.eventStream;
+
+const writer = new StreamingPart10Writer(
+    { onChunk: (bytes) => output.write(bytes) },
+    ...filters
+);
+await fromPart10Stream(inputReadableStream, writer);
+```
+
+The listener/writer classes behind the `to*` sinks (`NaturalizedListener`,
+`DicomWebJsonWriter`, `Part10Writer`, `CollectorListener`) are also
+exported for direct use with `process()`.
 
 ## Images and Directories
 

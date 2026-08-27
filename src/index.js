@@ -42,6 +42,11 @@ import {
     extractEncapsulatedPdf,
     ENCAPSULATED_PDF_SOP_CLASS_UID
 } from "./encapsulated/index.js";
+// Image instances from decoded pixels (codec-free)
+import {
+    buildImageDataset,
+    SECONDARY_CAPTURE_SOP_CLASS_UID
+} from "./image/index.js";
 // Normalizers
 
 import { Normalizer } from "./normalizers.js";
@@ -115,6 +120,11 @@ const encapsulated = {
     ENCAPSULATED_PDF_SOP_CLASS_UID
 };
 
+const image = {
+    buildImageDataset,
+    SECONDARY_CAPTURE_SOP_CLASS_UID
+};
+
 // FHIR sink (@dcmjs/fhir) plus a Part 10 convenience that composes the
 // parser and naturalizer — turns a .dcm ArrayBuffer straight into FHIR.
 const fhir = {
@@ -144,6 +154,7 @@ const dcmjs = {
     encapsulated,
     eventStream,
     fhir,
+    image,
     normalizers,
     sr,
     utilities,
@@ -167,6 +178,7 @@ export {
     encapsulated,
     eventStream,
     fhir,
+    image,
     normalizers,
     sr,
     utilities,

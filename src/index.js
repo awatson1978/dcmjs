@@ -36,16 +36,25 @@ import {
     StructuredReport,
     ParametricMap
 } from "./derivations/index.js";
-// Encapsulated documents (PDF in / PDF out)
+// Encapsulated payloads (PDF and video, in and out)
 import {
     encapsulatePdf,
     extractEncapsulatedPdf,
-    ENCAPSULATED_PDF_SOP_CLASS_UID
+    ENCAPSULATED_PDF_SOP_CLASS_UID,
+    buildVideoDataset,
+    encapsulateVideo,
+    extractEncapsulatedVideo,
+    normalizeFragmentBytes,
+    VIDEO_PHOTOGRAPHIC_SOP_CLASS_UID,
+    DEFAULT_FRAGMENT_BYTES
 } from "./encapsulated/index.js";
 // Image instances from decoded pixels (codec-free)
 import {
     buildImageDataset,
-    SECONDARY_CAPTURE_SOP_CLASS_UID
+    SECONDARY_CAPTURE_SOP_CLASS_UID,
+    parseJpegInfo,
+    parseMp4Info,
+    h264TransferSyntaxUID
 } from "./image/index.js";
 // Normalizers
 
@@ -119,12 +128,21 @@ const anonymizer = {
 const encapsulated = {
     encapsulatePdf,
     extractEncapsulatedPdf,
-    ENCAPSULATED_PDF_SOP_CLASS_UID
+    ENCAPSULATED_PDF_SOP_CLASS_UID,
+    buildVideoDataset,
+    encapsulateVideo,
+    extractEncapsulatedVideo,
+    normalizeFragmentBytes,
+    VIDEO_PHOTOGRAPHIC_SOP_CLASS_UID,
+    DEFAULT_FRAGMENT_BYTES
 };
 
 const image = {
     buildImageDataset,
-    SECONDARY_CAPTURE_SOP_CLASS_UID
+    SECONDARY_CAPTURE_SOP_CLASS_UID,
+    parseJpegInfo,
+    parseMp4Info,
+    h264TransferSyntaxUID
 };
 
 // FHIR sink (@dcmjs/fhir) plus a Part 10 convenience that composes the

@@ -13,24 +13,50 @@ See [live examples here](https://master--dcmjs2.netlify.app/)
 
 # What changed in 1.0
 
-dcmjs 1.0 absorbs the dicom-parser tokenizer as its read core and is now a pnpm monorepo:
+dcmjs 1.0 is a significant enhancement (with some API-breaking changes),
+made possible by the generous support of the National Institutes of Health
+and Massachusetts General Hospital. Updates include:
 
-- **Offset-tokenizer read core.** `DicomMessage.readFile` gained a lazy,
-  offsets-based core during the beta. After evaluation, the proven eager
-  reader remains the default engine of record; the lazy core is deprecated
-  (`DCMJS_CORE=lazy` or `readFile(buffer, { core: "lazy" })`) and scheduled
-  for removal.
-- **Improved writing.** Length backpatching on write, and deflate transfer
-  syntax is now actually written deflated (a long-standing 0.x bug). The
-  byte-identity passthrough of untouched elements is tied to the lazy core
-  and deprecated with it.
-- **Monorepo.** The vendored tokenizer lives in `packages/parser` (private), the
-  documentation site in `packages/docs`, and the main `dcmjs` package at the root.
-- **Directory parsing.** DICOMDIR — the index file on DICOM interchange media —
-  reads like any other dataset, and `dcmjs.media` builds new DICOMDIRs with
-  correct byte offsets (see Images and Directories below).
-- **Interoperability support.** The `@dcmjs/fhir` package maps between DICOM
-  and FHIR in both directions (see Fast Healthcare Interoperability below).
+- **Event streaming.** Historically, reading a DICOM file meant loading the
+  whole thing into memory and getting back one large object. dcmjs can now
+  also treat a file as a *stream of events* — "an element started", "here
+  is a value", "a sequence began" — flowing from a source, through optional
+  filters, into a writer. This matters because most tasks (inspect a few
+  tags, change a patient name, convert a format) never needed the whole
+  file in memory in the first place, and because filters let you modify
+  data in flight with a few lines of code. See Event Stream below.
+- **Ultra large file support.** A consequence of event streaming: pairing
+  the streaming reader with the streaming writer keeps memory bounded by
+  the largest single piece of pixel data, not by the file. Digital
+  pathology slides, surgical video, and large multiframe instances can be
+  gigabytes — larger than available RAM — and the streaming pipeline has
+  been exercised against a 21.8 GB video instance while holding only a
+  couple of gigabytes in memory.
+- **A second read core.** dcmjs absorbed the dicom-parser tokenizer and
+  grew a "lazy" reader that records where each element lives and only
+  materializes values when touched. After evaluation, the proven eager
+  reader (read everything up front) remains the default engine of record;
+  the lazy core is deprecated (`DCMJS_CORE=lazy` or
+  `readFile(buffer, { core: "lazy" })`) and scheduled for removal.
+- **More correct writing.** Element lengths are recomputed (backpatched)
+  as files are written, and the deflated transfer syntax — a DICOM
+  encoding that promises the file body is compressed — is now actually
+  written compressed, fixing a long-standing 0.x bug where such files
+  claimed compression they did not have.
+- **Directory parsing.** A DICOMDIR is the index file on DICOM interchange
+  media (CDs, DVDs, USB filesets) — one DICOM file whose records point at
+  all the others. It now reads like any other dataset, and `dcmjs.media`
+  builds new DICOMDIRs with correct byte offsets, which is the hard part
+  of writing one. See Images and Directories below.
+- **Interoperability support.** DICOM describes images; FHIR is how the
+  rest of the healthcare IT world exchanges data. The `@dcmjs/fhir`
+  package maps between the two in both directions — datasets out to FHIR
+  resources, and FHIR Patient demographics back onto DICOM. See Fast
+  Healthcare Interoperability below.
+- **Monorepo.** The repository now hosts several packages: the vendored
+  tokenizer in `packages/parser` (private), the FHIR mappers in
+  `packages/fhir`, the documentation site in `packages/docs`, and the main
+  `dcmjs` package at the root.
 - **Removed:** the deprecated `DicomMessage.read`/`readTag` statics and the legacy
   `DICOMWEB` class (use [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client)).
 

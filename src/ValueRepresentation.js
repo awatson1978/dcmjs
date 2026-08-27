@@ -1393,10 +1393,16 @@ class Unsigned64BitVeryLong extends ValueRepresentation {
     }
 
     writeBytes(stream, value, writeOptions) {
+        // DataView.setBigUint64 requires a BigInt; naturalized datasets may
+        // legitimately carry Numbers (values ≤ 2^53), so coerce here.
+        const coerce = v => (typeof v === "bigint" ? v : BigInt(v));
+        const coerced = Array.isArray(value)
+            ? value.map(coerce)
+            : coerce(value);
         return super.writeBytes(
             stream,
-            value,
-            super.write(stream, "BigUint64", value),
+            coerced,
+            super.write(stream, "BigUint64", coerced),
             writeOptions
         );
     }

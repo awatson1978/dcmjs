@@ -15,12 +15,15 @@ See [live examples here](https://master--dcmjs2.netlify.app/)
 
 dcmjs 1.0 absorbs the dicom-parser tokenizer as its read core and is now a pnpm monorepo:
 
-- **Lazy reading by default.** `DicomMessage.readFile` records element offsets and
-  materializes values on first access. Set `DCMJS_CORE=eager` (or
-  `readFile(buffer, { core: "eager" })`) to restore the 0.x reader during the beta.
-- **Byte-faithful writing.** Untouched elements are written back as verbatim source
-  bytes; a no-edit read-write round trip reproduces the body byte for byte. Deflate
-  transfer syntax is now actually written deflated (a long-standing 0.x bug).
+- **Offset-tokenizer read core.** `DicomMessage.readFile` gained a lazy,
+  offsets-based core during the beta. After evaluation, the proven eager
+  reader remains the default engine of record; the lazy core is deprecated
+  (`DCMJS_CORE=lazy` or `readFile(buffer, { core: "lazy" })`) and scheduled
+  for removal.
+- **Improved writing.** Length backpatching on write, and deflate transfer
+  syntax is now actually written deflated (a long-standing 0.x bug). The
+  byte-identity passthrough of untouched elements is tied to the lazy core
+  and deprecated with it.
 - **Monorepo.** The vendored tokenizer lives in `packages/parser` (private), the
   documentation site in `packages/docs`, and the main `dcmjs` package at the root.
 - **Directory parsing.** DICOMDIR — the index file on DICOM interchange media —
@@ -429,8 +432,8 @@ dcmjs is production-tested (OHIF, Cornerstone adapters, ~15k weekly npm download
 
 ## Implemented
 
-- Lazy, offset-based Part 10 reading (default since 1.0) with an equivalence-gated eager fallback
-- Byte-faithful Part 10 writing with passthrough of untouched elements, length backpatching, and deflate-on-write
+- Eager in-place Part 10 reading (the engine of record), plus a deprecated lazy offset-based core behind `DCMJS_CORE=lazy`
+- Part 10 writing with length backpatching and deflate-on-write
 - Bidirectional conversion to and from part 10 binary DICOM and DICOM standard JSON encoding (as in [DICOMweb](http://dicomweb.org))
 - Bidirectional conversion to and from DICOM standard JSON and a programmer-friendly high-level version (the "naturalized" form)
 - Creation of derived DICOM objects such as Segmentations and Structured Reports
@@ -438,9 +441,9 @@ dcmjs is production-tested (OHIF, Cornerstone adapters, ~15k weekly npm download
 
 ## In development (1.x backlog)
 
-- Re-platforming the streaming `AsyncDicomReader` onto the offset tokenizer
-- Removing the legacy eager read path after the beta soak
-- Public subpath packaging (raw parser tier, dictionary) and a TypeScript surface
+- Removing the deprecated lazy read core and its byte-identity passthrough write path (eager remained the engine of record after the beta evaluation)
+- Retiring or re-platforming the legacy `AsyncDicomReader` — the event stream's `fromPart10Stream` is the strategic streaming path
+- Public subpath packaging for the raw parser tier, and a broader TypeScript surface (the `./dictionary` and `./schema` subpaths, with schema typings, already ship)
 - See the docs site roadmap page (`packages/docs/docs/development/roadmap.md`, R8 checklist) for the full list
 
 # History
@@ -462,6 +465,8 @@ dcmjs is production-tested (OHIF, Cornerstone adapters, ~15k weekly npm download
 
 The developers gratefully acknowledge their research support:
 
+- The [National Institutes of Health](https://www.nih.gov/)
+- [Massachusetts General Hospital](https://www.massgeneral.org/)
 - Open Health Imaging Foundation ([OHIF](http://ohif.org))
 - Quantitative Image Informatics for Cancer Research ([QIICR](http://qiicr.org))
 - [Radiomics](http://radiomics.io)

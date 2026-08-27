@@ -119,6 +119,8 @@ const dataset = await events.toNaturalized();    // naturalized { ...keywords }
 const json    = await events.toDicomWebJson();   // DICOM JSON model
 const tree    = await events.toDataSet();         // { meta, dict } tag tree
 const bytes   = await events.toPart10();          // round-trip back to Part 10
+const fhir    = await events.toFhir();            // { patient, imagingStudy, documentReference }
+const pdf     = await events.toPdf();             // embedded PDF out of an Encapsulated PDF instance
 ```
 
 Other sources — the same sinks apply to each:
@@ -130,8 +132,36 @@ DicomEventStream.fromPart10Stream(chunksOrReadableStream); // chunked bytes, bou
 DicomEventStream.fromDataSet({ meta, dict });              // an already-parsed dataset
 DicomEventStream.fromDicomWebJson(dicomJson);              // DICOM JSON model
 DicomEventStream.fromImage(decoded, options);              // decoded pixels (see Images and Directories)
-DicomEventStream.from(source);                             // auto-detect the above
+DicomEventStream.fromPdf(pdfBytes, options);               // PDF -> Encapsulated PDF instance
+DicomEventStream.fromFhir(resource, options);              // content-carrying FHIR resource (below)
+DicomEventStream.from(source);                             // auto-detect Part 10 / dataset / DICOM JSON
 ```
+
+`fromFhir` sources the FHIR resources that carry *content*, not just
+context: a `DocumentReference` or `Media` whose attachment embeds inline
+data (or a `Bundle` holding one, plus optionally a `Patient` for
+demographics). An embedded PDF becomes an Encapsulated PDF instance. An
+embedded JPEG — the key-image case — is carried into the instance
+byte-for-byte as encapsulated PixelData, because JPEG is itself a DICOM
+transfer syntax: only the frame header is read (for Rows/Columns and the
+transfer syntax choice), never the pixels.
+
+```javascript
+const events = DicomEventStream.fromFhir(mediaResource, {
+    patient: patientResource   // demographics applied via fhir.patientToDataset
+});
+const keyImage = await events.toPart10();
+```
+
+Resources that carry only context are rejected with instructions: a bare
+`Patient` points at `options.patient`, and an attachment holding only a
+`url` asks you to fetch the bytes first — network resolution is the
+access layer's job, not this library's.
+
+`toFhir` covers the one instance in the stream; aggregating a whole study
+into a single `ImagingStudy` is a multi-stream operation — collect
+naturalized datasets and use `fhir.imagingStudyFromDatasets` or
+`fhir.toBundle` (see Fast Healthcare Interoperability below).
 
 For element-level work (progress, filtering, validation) without materializing
 the whole dataset, consume the events directly:
@@ -223,6 +253,8 @@ describe the same patients and studies in different vocabularies, and most
 imaging systems eventually need both: DICOM for the images themselves,
 FHIR for how the rest of the healthcare system refers to them. The
 `@dcmjs/fhir` workspace package maps between the two in both directions.
+The same mappings are available on the event stream as `events.toFhir()`
+and `DicomEventStream.fromFhir(resource)` — see Event Stream above.
 
 ### DICOM → FHIR
 

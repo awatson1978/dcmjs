@@ -26,7 +26,7 @@ function entry(overrides = {}) {
         sopClassUid: MR_SOP_CLASS,
         sopInstanceUid: "1.2.3.4.100",
         transferSyntaxUid: ELE,
-        patient: { PatientID: "316265", PatientName: "WATSON^ABIGAIL" },
+        patient: { PatientID: "998877", PatientName: "DOE^JANE" },
         study: { StudyInstanceUID: "1.2.3.4", StudyDescription: "HEAD^BRAIN" },
         series: { SeriesInstanceUID: "1.2.3.4.5", Modality: "MR" },
         instance: { InstanceNumber: 1 },
@@ -84,7 +84,7 @@ describe("record hierarchy", () => {
             writeDicomDir([
                 entry(),
                 entry({
-                    patient: { PatientID: "22446688", PatientName: "MEYER^ABBIE" },
+                    patient: { PatientID: "22446688", PatientName: "FOX^JANE" },
                     study: { StudyInstanceUID: "9.8.7" },
                     series: { SeriesInstanceUID: "9.8.7.6", Modality: "MR" },
                     sopInstanceUid: "9.8.7.6.5",
@@ -117,7 +117,7 @@ describe("offsets are real byte positions", () => {
             instance: { InstanceNumber: 2 }
         }),
         entry({
-            patient: { PatientID: "22446688", PatientName: "MEYER^ABBIE" },
+            patient: { PatientID: "22446688", PatientName: "FOX^JANE" },
             study: { StudyInstanceUID: "9.8.7" },
             series: { SeriesInstanceUID: "9.8.7.6", Modality: "MR" },
             sopInstanceUid: "9.8.7.6.5",
@@ -215,7 +215,7 @@ describe("offsets are real byte positions", () => {
 
 describe("file meta and root attributes", () => {
     const buffer = writeDicomDir([entry()], {
-        fileSetID: "WATSON_CD",
+        fileSetID: "FOX_CD",
         fileSetUID: "2.25.7"
     });
     const { meta, dataset } = readDicomDir(buffer);
@@ -229,7 +229,7 @@ describe("file meta and root attributes", () => {
     });
 
     test("body has file-set attributes but no SOP Common", () => {
-        expect(dataset.FileSetID).toBe("WATSON_CD");
+        expect(dataset.FileSetID).toBe("FOX_CD");
         expect(dataset.FileSetConsistencyFlag).toBe(0);
         expect(dataset.SOPClassUID).toBeUndefined();
         expect(dataset.SOPInstanceUID).toBeUndefined();

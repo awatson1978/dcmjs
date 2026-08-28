@@ -2,17 +2,12 @@
  * Issue-derived regression tests — DicomMetaDictionary.uid().
  *
  * #61 (A — synthetic): https://github.com/dcmjs-org/dcmjs/issues/61
- *   Symptom: PS3.5 Annex B.2 requires UIDs with root "2.25" to be the
- *   decimal encoding of a 128-bit UUID (ITU-T X.667). The generator in
- *   src/DicomMetaDictionary.js (static uid()) instead concatenates 39
- *   random decimal digits ("2.25." + [1-9] + 38 random digits), which is
- *   NOT UUID-derived: the integer part ranges up to 10^39 - 1 while a
- *   128-bit UUID caps at 2^128 - 1 (≈ 3.4e38), so most generated values
- *   cannot correspond to any UUID at all, and none carry the RFC 4122
- *   version/variant bits.
- *
- * Green tests pin the syntactic properties the current generator does
- * satisfy; the UUID-derivation requirement itself is a KNOWN GAP.
+ *   Symptom (historical): PS3.5 Annex B.2 requires UIDs with root "2.25"
+ *   to be the decimal encoding of a 128-bit UUID (ITU-T X.667). The
+ *   generator in src/DicomMetaDictionary.js (static uid()) used to
+ *   concatenate 39 random decimal digits, which was NOT UUID-derived.
+ *   Fixed in this arc: uid() now generates an RFC 4122 version 4 UUID
+ *   and emits "2.25." + its unsigned 128-bit decimal value.
  */
 import dcmjs from "../../src/index.js";
 
@@ -33,14 +28,12 @@ describe("issue #61 — 2.25 UIDs must be UUID-derived (PS3.5 B.2)", () => {
         }
     });
 
-    // KNOWN GAP: observed uid() = "2.25." + one random digit 1-9 + 38
-    // random digits (pure random-digit concatenation, see
-    // src/DicomMetaDictionary.js static uid()). The 39-digit integer part
-    // routinely exceeds 2^128 - 1, so it cannot be the decimal encoding
-    // of any 128-bit UUID; expected the integer part to be the unsigned
-    // 128-bit value of a (version 4, RFC 4122 variant) UUID per PS3.5
-    // B.2 / ITU-T X.667.
-    it.skip("KNOWN GAP #61: uid() integer part is not the decimal encoding of a 128-bit UUID", () => {
+    // Fixed in this arc: static uid() now generates a random RFC 4122
+    // version 4 UUID (globalThis.crypto.getRandomValues with a
+    // Math.random fallback) and emits "2.25." + the decimal encoding of
+    // its unsigned 128-bit value per PS3.5 B.2 / ITU-T X.667, instead of
+    // concatenating 39 random decimal digits.
+    it("#61: uid() integer part is the decimal encoding of a 128-bit v4 UUID", () => {
         const MAX_UUID = 1n << 128n;
         for (let i = 0; i < SAMPLES; i++) {
             const uid = DicomMetaDictionary.uid();

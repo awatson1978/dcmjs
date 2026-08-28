@@ -22,8 +22,30 @@ bottom is the input to a later, prioritized fix pass.
      `ValueRepresentation` / `DicomMetaDictionary` calls).
    - **B — fixture**: needs a real file — the dcmjs-org/data network
      corpus (gated by `itIfNetworkFixture`, cached in
-     `$TMPDIR/dcmjs-test`) or a PHI-vetted issue attachment cached the
-     same way (never committed; provenance noted in the test docblock).
+     `$TMPDIR/dcmjs-test`) or an issue attachment handled under the
+     tiered rule below.
+
+   **Issue-attachment policy (tiered).** A file attached to a bug report
+   carries the reporter's implicit agreement that it be used to fix the
+   bug — but the reporter's intent is not the patient's consent, so use
+   is tiered by persistence:
+   1. *Diagnose transiently.* Download, reproduce, and step through the
+      failure locally. Ephemeral use is the whole point of the
+      attachment.
+   2. *Prefer a synthetic reproducer.* Identify the exact byte pattern
+      that triggers the bug and rebuild it with fictional identity
+      (JANE DOE / JANE FOX), fictional UIDs, and garbage pixels. This is
+      committable and can even be contributed back upstream.
+   3. *Else keep a verified-anonymized derivative.* When the quirk
+      resists synthesis, scrub the copy — patient module, dates,
+      institution/physician names, accession, private tags, UID
+      remapping, and a check for burned-in pixel text — verify the
+      scrub by dumping every string-VR element, cache the derivative
+      like a network fixture, and record provenance + scrub method in
+      the test docblock.
+   4. *Never retain or commit the original.* Delete it once the
+      synthetic/derivative exists; PHI-bearing bytes never enter the
+      repo or the fixture cache.
    - **C — contract**: behavior the 1.0 rewrite deliberately defined or
      changed (single-item-SQ naturalization, IS/DS as JSON numbers,
      rawValue retention, PN proxies …). The test asserts the NEW
@@ -50,124 +72,127 @@ bottom is the input to a later, prioritized fix pass.
 
 Regenerate with `node scripts/harvest-issues.mjs --table` after any
 catalog change. Triage: **50 A · 8 B · 16 C · 11 covered · 30 wave-2 ·
-57 n/a** (= 172). Authoring outcome for the 74 testable issues:
-**44 green** (pinned regressions), **26 gap** (documented below, with
-skipped reproducers in place), **4 blocked** (#78, #86, #347 fixtures
-unobtainable; #363's upstream attachment reproduces the bug but contains
-real PHI and was deleted unvetted — see the blocked placeholders in
-`test/issues/issue78-unobtainable-fixtures.test.js`). 24 new test files
-under `test/issues/`, plus `test/issues/part10Walker.js` — an
-independent byte-level Part 10 walker used as the pydicom/DCMTK
-stand-in. Wave-2 (D) rows carry assertion-shaped dispositions in the
-table below; they are the ready-made work orders for the adapter/SR/SEG
-wave.
+57 n/a** (= 172). Outcome for the testable issues after the fix arc
+(2026-08-27): **71 green** — 44 first-pass regression pins plus every
+one of the 26 inventoried gaps and #363, all fixed with their
+reproducers un-skipped (the resolution record below is the audit trail).
+**3 blocked** on unobtainable fixtures (#78, #86, #347 — placeholder
+skips in `test/issues/issue78-unobtainable-fixtures.test.js` document
+the planned assertions). 25 test files under `test/issues/`, plus
+`test/issues/part10Walker.js` — an independent byte-level Part 10
+walker used as the pydicom/DCMTK stand-in. Wave-2 (D) rows carry
+assertion-shaped dispositions in the triage table; they are the
+ready-made work orders for the adapter/SR/SEG wave.
 
-## Known gaps
+## Known gaps — ALL RESOLVED (fix arc, 2026-08-27)
 
-Populated as tests are authored. Each row: upstream issue, observed
-behavior in this library, the skipped test that reproduces it, severity.
+The inventory below was the fix-pass backlog; every row is now FIXED and
+its reproducer runs un-skipped as a pinned green regression. The
+un-skip-is-the-acceptance-test mechanic worked as designed. Resolution
+summaries (severity ordering preserved):
 
-| Issue | Symptom in 1.0 | Skipped test | Severity |
-|---|---|---|---|
-| [#345](https://github.com/dcmjs-org/dcmjs/issues/345) | **103 of 221 names in `getTagsNameToEmpty()` resolve to no dictionary keyword** — `cleanTags` silently skips them, so PHI in those tags survives anonymization | issue345-anonymizer-names.test.js | **high** (privacy) |
-| [#287](https://github.com/dcmjs-org/dcmjs/issues/287) | Comma-decimal DS `"0,347"` silently parses to `347` — a 1000× wrong number in PixelSpacing-class data (`_rawValue` retention works) | issue398-ds-is-precision.test.js | **high** (silent data corruption) |
-| [#503](https://github.com/dcmjs-org/dcmjs/issues/503) | Eager reader decodes ALL sequence-nested strings with hard-coded latin1 → UTF-8 mojibake; the event-stream paths decode correctly (path divergence) | issue503-sq-nested-charset.test.js | **high** |
-| [#311](https://github.com/dcmjs-org/dcmjs/issues/311) | A pooled Node-Buffer view silently parses the WRONG file when valid bytes precede it in the pool (`SplitDataView.addBuffer` drops `byteOffset`) | issue311-node-buffer-footgun.test.js | **high** |
-| [#340](https://github.com/dcmjs-org/dcmjs/issues/340) | Default write re-fragments >20 KB RLE frames (PS3.5 Annex G requires one fragment per frame) — corrupts US cine loops for downstream toolkits; `fragmentMultiframe:false` workaround pinned | issue293-encapsulated-write.test.js | **high** |
-| [#338](https://github.com/dcmjs-org/dcmjs/issues/338) | Wrong (0002,0000) group length: eager readFile fails with internal errors (or silent garbage under `ignoreErrors`); streaming path resyncs fine | issue338-wrong-meta-group-length.test.js | medium |
-| [#130](https://github.com/dcmjs-org/dcmjs/issues/130) | Trailing `0x00` string padding survives into SH/CS/LO/PN values in both read paths | issue130-nul-padded-strings.test.js | medium |
-| [#388](https://github.com/dcmjs-org/dcmjs/issues/388) | Denaturalize silently DROPS private elements inside SQ items | issue388-private-tags.test.js | medium |
-| [#215](https://github.com/dcmjs-org/dcmjs/issues/215) | Unregistered top-level private tags dropped on denaturalize (not kept as UN); `registerTag()` is naturalize-only | issue388-private-tags.test.js | medium |
-| [#373](https://github.com/dcmjs-org/dcmjs/issues/373) | Multi-valued SpecificCharacterSet (`\ISO 2022 IR 149`) rejected: "Using multiple character sets is not supported" | issue454-iso2022-charsets.test.js | medium |
-| [#284](https://github.com/dcmjs-org/dcmjs/issues/284) | Korean (ISO 2022 IR 149) PN decodes to latin1 mojibake with raw escape bytes | issue454-iso2022-charsets.test.js | medium |
-| [#454](https://github.com/dcmjs-org/dcmjs/issues/454) | ISO 2022 escape-switched (IR 100/IR 87) content keeps raw ESC sequences + mojibake | issue454-iso2022-charsets.test.js | medium |
-| [#484](https://github.com/dcmjs-org/dcmjs/issues/484) | Mixed-designation PN (IR 13 + IR 87): escape-switched segments corrupt (single-byte component survives) | issue454-iso2022-charsets.test.js | medium |
-| [#93](https://github.com/dcmjs-org/dcmjs/issues/93) | Meta-less (bare DIMSE) dataset readable by NO public API; preamble-less-with-FMI works via the stream | issue93-missing-preamble.test.js | medium |
-| [#42](https://github.com/dcmjs-org/dcmjs/issues/42) | `denaturalizeDataset` on a `[null]` value still crashes with a bare TypeError (undefined/[undefined] handled) | issue42-lenient-read-strict-write.test.js | medium |
-| [#356](https://github.com/dcmjs-org/dcmjs/issues/356) | Reserved odd-group elements 0x0001–0x000F misclassified as private creators | issue356-private-creator-range.test.js | medium |
-| [#417](https://github.com/dcmjs-org/dcmjs/issues/417) | `write()` on `Value:[undefined]` throws context-free `"Not a number: undefined"` (no tag named) | issue417-undefined-values.test.js | medium |
-| [#61](https://github.com/dcmjs-org/dcmjs/issues/61) | `DicomMetaDictionary.uid()` is 39 random digits — not UUID-derived per PS3.5 B.2, routinely exceeds 2^128 | issue61-uuid-uids.test.js | medium |
-| [#479](https://github.com/dcmjs-org/dcmjs/issues/479) | AsyncDicomReader discards `rawValue` (eager reader retains it) — precision loss on the async path | issue477-async-reader.test.js | medium |
-| [#398](https://github.com/dcmjs-org/dcmjs/issues/398) | DICOM JSON model silently truncates DS integers >2^53 (in tension with #404 schema purity; PS3.18 string encoding is the escape hatch) | issue398-ds-is-precision.test.js | low |
-| [#204](https://github.com/dcmjs-org/dcmjs/issues/204) | Eager merges BOT-window fragments per frame; streaming surfaces raw fragments — PixelData SHAPE divergence between paths (no byte loss) | issue204-fragments-and-frames.test.js | low |
-| [#368](https://github.com/dcmjs-org/dcmjs/issues/368) | `xs` VR: PixelRepresentation-driven US/SS resolution unimplemented (PR=1 values parse unsigned); log spam itself fixed | issue368-xs-ox-vr-resolution.test.js | low |
-| [#297](https://github.com/dcmjs-org/dcmjs/issues/297) | On runtimes without latin1 TextDecoder the library fails at IMPORT time (module-load `new TextDecoder("latin1")`) | issue297-latin1-fallback.test.js | low |
-| [#457](https://github.com/dcmjs-org/dcmjs/issues/457) | OL/OV/SV VR fallback warns on EVERY lookup instead of once per type | issue457-vr-instances.test.js | low |
-| [#477](https://github.com/dcmjs-org/dcmjs/issues/477) | `docs/AsyncDicomReader-skill.md` documents a `stream.setData()` API that does not exist (pixel-data placement itself is correct) | issue477-async-reader.test.js | low (docs) |
-| [#505](https://github.com/dcmjs-org/dcmjs/issues/505) | `unit2CodingValue("cm")` returns `[arb'U]{cm}` instead of UCUM `cm` — ultrasound centimetre measurements mis-coded in SR | issue505-unit2codingvalue.test.js | low |
+| Issue | Was | Resolution |
+|---|---|---|
+| [#345](https://github.com/dcmjs-org/dcmjs/issues/345) | 103/221 anonymizer names dead — PHI survived cleanTags | All 103 corrected to real dictionary keywords (retired tags via `RETIRED_` prefix); zero removed. **Release note: anonymization now scrubs ~103 more attributes.** |
+| [#287](https://github.com/dcmjs-org/dcmjs/issues/287) | Comma-decimal DS silently parsed 1000× wrong | DS values now validate against the PS3.5 grammar: invalid text (locale commas, unit suffixes) reads as null + warning with `_rawValue` intact — never a silently-wrong number |
+| [#503](https://github.com/dcmjs-org/dcmjs/issues/503) | Eager reader mojibaked SQ-nested strings (latin1 hard-coded) | Item substreams inherit the dataset decoder; eager, both event-stream paths, and the (deprecated) lazy core all agree |
+| [#311](https://github.com/dcmjs-org/dcmjs/issues/311) | Pooled-Buffer view silently parsed the WRONG file | `SplitDataView.addBuffer` honors typed-array view boundaries (byteOffset/byteLength) |
+| [#340](https://github.com/dcmjs-org/dcmjs/issues/340) | RLE frames re-fragmented on write (corrupted cine) | `fragmentMultiframe` never splits frames under RLE Lossless (PS3.5 Annex G one-fragment-per-frame) |
+| [#338](https://github.com/dcmjs-org/dcmjs/issues/338) | Wrong (0002,0000) → internal errors / silent garbage | Eager reader validates/corrects the declared meta group length by structural walk; corrective error otherwise |
+| [#130](https://github.com/dcmjs-org/dcmjs/issues/130) | NUL padding survived into string values | Read-side trims strip trailing 0x00 (writes still space-pad; `_rawValue` keeps original bytes) |
+| [#388](https://github.com/dcmjs-org/dcmjs/issues/388) / [#215](https://github.com/dcmjs-org/dcmjs/issues/215) | Private tags dropped on denaturalize | Unmapped elements round-trip via `_vrMap` (recursively in SQ items); `registerTag()` now symmetric |
+| [#373](https://github.com/dcmjs-org/dcmjs/issues/373) / [#284](https://github.com/dcmjs-org/dcmjs/issues/284) / [#454](https://github.com/dcmjs-org/dcmjs/issues/454) / [#484](https://github.com/dcmjs-org/dcmjs/issues/484) | ISO 2022 multi-charset unsupported / mojibake | New `src/charset/iso2022.js`: shared charset resolution + escape-sequence decoder (JIS, katakana, KS X 1001, GB 2312, 8859 GR); all read paths share it; dclunie corpus decodes to pydicom-reference values |
+| [#93](https://github.com/dcmjs-org/dcmjs/issues/93) | Meta-less DIMSE datasets unreadable | `readFile(buffer, { allowMissingHeader: true })` opt-in: full Part 10, preamble-less, or bare dataset (syntax auto-detected) |
+| [#42](https://github.com/dcmjs-org/dcmjs/issues/42) | `[null]` denaturalize TypeError | Null entries pass through gracefully |
+| [#356](https://github.com/dcmjs-org/dcmjs/issues/356) | Reserved elements 0x01–0x0F misclassified as private creators | `Tag.isPrivateCreator` tightened to PS3.5 7.8.1 (0x0010–0x00FF) |
+| [#417](https://github.com/dcmjs-org/dcmjs/issues/417) | Context-free "Not a number: undefined" on write | Element writes annotate failures with the tag and VR (`error.cause` chains the original) |
+| [#61](https://github.com/dcmjs-org/dcmjs/issues/61) | 2.25 UIDs were random digits, not UUID-derived | `uid()` derives from an RFC 4122 v4 UUID (PS3.5 B.2). **Release note: integer part ≤ 2^128−1.** |
+| [#479](https://github.com/dcmjs-org/dcmjs/issues/479) | AsyncDicomReader discarded rawValue | `readSingle` threads `_rawValue` like the eager reader |
+| [#398](https://github.com/dcmjs-org/dcmjs/issues/398) | JSON model truncated DS/IS ints > 2^53 | PS3.18 F.2.3.1 number-or-string choice: number when lossless, raw string otherwise (dcm4chee parity preserved) |
+| [#204](https://github.com/dcmjs-org/dcmjs/issues/204) | Eager/stream PixelData shape divergence | Streaming listeners merge BOT-window fragments per frame; both paths now agree |
+| [#368](https://github.com/dcmjs-org/dcmjs/issues/368) | `xs` VR ignored PixelRepresentation | US/SS resolved via (0028,0103) in eager, event-stream, and lazy paths |
+| [#297](https://github.com/dcmjs-org/dcmjs/issues/297) | Import-time latin1 TextDecoder dependency | Guarded construction + pure-JS latin1 fallback (`src/charset/latin1.js`) |
+| [#457](https://github.com/dcmjs-org/dcmjs/issues/457) | Per-lookup VR-fallback warn spam | Warn-once-per-type |
+| [#477](https://github.com/dcmjs-org/dcmjs/issues/477) | Docs described a nonexistent `setData()` API | Docs corrected to the real `addBuffer`/`setComplete` API (+ the `includeUntilTagValue` option name) |
+| [#505](https://github.com/dcmjs-org/dcmjs/issues/505) | `cm` mis-coded as arbitrary unit in SR | `cm`/`m`/`um` added to the UCUM unit map |
+| [#363](https://github.com/dcmjs-org/dcmjs/issues/363) | "Invalid tag in sequence" on Philips MR files | UN + undefined length now parses as an implicit-VR SQ (PS3.5 §6.2.2) in eager and streaming paths; synthetic reproducer built under the tiered attachment policy (original attachment carried real PHI — diagnosed transiently, deleted, never cached) |
+
+Still blocked (not gaps — no failing behavior reproduced): #78 (RLE SEG)
+and #86 (palette LUT) await obtainable fixtures; their placeholder skips
+document the planned assertions.
 
 ## Triage table
 
 _(generated — do not edit by hand)_
 
 <!-- TRIAGE-TABLE-START -->
-### A — synthetic reproducer (50)
+### A — synthetic reproducer (51)
 
 | # | Title | State | Area | Disposition | Test | Status |
 |---|---|---|---|---|---|---|
 | [10](https://github.com/dcmjs-org/dcmjs/issues/10) | iterate through dataset with forEach instead of for...in | closed | naturalizer | polluted Object.prototype must not corrupt naturalize/denaturalize/write (forEach-not-for-in) | test/issues/issue10-prototype-pollution.test.js | green |
-| [42](https://github.com/dcmjs-org/dcmjs/issues/42) | Ungraceful errors when undefined values comes to DicomMetaDictionary.denaturalizeValue | closed | values | denaturalizeValue on [null]/undefined arrays: graceful, actionable error (not TypeError) | test/issues/issue42-lenient-read-strict-write.test.js | gap |
+| [42](https://github.com/dcmjs-org/dcmjs/issues/42) | Ungraceful errors when undefined values comes to DicomMetaDictionary.denaturalizeValue | closed | values | denaturalizeValue on [null]/undefined arrays: graceful, actionable error (not TypeError) | test/issues/issue42-lenient-read-strict-write.test.js | green |
 | [46](https://github.com/dcmjs-org/dcmjs/issues/46) | LT does not allow multiple | closed | values | LT is single-valued: backslash inside LT text must round-trip as ONE value | test/issues/issue46-lt-single-valued.test.js | green |
-| [61](https://github.com/dcmjs-org/dcmjs/issues/61) | UIDs with root 2.25 should be derived from UUID | open | uid | DicomMetaDictionary.uid(): 2.25 UIDs must be UUID-derived per PS3.5 B.2 (not random digit strings) | test/issues/issue61-uuid-uids.test.js | gap |
+| [61](https://github.com/dcmjs-org/dcmjs/issues/61) | UIDs with root 2.25 should be derived from UUID | open | uid | DicomMetaDictionary.uid(): 2.25 UIDs must be UUID-derived per PS3.5 B.2 (not random digit strings) | test/issues/issue61-uuid-uids.test.js | green |
 | [84](https://github.com/dcmjs-org/dcmjs/issues/84) | toUTF8Array will convert ° into Â° | closed | charset | UTF-8 write must not double-encode (deg sign -> 0xC2 0xB0 exactly once) with ISO_IR 192 | test/issues/issue84-utf8-write-roundtrip.test.js | green |
 | [91](https://github.com/dcmjs-org/dcmjs/issues/91) | Text encoding, how to do it? | open | charset | upsertTag with non-ASCII + SpecificCharacterSet ISO_IR 192 round-trips (write side of #84) | test/issues/issue84-utf8-write-roundtrip.test.js | green |
-| [93](https://github.com/dcmjs-org/dcmjs/issues/93) | Is there a way to force-read a file if the DICM Tag in the header is missing? | open | reader | missing preamble/DICM: readFile option or corrective error (sampleDicomPart10.stripPreamble) | test/issues/issue93-missing-preamble.test.js | gap |
+| [93](https://github.com/dcmjs-org/dcmjs/issues/93) | Is there a way to force-read a file if the DICM Tag in the header is missing? | open | reader | missing preamble/DICM: readFile option or corrective error (sampleDicomPart10.stripPreamble) | test/issues/issue93-missing-preamble.test.js | green |
 | [95](https://github.com/dcmjs-org/dcmjs/issues/95) | writing dicom to file results in corrupted pixel data | open | writer | multi-frame RGB: edit strings then write; pixels byte-identical after round trip | test/issues/issue111-roundtrip-integrity.test.js | green |
 | [96](https://github.com/dcmjs-org/dcmjs/issues/96) | DecimalString are not correctly written to buffer | closed | values | DS 4.8 (Number) writes a value, not empty (DS/IS cluster) | test/issues/issue398-ds-is-precision.test.js | green |
 | [111](https://github.com/dcmjs-org/dcmjs/issues/111) | Naturalize and DenaturalizeDataset failed image result | open | naturalizer | naturalize->denaturalize->write->read round trip on synthetic multiframe stays valid + equal | test/issues/issue111-roundtrip-integrity.test.js | green |
 | [115](https://github.com/dcmjs-org/dcmjs/issues/115) | PixelRepresentation tag lost when saving an image  | closed | writer | PixelRepresentation (US, value 0) survives read->naturalize->denaturalize->write->read | test/issues/issue111-roundtrip-integrity.test.js | green |
-| [130](https://github.com/dcmjs-org/dcmjs/issues/130) | Null terminated strings are not read correctly | open | charset | NUL-padded strings (PN/CS/LO) strip trailing 0x00 on read | test/issues/issue130-nul-padded-strings.test.js | gap |
+| [130](https://github.com/dcmjs-org/dcmjs/issues/130) | Null terminated strings are not read correctly | open | charset | NUL-padded strings (PN/CS/LO) strip trailing 0x00 on read | test/issues/issue130-nul-padded-strings.test.js | green |
 | [145](https://github.com/dcmjs-org/dcmjs/issues/145) | Reading encapsulated pixel data? | open | reader | encapsulated multiframe: every frame surfaced, not only the first (fragments->frames via BOT) | test/issues/issue204-fragments-and-frames.test.js | green |
 | [159](https://github.com/dcmjs-org/dcmjs/issues/159) | writeBytes is crashing the browser when using encapsulated files with lots of frames | closed | writer | many-frame encapsulated write: 120+ frames complete correctly (no per-frame quadratic blowup) | test/issues/issue293-encapsulated-write.test.js | green |
 | [161](https://github.com/dcmjs-org/dcmjs/issues/161) | DicomDict.write fails when a Sequence tag a OW type. | closed | writer | OW element inside SQ item writes without error and round-trips | test/issues/issue293-encapsulated-write.test.js | green |
 | [167](https://github.com/dcmjs-org/dcmjs/issues/167) | File size keep increasing | closed | writer | read->write cycles: byte size stabilizes after first rewrite (no unbounded growth) | test/issues/issue111-roundtrip-integrity.test.js | green |
 | [175](https://github.com/dcmjs-org/dcmjs/issues/175) | DecimalString values that use exponential notation are converted when reading a DICOM | closed | values | DS exponential notation round-trips within 16 chars (write re-formats, no throw) | test/issues/issue398-ds-is-precision.test.js | green |
 | [196](https://github.com/dcmjs-org/dcmjs/issues/196) | Error adding dicom headerError: Request more than currently allocated buffer | closed | writer | upsert PN then write: buffer growth handles size increase (no 'more than allocated' error) | test/issues/issue365-tag-order.test.js | green |
-| [204](https://github.com/dcmjs-org/dcmjs/issues/204) | can't read an encapsulated frame whose size is greater than fragment size | closed | reader | frame larger than fragment size: read merges fragments per frame (BOT-aware) | test/issues/issue204-fragments-and-frames.test.js | gap |
-| [215](https://github.com/dcmjs-org/dcmjs/issues/215) | Support using custom dictionary in DicomMetaDictionary | closed | naturalizer | private/custom tags survive naturalize->denaturalize via private dictionary registration | test/issues/issue388-private-tags.test.js | gap |
+| [204](https://github.com/dcmjs-org/dcmjs/issues/204) | can't read an encapsulated frame whose size is greater than fragment size | closed | reader | frame larger than fragment size: read merges fragments per frame (BOT-aware) | test/issues/issue204-fragments-and-frames.test.js | green |
+| [215](https://github.com/dcmjs-org/dcmjs/issues/215) | Support using custom dictionary in DicomMetaDictionary | closed | naturalizer | private/custom tags survive naturalize->denaturalize via private dictionary registration | test/issues/issue388-private-tags.test.js | green |
 | [231](https://github.com/dcmjs-org/dcmjs/issues/231) | TypeError: Cannot redefine property: Alphabetic | open | naturalizer | naturalizing twice / re-naturalizing PN values must not throw 'Cannot redefine property: Alphabetic' | test/issues/issue231-pn-accessors.test.js | green |
 | [242](https://github.com/dcmjs-org/dcmjs/issues/242) | Invalid VR of the private creator tag of the "Implicit VR Endian" typed DICOM file | open | reader | implicit-VR private creator tag resolves VR LO (PS3.5 7.8.1), not UN | test/issues/issue242-implicit-private-creator.test.js | green |
 | [263](https://github.com/dcmjs-org/dcmjs/issues/263) | naturalizeDataset in v0.18.11 creates in memory objects of 300mb+  | closed | naturalizer | naturalized output contains no injected null padding (0.18.11 300MB regression class) | test/issues/issue3-keyword-contract.test.js | green |
 | [282](https://github.com/dcmjs-org/dcmjs/issues/282) | Bug: Fragment merging results in zero value arraybuffer | closed | reader | fragment merge uses byte-correct typed copy (no zero-filled result) | test/issues/issue204-fragments-and-frames.test.js | green |
-| [287](https://github.com/dcmjs-org/dcmjs/issues/287) | Pixel Spacing parsing with comma as decimal separator is returning incorrect value | closed | values | DS with comma decimal separator: defined, non-garbage behavior (raw preserved; no wrong number) | test/issues/issue398-ds-is-precision.test.js | gap |
+| [287](https://github.com/dcmjs-org/dcmjs/issues/287) | Pixel Spacing parsing with comma as decimal separator is returning incorrect value | closed | values | DS with comma decimal separator: defined, non-garbage behavior (raw preserved; no wrong number) | test/issues/issue398-ds-is-precision.test.js | green |
 | [293](https://github.com/dcmjs-org/dcmjs/issues/293) | Encapsulated pixel data of odd-length writes padding byte in incorrect location | closed | writer | odd-length encapsulated frames: pad byte per frame's final fragment, not tag end (pydicom parity) | test/issues/issue293-encapsulated-write.test.js | green |
-| [297](https://github.com/dcmjs-org/dcmjs/issues/297) | ReadBufferStream not support latine 1 on Mobile | open | charset | latin1 TextDecoder unavailable (mobile): graceful fallback (monkeypatch TextDecoder in test) | test/issues/issue297-latin1-fallback.test.js | gap |
+| [297](https://github.com/dcmjs-org/dcmjs/issues/297) | ReadBufferStream not support latine 1 on Mobile | open | charset | latin1 TextDecoder unavailable (mobile): graceful fallback (monkeypatch TextDecoder in test) | test/issues/issue297-latin1-fallback.test.js | green |
 | [315](https://github.com/dcmjs-org/dcmjs/issues/315) | Changing instance UID corrupts file, Invalid DICOM file, expected header is missing | open | writer | naturalize -> change SOPInstanceUID -> denaturalize -> write yields valid Part 10 with updated meta | test/issues/issue315-uid-rewrite.test.js | green |
 | [324](https://github.com/dcmjs-org/dcmjs/issues/324) | NaN and Infinity number values cause write to fail | closed | values | NaN/Infinity in FD/FL/DS: read succeeds; write has defined behavior (value or corrective error), never bare throw | test/issues/issue398-ds-is-precision.test.js | green |
-| [338](https://github.com/dcmjs-org/dcmjs/issues/338) | DicomMessage.readFile failes if GroupLength parameter is wrong calculated | closed | reader | wrong FileMetaInformationGroupLength tolerated: body still parsed (sampleDicomPart10 patched length) | test/issues/issue338-wrong-meta-group-length.test.js | gap |
-| [340](https://github.com/dcmjs-org/dcmjs/issues/340) | US cine loops with Transfer Syntax RLE Lossless are corrupted after DicomMessage.write when fragmentMultiframe option is enabled  | open | writer | RLE transfer syntax: fragmentMultiframe must not re-fragment frames (one fragment per frame preserved) | test/issues/issue293-encapsulated-write.test.js | gap |
-| [345](https://github.com/dcmjs-org/dcmjs/issues/345) | anonymizer uses incorrect tag names | open | anonymizer | every name in getTagsNameToEmpty resolves to a real dictionary keyword (list the wrong ones) | test/issues/issue345-anonymizer-names.test.js | gap |
-| [356](https://github.com/dcmjs-org/dcmjs/issues/356) | private Tags take element wrong into account | open | values | Tag.isPrivateCreator range per PS3.5 7.8: creator element 0x10-0xFF; 0x01-0x0F excluded | test/issues/issue356-private-creator-range.test.js | gap |
+| [338](https://github.com/dcmjs-org/dcmjs/issues/338) | DicomMessage.readFile failes if GroupLength parameter is wrong calculated | closed | reader | wrong FileMetaInformationGroupLength tolerated: body still parsed (sampleDicomPart10 patched length) | test/issues/issue338-wrong-meta-group-length.test.js | green |
+| [340](https://github.com/dcmjs-org/dcmjs/issues/340) | US cine loops with Transfer Syntax RLE Lossless are corrupted after DicomMessage.write when fragmentMultiframe option is enabled  | open | writer | RLE transfer syntax: fragmentMultiframe must not re-fragment frames (one fragment per frame preserved) | test/issues/issue293-encapsulated-write.test.js | green |
+| [345](https://github.com/dcmjs-org/dcmjs/issues/345) | anonymizer uses incorrect tag names | open | anonymizer | every name in getTagsNameToEmpty resolves to a real dictionary keyword (list the wrong ones) | test/issues/issue345-anonymizer-names.test.js | green |
+| [356](https://github.com/dcmjs-org/dcmjs/issues/356) | private Tags take element wrong into account | open | values | Tag.isPrivateCreator range per PS3.5 7.8: creator element 0x10-0xFF; 0x01-0x0F excluded | test/issues/issue356-private-creator-range.test.js | green |
+| [363](https://github.com/dcmjs-org/dcmjs/issues/363) | Invalid tag in sequence : Unable to parse MR Dicom file in dcmjs. Cornerstone able to parse and works fine | open | reader | UN element with undefined length must parse as implicit-VR SQ (PS3.5 6.2.2) — synthetic reproducer built from transient diagnosis of the upstream attachment | test/issues/issue363-un-undefined-length-sq.test.js | green |
 | [365](https://github.com/dcmjs-org/dcmjs/issues/365) | Order of tags gets messed up when edition DICOM SEG | open | writer | edited dataset writes with ascending tag order regardless of naturalized key insertion order | test/issues/issue365-tag-order.test.js | green |
 | [366](https://github.com/dcmjs-org/dcmjs/issues/366) | Length of Decimal String larger than 16 characters | open | values | DS 16-char formatting: 0.99990081787109 writes within 16 chars (DS/IS cluster) | test/issues/issue398-ds-is-precision.test.js | green |
-| [368](https://github.com/dcmjs-org/dcmjs/issues/368) | Lots of 'Invalid vr type... ' log messages in dcmjs release 0.29.11 | open | reader | dictionary VR 'xs' resolves silently to US/SS by PixelRepresentation (no log spam) | test/issues/issue368-xs-ox-vr-resolution.test.js | gap |
+| [368](https://github.com/dcmjs-org/dcmjs/issues/368) | Lots of 'Invalid vr type... ' log messages in dcmjs release 0.29.11 | open | reader | dictionary VR 'xs' resolves silently to US/SS by PixelRepresentation (no log spam) | test/issues/issue368-xs-ox-vr-resolution.test.js | green |
 | [374](https://github.com/dcmjs-org/dcmjs/issues/374) | Getting ERROR: Value exceeds max length for some DICOM tags | closed | values | garbage over-length AS/TM values read leniently (rawValue kept), strict only on write | test/issues/issue42-lenient-read-strict-write.test.js | green |
-| [388](https://github.com/dcmjs-org/dcmjs/issues/388) | Fail to denaturalize a sequence having private tags. | open | naturalizer | SQ items containing private tags denaturalize without numeric-key/accessor collision | test/issues/issue388-private-tags.test.js | gap |
-| [417](https://github.com/dcmjs-org/dcmjs/issues/417) | Tag value [undefined] causing unable to write a dicomDict | closed | writer | element with Value [undefined] writes with defined behavior (skip/empty/corrective error, not TypeError) | test/issues/issue417-undefined-values.test.js | gap |
+| [388](https://github.com/dcmjs-org/dcmjs/issues/388) | Fail to denaturalize a sequence having private tags. | open | naturalizer | SQ items containing private tags denaturalize without numeric-key/accessor collision | test/issues/issue388-private-tags.test.js | green |
+| [417](https://github.com/dcmjs-org/dcmjs/issues/417) | Tag value [undefined] causing unable to write a dicomDict | closed | writer | element with Value [undefined] writes with defined behavior (skip/empty/corrective error, not TypeError) | test/issues/issue417-undefined-values.test.js | green |
 | [418](https://github.com/dcmjs-org/dcmjs/issues/418) | Tag consistency issue during roundtrip file loading/saving/loading | closed | writer | round trip preserves full element set of encapsulated-PDF fixture (dcmjs-dimse regression class) | test/issues/issue111-roundtrip-integrity.test.js | green |
 | [437](https://github.com/dcmjs-org/dcmjs/issues/437) | When converting Philip MR files to JSON using json generate.js, Invalid tag in sequence error. | closed | reader | dictionary VR 'ox' resolves silently to OW/OB (fold with #368) | test/issues/issue368-xs-ox-vr-resolution.test.js | green |
 | [451](https://github.com/dcmjs-org/dcmjs/issues/451) | DicomMessage._read() Sets Decoder Too Late in Some Cases | open | charset | decoder applies to strings parsed after 00080005 wherever it appears; nested content uses dataset charset (fold #503) | test/issues/issue503-sq-nested-charset.test.js | green |
 | [458](https://github.com/dcmjs-org/dcmjs/issues/458) | Bug : Empty dicom file writen by 0.45 | closed | writer | pixel data never silently lost on write (allowInvalidVRLength path; 0.45 regression class; with #466) | test/issues/issue111-roundtrip-integrity.test.js | green |
 | [466](https://github.com/dcmjs-org/dcmjs/issues/466) | DCMTK Error after passing in DcmJs write | closed | writer | written output re-parses strictly (our own strict re-read as DCMTK proxy; fold with #458) | test/issues/issue111-roundtrip-integrity.test.js | green |
-| [477](https://github.com/dcmjs-org/dcmjs/issues/477) | AsyncDicomReader().readFile() creates wrongly nested pixel data element | open | stream | AsyncDicomReader.readFile: pixel data element not wrongly nested (+ docs setData mismatch) | test/issues/issue477-async-reader.test.js | gap |
+| [477](https://github.com/dcmjs-org/dcmjs/issues/477) | AsyncDicomReader().readFile() creates wrongly nested pixel data element | open | stream | AsyncDicomReader.readFile: pixel data element not wrongly nested (+ docs setData mismatch) | test/issues/issue477-async-reader.test.js | green |
 | [478](https://github.com/dcmjs-org/dcmjs/issues/478) | AsyncDicomReader().read({ untilTag: TAG, includeUntilTag: false }) is broken | open | stream | AsyncDicomReader.read({untilTag, includeUntilTag:false}) honors the flag without crash | test/issues/issue477-async-reader.test.js | green |
-| [479](https://github.com/dcmjs-org/dcmjs/issues/479) | Handling raw values with AsyncDicomReader | open | stream | AsyncDicomReader preserves rawValue like DicomMessage._readTag | test/issues/issue477-async-reader.test.js | gap |
+| [479](https://github.com/dcmjs-org/dcmjs/issues/479) | Handling raw values with AsyncDicomReader | open | stream | AsyncDicomReader preserves rawValue like DicomMessage._readTag | test/issues/issue477-async-reader.test.js | green |
 | [487](https://github.com/dcmjs-org/dcmjs/issues/487) | `CodeString.writeBytes()` throws on valid multivalued CS tag when individual value exceeds maxLength of 16 | open | values | multivalued/private CS: per-component >16 chars has an escape hatch (lenient read; write option), not hard throw | test/issues/issue487-cs-multivalue-length.test.js | green |
-| [503](https://github.com/dcmjs-org/dcmjs/issues/503) | Sequence-nested string content decoded with Latin-1 instead of SpecificCharacterSet (UTF-8 mojibake) | open | charset | SQ-nested strings decode with dataset SpecificCharacterSet, not hard-coded latin1 (eager + stream paths) | test/issues/issue503-sq-nested-charset.test.js | gap |
-| [505](https://github.com/dcmjs-org/dcmjs/issues/505) | unit2CodingValue has no entry for "cm" — centimetre measurements become [arb'U]{cm} | open | sr-utilities | unit2CodingValue('cm') maps to UCUM cm, not [arb'U]{cm} (pure function; cheap despite SR area) | test/issues/issue505-unit2codingvalue.test.js | gap |
+| [503](https://github.com/dcmjs-org/dcmjs/issues/503) | Sequence-nested string content decoded with Latin-1 instead of SpecificCharacterSet (UTF-8 mojibake) | open | charset | SQ-nested strings decode with dataset SpecificCharacterSet, not hard-coded latin1 (eager + stream paths) | test/issues/issue503-sq-nested-charset.test.js | green |
+| [505](https://github.com/dcmjs-org/dcmjs/issues/505) | unit2CodingValue has no entry for "cm" — centimetre measurements become [arb'U]{cm} | open | sr-utilities | unit2CodingValue('cm') maps to UCUM cm, not [arb'U]{cm} (pure function; cheap despite SR area) | test/issues/issue505-unit2codingvalue.test.js | green |
 
-### B — needs fixture (8)
+### B — needs fixture (7)
 
 | # | Title | State | Area | Disposition | Test | Status |
 |---|---|---|---|---|---|---|
 | [78](https://github.com/dcmjs-org/dcmjs/issues/78) | Some RLE encoded segmentations cannot be read with readFile | open | reader | some RLE-encoded SEGs unreadable (fixture: dcmjs-org/data or vetted attachment) | test/issues/issue78-unobtainable-fixtures.test.js | blocked |
 | [86](https://github.com/dcmjs-org/dcmjs/issues/86) | readFile failing on (some?) images with palette color LUTs | open | reader | readFile on palette-color-LUT images (OHIF #1350 file) | test/issues/issue78-unobtainable-fixtures.test.js | blocked |
-| [284](https://github.com/dcmjs-org/dcmjs/issues/284) | [Question] Dataset in different language  | closed | charset | Korean (ISO 2022 IR 149) decode — dclunie charset corpus | test/issues/issue454-iso2022-charsets.test.js | gap |
+| [284](https://github.com/dcmjs-org/dcmjs/issues/284) | [Question] Dataset in different language  | closed | charset | Korean (ISO 2022 IR 149) decode — dclunie charset corpus | test/issues/issue454-iso2022-charsets.test.js | green |
 | [347](https://github.com/dcmjs-org/dcmjs/issues/347) | The saved image file is inconsistent with the source file. | closed | writer | positioning lines (overlay in pixel high bits?) lost after read->save (fixture link likely dead; note only) | test/issues/issue78-unobtainable-fixtures.test.js | blocked |
-| [363](https://github.com/dcmjs-org/dcmjs/issues/363) | Invalid tag in sequence : Unable to parse MR Dicom file in dcmjs. Cornerstone able to parse and works fine | open | reader | MR file with 'invalid tag in sequence' unreadable (ZIP attached upstream — vetted-attachment candidate) | test/issues/issue78-unobtainable-fixtures.test.js | blocked |
-| [373](https://github.com/dcmjs-org/dcmjs/issues/373) | Reading dicom file | open | charset | multi-valued SpecificCharacterSet with code extensions ('\\ISO 2022 IR 149') parses (dclunie corpus) | test/issues/issue454-iso2022-charsets.test.js | gap |
-| [454](https://github.com/dcmjs-org/dcmjs/issues/454) | Wrong decoding from ISO 2022 IR 100 to ISO IR 192 (UTF-8)? | open | charset | ISO 2022 IR 100 escape-switching inside SR text decodes without mojibake (dclunie corpus) | test/issues/issue454-iso2022-charsets.test.js | gap |
-| [484](https://github.com/dcmjs-org/dcmjs/issues/484) | Handle SR node encoding without overriding global encoding. | open | charset | SR node-level charset without clobbering global decoder (family #454/#503; dclunie corpus) | test/issues/issue454-iso2022-charsets.test.js | gap |
+| [373](https://github.com/dcmjs-org/dcmjs/issues/373) | Reading dicom file | open | charset | multi-valued SpecificCharacterSet with code extensions ('\\ISO 2022 IR 149') parses (dclunie corpus) | test/issues/issue454-iso2022-charsets.test.js | green |
+| [454](https://github.com/dcmjs-org/dcmjs/issues/454) | Wrong decoding from ISO 2022 IR 100 to ISO IR 192 (UTF-8)? | open | charset | ISO 2022 IR 100 escape-switching inside SR text decodes without mojibake (dclunie corpus) | test/issues/issue454-iso2022-charsets.test.js | green |
+| [484](https://github.com/dcmjs-org/dcmjs/issues/484) | Handle SR node encoding without overriding global encoding. | open | charset | SR node-level charset without clobbering global decoder (family #454/#503; dclunie corpus) | test/issues/issue454-iso2022-charsets.test.js | green |
 
 ### C — contract assertion (16)
 
@@ -183,12 +208,12 @@ _(generated — do not edit by hand)_
 | [172](https://github.com/dcmjs-org/dcmjs/issues/172) | Expose the `cleanTags` function from anonymizer | closed | anonymizer | cleanTags + getTagsNameToEmpty exported and functional (assert public surface) | test/issues/issue345-anonymizer-names.test.js | green |
 | [218](https://github.com/dcmjs-org/dcmjs/issues/218) | naturalizeDataset make sequences of length 1 into an object, which makes it hard to write generic code - replaced with #219 | closed | naturalizer | single-item SQ naturalization contract (array-with-proxy; PerFrameFunctionalGroupsSequence[0] works) | test/issues/issue218-single-item-sq.test.js | green |
 | [273](https://github.com/dcmjs-org/dcmjs/issues/273) | Inconsistent data from SR generate report and naturalizing the dataset | closed | naturalizer | proxy single-item array consistency between naturalize and SR generate (fold with #218) | test/issues/issue218-single-item-sq.test.js | green |
-| [311](https://github.com/dcmjs-org/dcmjs/issues/311) | Trouble doing basic loading | closed | reader | Node Buffer (pooled view) passed to readFile: works or corrective error — the .buffer footgun (with #370) | test/issues/issue311-node-buffer-footgun.test.js | gap |
+| [311](https://github.com/dcmjs-org/dcmjs/issues/311) | Trouble doing basic loading | closed | reader | Node Buffer (pooled view) passed to readFile: works or corrective error — the .buffer footgun (with #370) | test/issues/issue311-node-buffer-footgun.test.js | green |
 | [381](https://github.com/dcmjs-org/dcmjs/issues/381) | PN tags interpretation as union between object and string breaks DIMSE functionality | closed | naturalizer | PN union contract: naturalized PN object + toString/DIMSE-compatible access (with #413) | test/issues/issue231-pn-accessors.test.js | green |
-| [398](https://github.com/dcmjs-org/dcmjs/issues/398) | Loss of precision when serializing Decimal String (DS) and Integer String (IS)  | closed | values | DS/IS precision: rawValue retention preserves 1.0000/+1.234/large-int on round trip (cite or extend precision tests) | test/issues/issue398-ds-is-precision.test.js | gap |
+| [398](https://github.com/dcmjs-org/dcmjs/issues/398) | Loss of precision when serializing Decimal String (DS) and Integer String (IS)  | closed | values | DS/IS precision: rawValue retention preserves 1.0000/+1.234/large-int on round trip (cite or extend precision tests) | test/issues/issue398-ds-is-precision.test.js | green |
 | [404](https://github.com/dcmjs-org/dcmjs/issues/404) | Can it optionally apply formatting? | open | values | DICOM JSON model output is schema-clean: no _rawValue keys leak into DicomWebJsonWriter output | test/issues/issue404-json-model-purity.test.js | green |
 | [413](https://github.com/dcmjs-org/dcmjs/issues/413) | Garbled character of transformed DCM file | closed | naturalizer | PN [{Alphabetic}] shape writes back to valid PN bytes (fold with #381) | test/issues/issue231-pn-accessors.test.js | green |
-| [457](https://github.com/dcmjs-org/dcmjs/issues/457) | VRInstances missing OL, OV, SV, and UV value representation (VR) types | open | values | UV VRinstance real (video arc); OL/OV/SV fall back to UN safely with single warning — assert both halves | test/issues/issue457-vr-instances.test.js | gap |
+| [457](https://github.com/dcmjs-org/dcmjs/issues/457) | VRInstances missing OL, OV, SV, and UV value representation (VR) types | open | values | UV VRinstance real (video arc); OL/OV/SV fall back to UN safely with single warning — assert both halves | test/issues/issue457-vr-instances.test.js | green |
 
 ### already covered by the existing suite (11)
 

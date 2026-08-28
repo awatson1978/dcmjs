@@ -17,11 +17,11 @@
  *   must apply to every string parsed after that element regardless of
  *   where the string sits (top level or nested in SQ item substreams).
  *
- * Findings pinned here: the eager path (DicomMessage.readFile) decodes
- * top-level strings correctly but leaves SQ-nested strings on the default
- * latin1 decoder (KNOWN GAP). Both event-stream paths (fromPart10 and
- * fromPart10Stream) thread the dataset decoder into sequence items
- * correctly — the eager/stream divergence is itself part of the gap.
+ * Findings pinned here: all three read paths (eager DicomMessage.readFile,
+ * fromPart10, fromPart10Stream) thread the dataset decoder into sequence
+ * items. The eager path historically left SQ-nested strings on the default
+ * latin1 decoder; fixed in this arc by propagating the active decoder into
+ * the sequence-item substreams built by stream.more().
  */
 
 import dcmjs from "../../src/index.js";
@@ -75,14 +75,10 @@ describe("issue #503 — SQ-nested strings must use the dataset charset", () => 
         expect(String(dataset.PatientName)).toBe(TOP_PN);
     });
 
-    // KNOWN GAP: observed SQ-nested LO/ST/PN decoded as latin1 mojibake
-    // ("cafÃ© Â©"-style: "cafÃ© Â°", "MÃ¼ller^JÃ¶rg") because
-    // SequenceValue.readBytes parses items via stream.more(), which
-    // constructs a fresh ReadBufferStream with DEFAULT_LATIN1_DECODER and
-    // never propagates the parent stream's setDecoder() state; expected the
-    // same correctly decoded UTF-8 strings as the identical top-level
-    // elements ("café °", "Müller^Jörg").
-    it.skip("KNOWN GAP #503: eager readFile decodes SQ-nested strings with latin1 instead of SpecificCharacterSet", () => {
+    // Fixed in this arc: BufferStream.more() now propagates the parent
+    // stream's active decoder into the sequence-item substream, so
+    // SQ-nested strings decode with the dataset's SpecificCharacterSet.
+    it("#503: eager readFile decodes SQ-nested strings with the dataset SpecificCharacterSet", () => {
         const dicomDict = DicomMessage.readFile(buildUtf8SqPart10());
         const dataset = DicomMetaDictionary.naturalizeDataset(dicomDict.dict);
         const item = dataset.ProcedureCodeSequence[0];
@@ -138,7 +134,7 @@ describe("issue #451 — decoder applies to everything parsed after (0008,0005)"
         expect(eager.StudyDescription).toBe(TOP_LO);
         expect(streamed.StudyDescription).toBe(TOP_LO);
         expect(String(eager.PatientName)).toBe(String(streamed.PatientName));
-        // The SQ-nested divergence between the two paths is pinned by the
-        // KNOWN GAP #503 skip above.
+        // SQ-nested strings now agree across paths too — see the #503
+        // tests above.
     });
 });

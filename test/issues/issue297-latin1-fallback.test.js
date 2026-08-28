@@ -61,14 +61,11 @@ afterEach(() => {
 });
 
 describe("issue #297 — TextDecoder without latin1 support (mobile runtimes)", () => {
-    // KNOWN GAP: observed `RangeError: The "latin1" encoding is not
-    // supported` thrown while requiring the library itself —
-    // BufferStream.js constructs the shared DEFAULT_LATIN1_DECODER at
-    // module load (`new TextDecoder("latin1")`), so on a latin1-less
-    // runtime dcmjs fails at import time and readFile is never reachable;
-    // expected the library to load and parse a plain-ASCII Part 10 file
-    // via a graceful fallback decoder.
-    it.skip("KNOWN GAP #297: library cannot even load (module-level latin1 TextDecoder), so ASCII files are unreadable", () => {
+    // Fixed in this arc: BufferStream builds its default decoder via the
+    // guarded src/charset/latin1.js createLatin1Decoder(), which falls back
+    // to a pure-JS byte→code-point decoder when the runtime's TextDecoder
+    // rejects "latin1" — the library loads and plain files parse.
+    it("#297: library loads and parses ASCII files without a latin1 TextDecoder (pure-JS fallback)", () => {
         // Build the file with the healthy, already-loaded module graph.
         const buffer = createSampleDicom(); // plain ASCII / latin1 content
         try {
@@ -76,7 +73,6 @@ describe("issue #297 — TextDecoder without latin1 support (mobile runtimes)", 
             jest.resetModules();
             // Fresh module graph under the crippled runtime — this is
             // where the RangeError is currently thrown.
-            /* eslint-disable-next-line @typescript-eslint/no-var-requires */
             const fresh = require("../../src/index.js");
             const freshDcmjs = fresh.default ?? fresh;
             const dicomDict = freshDcmjs.data.DicomMessage.readFile(buffer);
@@ -92,7 +88,6 @@ describe("issue #297 — TextDecoder without latin1 support (mobile runtimes)", 
 
     it("control: the same file parses under the real TextDecoder", () => {
         const buffer = createSampleDicom();
-        /* eslint-disable-next-line @typescript-eslint/no-var-requires */
         const fresh = require("../../src/index.js");
         const freshDcmjs = fresh.default ?? fresh;
         const dicomDict = freshDcmjs.data.DicomMessage.readFile(buffer);

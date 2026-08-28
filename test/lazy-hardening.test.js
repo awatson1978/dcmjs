@@ -348,22 +348,22 @@ describe("M3: untilTag parity", () => {
         compareSection(eager.dict, lazy.dict, "dict");
     });
 
-    test("untilTag 00020010 with includeUntilTagValue:false replicates eager (stub entry, body read as explicit little endian)", () => {
+    test("untilTag 00020010 with includeUntilTagValue:false: both cores refuse with a corrective error (parity kept through the #338 meta validation)", () => {
+        // Updated in the issue-gap-fix arc: readFile's meta validation
+        // (#338 family) now refuses to guess a transfer syntax when the
+        // untilTag options exclude the (0002,0010) value — previously it
+        // stored a stub { vr: undefined, Value: 0 } and silently
+        // normalized to explicit little endian. The check sits above the
+        // core dispatch, so eager and lazy converge on the same refusal.
         const buffer = readFixture(ELE_FIXTURE);
         const options = { untilTag: "00020010", includeUntilTagValue: false };
 
-        const eager = readEager(buffer, options);
-        const lazy = readLazy(buffer, options); // must not throw
-
-        // eager stores the stub { vr: undefined, Value: 0 } for the
-        // transfer syntax, derives mainSyntax undefined -> normalized to
-        // explicit little endian, and parses the whole body
-        expect(lazy.meta["00020010"].Value).toBe(0);
-        expect(lazy.meta["00020010"].vr).toBeUndefined();
-        expect(lazy.meta["00020012"]).toBeUndefined(); // meta truncated
-        expect(lazy.dict["7FE00010"]).toBeDefined(); // body fully parsed
-        compareSection(eager.meta, lazy.meta, "meta");
-        compareSection(eager.dict, lazy.dict, "dict");
+        expect(() => readEager(buffer, options)).toThrow(
+            /meta header is missing TransferSyntaxUID/
+        );
+        expect(() => readLazy(buffer, options)).toThrow(
+            /meta header is missing TransferSyntaxUID/
+        );
     });
 
     test("untilTag 00020000 is ignored, exactly like eager (the group length element is consumed before the windowed meta read)", () => {
@@ -379,11 +379,13 @@ describe("M3: untilTag parity", () => {
         compareSection(eager.dict, lazy.dict, "dict");
     });
 
-    test("untilTag strictly inside (00020000, 00020010) keeps the refusal (eager genuinely TypeErrors)", () => {
+    test("untilTag strictly inside (00020000, 00020010) keeps the refusal (eager: corrective error since the #338 fix; formerly a bare TypeError)", () => {
         const buffer = readFixture(ELE_FIXTURE);
         const options = { untilTag: "00020001", includeUntilTagValue: true };
 
-        expect(() => readEager(buffer, options)).toThrow(TypeError);
+        expect(() => readEager(buffer, options)).toThrow(
+            /meta header is missing TransferSyntaxUID/
+        );
         expect(() => readLazy(buffer, options)).toThrow(
             /not supported by the lazy core/
         );

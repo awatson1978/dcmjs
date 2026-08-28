@@ -40,8 +40,36 @@ export class DicomWebJsonWriter extends EventStreamListener {
         this._pending = { tag, attr: { vr: info.vr }, values: [] };
     }
 
-    _baseValue(v) {
-        this._pending.values.push(v);
+    _baseValue(v, info) {
+        this._pending.values.push(this._jsonModelValue(v, info));
+    }
+
+    /**
+     * PS3.18 F.2.3.1: DS/IS may be encoded as JSON numbers OR strings.
+     * Emit a number when the conversion is lossless (dcm4chee parity, #53);
+     * fall back to the raw source string when Number() would silently lose
+     * integer precision — e.g. DS/IS integers beyond 2^53 (#398). The raw
+     * string is the standard's escape hatch; `_rawValue` itself never
+     * appears in the JSON model (#404).
+     */
+    _jsonModelValue(v, info) {
+        const vr = this._pending.attr.vr;
+        if (
+            (vr === "DS" || vr === "IS") &&
+            info &&
+            typeof info.rawValue === "string"
+        ) {
+            const raw = info.rawValue.trim();
+            const parsed = Number(raw);
+            if (
+                /^[+-]?\d+$/.test(raw) &&
+                !Number.isSafeInteger(parsed) &&
+                String(parsed) !== raw
+            ) {
+                return raw;
+            }
+        }
+        return v;
     }
 
     _baseBulkDataReference(ref = {}) {

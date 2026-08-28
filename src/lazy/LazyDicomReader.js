@@ -380,7 +380,8 @@ function materializeElement(ctx, el, vrInstance, isMeta, entry) {
               syntax: ctx.syntax,
               littleEndian: ctx.littleEndian,
               implicit: ctx.implicit,
-              decoder: ctx.decoder
+              decoder: ctx.decoder,
+              pixelRepresentation: ctx.pixelRepresentation
           };
     const policy = {
         forceStoreRaw: ctx.forceStoreRaw,
@@ -420,9 +421,10 @@ function materializeElement(ctx, el, vrInstance, isMeta, entry) {
  * the nested DicomMessage._read it performs per item:
  *  - empty items (defined length 0, or undefined length with an immediate
  *    item delimiter) are skipped, like eager's `if (toRead)` guard;
- *  - each item is read as its own dataset with a fresh default decoder
- *    (eager's stream.more() creates a new latin1 stream) and without
- *    forceStoreRaw (eager's nested _read drops the read options);
+ *  - each item is read as its own dataset inheriting the enclosing
+ *    dataset's decoder (issue #503: eager's stream.more() propagates the
+ *    active decoder into item substreams) and without forceStoreRaw
+ *    (eager's nested _read drops the read options);
  *  - a per-item SpecificCharacterSet (0008,0005) resolves a per-item
  *    decoder, replicating the nested _read's charset handling. Eager only
  *    applies it to elements after 0008,0005 in stream order; the lazy core
@@ -460,7 +462,8 @@ function materializeSequence(ctx, el, vrInstance, isMeta, entry) {
                   syntax: ctx.syntax,
                   littleEndian: ctx.littleEndian,
                   implicit: ctx.implicit,
-                  decoder: ctx.decoder
+                  decoder: ctx.decoder,
+                  pixelRepresentation: ctx.pixelRepresentation
               };
         const p = {
             forceStoreRaw: ctx.forceStoreRaw,
@@ -497,12 +500,14 @@ function wrapSequenceItem(ctx, item, parentEntry) {
         return null;
     }
 
-    // Fresh decoder + dropped forceStoreRaw: see materializeSequence doc.
+    // Inherited decoder (issue #503 parity: eager's stream.more() now
+    // propagates the dataset decoder into item substreams, so the lazy core
+    // inherits it too); forceStoreRaw dropped: see materializeSequence doc.
     // noCopy is dropped too: eager reads items from stream.more(), which
     // creates the item stream without the noCopy flag.
     const childCtx = {
         ...ctx,
-        decoder: null,
+        decoder: ctx.decoder ?? null,
         forceStoreRaw: false,
         noCopy: false,
         parentEntry: parentEntry || null
@@ -1148,6 +1153,35 @@ export function readFileLazy(buffer, options = {}) {
             ? null
             : elements.x00080005;
     const cs = resolveCharacterSet(ctx, csElement, ignoreErrors);
+
+    // PixelRepresentation resolved once per dataset for "xs" US-vs-SS VR
+    // resolution (issue #368 parity: the eager reader threads the parsed
+    // (0028,0103) value through its read options; the lazy core decodes it
+    // up front — it is a 2-byte US, so the cost is negligible).
+    const prElement = elements.x00280103;
+    if (prElement) {
+        try {
+            const prState = decodeElementValues(
+                {
+                    arrayBuffer: ctx.arrayBuffer,
+                    baseOffset: ctx.baseOffset,
+                    syntax: ctx.syntax,
+                    littleEndian: ctx.littleEndian,
+                    implicit: ctx.implicit,
+                    decoder: null
+                },
+                prElement,
+                ValueRepresentation.createByTypeString("US"),
+                { forceStoreRaw: false, noCopy: false, ignoreErrors: true }
+            );
+            ctx.pixelRepresentation = prState.values && prState.values[0];
+            // top-level VR resolution reads the flag off bodyWindow;
+            // item-level reads it off childCtx (spread from ctx).
+            bodyWindow.pixelRepresentation = ctx.pixelRepresentation;
+        } catch {
+            // Unreadable (0028,0103): xs resolves to US, like eager.
+        }
+    }
 
     const meta = {};
     const dict = {};

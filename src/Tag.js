@@ -150,9 +150,12 @@ class Tag {
     }
 
     isPrivateCreator() {
+        // PS3.5 7.8.1: private creator data elements occupy (gggg,0010-00FF)
+        // in odd groups; elements (gggg,0001-000F) are reserved and "shall
+        // not be used", so they are not creators.
         const group = this.group();
         const element = this.element();
-        return group % 2 === 1 && element < 0x100 && element > 0x00;
+        return group % 2 === 1 && element >= 0x10 && element <= 0xff;
     }
 
     isMetaInformation() {
@@ -290,10 +293,15 @@ class Tag {
         const valueStart = stream.offset;
         let valueLength;
         if (vrType == "OW" || vrType == "OB" || vrType == "UN") {
+            // The RAW (un-normalized) syntax is passed here: normalizeSyntax
+            // collapses every encapsulated syntax to explicit little endian,
+            // but BinaryRepresentation.writeBytes must see the real transfer
+            // syntax to enforce one-fragment-per-frame for RLE Lossless
+            // (issue #340). Binary VRs use the syntax for nothing else.
             valueLength = vr.writeBytes(
                 stream,
                 values,
-                useSyntax,
+                syntax,
                 isEncapsulated,
                 writeOptions
             );

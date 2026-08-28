@@ -87,6 +87,26 @@ describe("issue #93 — preamble/DICM missing", () => {
             ).toThrow(/expected header|DICM/i);
         });
 
+        it("readFile({ allowMissingHeader: true }) parses preamble-less FMI and full Part 10", () => {
+            // Fixed in this arc: the eager opt-in accepts both shapes.
+            const noPreamble = DicomMessage.readFile(buffer.slice(0), {
+                allowMissingHeader: true
+            });
+            expect(noPreamble.meta[TagHex.TransferSyntaxUID].Value).toEqual([
+                EXPLICIT_LITTLE_ENDIAN
+            ]);
+            expect(noPreamble.dict[TagHex.Rows].Value).toEqual([
+                defaultImage.rows
+            ]);
+
+            const fullPart10 = DicomMessage.readFile(createSampleDicom(), {
+                allowMissingHeader: true
+            });
+            expect(fullPart10.dict[TagHex.Rows].Value).toEqual([
+                defaultImage.rows
+            ]);
+        });
+
         it("streaming path force-reads it: PART10_NO_PREAMBLE is supported", async () => {
             const result = await streamParse(buffer);
             expect(result.meta[TagHex.TransferSyntaxUID].Value).toEqual([
@@ -105,22 +125,20 @@ describe("issue #93 — preamble/DICM missing", () => {
     describe("bare dataset — no meta group at all (DIMSE-style)", () => {
         const buffer = stripUntilDataset(createSampleDicom());
 
-        it("eager readFile throws its header error (no force-read option)", () => {
+        it("eager readFile throws its header error by default (force-read is opt-in)", () => {
             expect(() => DicomMessage.readFile(buffer.slice(0))).toThrow(
                 /expected header|DICM/i
             );
         });
 
-        // KNOWN GAP: observed — eager readFile throws "Invalid DICOM file,
-        // expected header is missing" and fromPart10Stream rejects with an
-        // error whose message is undefined (raw-dataset fallback, K2
-        // delegation); no exported high-level API accepts a bare dataset
-        // plus a caller-supplied transfer syntax. Expected — some public
-        // opt-in (a readFile/fromPart10Stream option or a documented raw
-        // dataset entry point) that force-reads meta-less datasets, which
-        // is exactly what issue #93 asked for.
-        it.skip("KNOWN GAP #93: no public API force-reads a meta-less dataset", async () => {
-            // The desirable contract: an explicit opt-in on the streaming
+        // Fixed in this arc: readFile gained the explicit opt-in
+        // `allowMissingHeader: true` (accepts full Part 10, preamble-less
+        // with FMI, and bare datasets — Explicit LE assumed unless implicit
+        // VR is detected), and the streaming raw-dataset fallback
+        // force-reads a meta-less dataset under allowMissingHeader or
+        // ignoreErrors by replaying the eager parse through fromDataSet.
+        it("#93: a public API force-reads a meta-less dataset", async () => {
+            // The contract: an explicit opt-in on the streaming
             // path (the go-forward surface) accepts a raw dataset.
             const result = await streamParse(buffer, {
                 ignoreErrors: true
@@ -128,6 +146,19 @@ describe("issue #93 — preamble/DICM missing", () => {
             for (const tag of BODY_TAGS) {
                 expect(result.dict[tag]).toBeDefined();
             }
+        });
+
+        it("readFile({ allowMissingHeader: true }) parses the bare dataset", () => {
+            const { dict } = DicomMessage.readFile(buffer.slice(0), {
+                allowMissingHeader: true
+            });
+            for (const tag of BODY_TAGS) {
+                expect(dict[tag]).toBeDefined();
+            }
+            expect(dict[TagHex.Rows].Value).toEqual([defaultImage.rows]);
+            expect(dict[TagHex.PixelData].Value[0].byteLength).toBe(
+                defaultImage.totalPixelBytes
+            );
         });
 
         it("workaround pinned: DicomMessage._read with an explicit syntax parses it", () => {

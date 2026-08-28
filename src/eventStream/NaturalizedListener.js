@@ -1,4 +1,7 @@
-import { EventStreamListener } from "./EventStreamListener.js";
+import {
+    EventStreamListener,
+    mergeFragmentsPerBotWindow
+} from "./EventStreamListener.js";
 import { lookupTagHex } from "../dicom.lookup.js";
 import { lookupPrivateTag } from "../dictionary.private.data.js";
 import addAccessors from "../utilities/addAccessors.js";
@@ -93,8 +96,13 @@ export class NaturalizedListener extends EventStreamListener {
         this._stack[this._stack.length - 1].binary = { BulkDataURI: ref.uri };
     }
 
-    _baseStartBinary() {
-        this._stack[this._stack.length - 1]._fragments = [];
+    _baseStartBinary(info = {}) {
+        const frame = this._stack[this._stack.length - 1];
+        frame._fragments = [];
+        // A non-empty basicOffsetTable is kept so endBinary can merge the
+        // raw fragments per BOT window (eager-reader frame shape parity,
+        // issue #204).
+        frame._binaryInfo = info;
     }
 
     _baseBinaryFragment(chunk) {
@@ -103,11 +111,16 @@ export class NaturalizedListener extends EventStreamListener {
 
     _baseEndBinary() {
         const frame = this._stack[this._stack.length - 1];
-        const fragments = frame._fragments || [];
+        let fragments = frame._fragments || [];
+        const bot = frame._binaryInfo && frame._binaryInfo.basicOffsetTable;
+        if (bot && bot.length) {
+            fragments = mergeFragmentsPerBotWindow(fragments, bot);
+        }
         frame.binary = {
             InlineBinary: fragments.length === 1 ? fragments[0] : fragments
         };
         frame._fragments = undefined;
+        frame._binaryInfo = undefined;
     }
 
     _baseEndElement() {

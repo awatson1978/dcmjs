@@ -121,6 +121,117 @@ Still blocked (not gaps — no failing behavior reproduced): #78 (RLE SEG)
 and #86 (palette LUT) await obtainable fixtures; their placeholder skips
 document the planned assertions.
 
+## Addressed upstream issues (82 of 172)
+
+Three kinds of "addressed", every one backed by a test:
+
+**Fixed in this fork** (28 — the behavior was wrong here too and is
+now corrected; still open upstream: 19):
+
+- [#61](https://github.com/dcmjs-org/dcmjs/issues/61) UIDs with root 2.25 should be derived from UUID
+- [#93](https://github.com/dcmjs-org/dcmjs/issues/93) Is there a way to force-read a file if the DICM Tag in the header is missing?
+- [#130](https://github.com/dcmjs-org/dcmjs/issues/130) Null terminated strings are not read correctly
+- [#297](https://github.com/dcmjs-org/dcmjs/issues/297) ReadBufferStream not support latine 1 on Mobile
+- [#340](https://github.com/dcmjs-org/dcmjs/issues/340) US cine loops with Transfer Syntax RLE Lossless are corrupted after DicomMessage.write when fragmentMultiframe option is enabled
+- [#345](https://github.com/dcmjs-org/dcmjs/issues/345) anonymizer uses incorrect tag names
+- [#356](https://github.com/dcmjs-org/dcmjs/issues/356) private Tags take element wrong into account
+- [#363](https://github.com/dcmjs-org/dcmjs/issues/363) Invalid tag in sequence : Unable to parse MR Dicom file in dcmjs. Cornerstone able to parse and works fine
+- [#368](https://github.com/dcmjs-org/dcmjs/issues/368) Lots of 'Invalid vr type... ' log messages in dcmjs release 0.29.11
+- [#373](https://github.com/dcmjs-org/dcmjs/issues/373) Reading dicom file
+- [#388](https://github.com/dcmjs-org/dcmjs/issues/388) Fail to denaturalize a sequence having private tags.
+- [#451](https://github.com/dcmjs-org/dcmjs/issues/451) DicomMessage._read() Sets Decoder Too Late in Some Cases
+- [#454](https://github.com/dcmjs-org/dcmjs/issues/454) Wrong decoding from ISO 2022 IR 100 to ISO IR 192 (UTF-8)?
+- [#457](https://github.com/dcmjs-org/dcmjs/issues/457) VRInstances missing OL, OV, SV, and UV value representation (VR) types
+- [#477](https://github.com/dcmjs-org/dcmjs/issues/477) AsyncDicomReader().readFile() creates wrongly nested pixel data element
+- [#479](https://github.com/dcmjs-org/dcmjs/issues/479) Handling raw values with AsyncDicomReader
+- [#484](https://github.com/dcmjs-org/dcmjs/issues/484) Handle SR node encoding without overriding global encoding.
+- [#503](https://github.com/dcmjs-org/dcmjs/issues/503) Sequence-nested string content decoded with Latin-1 instead of SpecificCharacterSet (UTF-8 mojibake)
+- [#505](https://github.com/dcmjs-org/dcmjs/issues/505) unit2CodingValue has no entry for "cm" — centimetre measurements become [arb'U]{cm}
+
+_…and fixed although already closed upstream (the old fix regressed or was partial):_
+
+- [#42](https://github.com/dcmjs-org/dcmjs/issues/42) Ungraceful errors when undefined values comes to DicomMetaDictionary.denaturalizeValue
+- [#204](https://github.com/dcmjs-org/dcmjs/issues/204) can't read an encapsulated frame whose size is greater than fragment size
+- [#215](https://github.com/dcmjs-org/dcmjs/issues/215) Support using custom dictionary in DicomMetaDictionary
+- [#284](https://github.com/dcmjs-org/dcmjs/issues/284) [Question] Dataset in different language
+- [#287](https://github.com/dcmjs-org/dcmjs/issues/287) Pixel Spacing parsing with comma as decimal separator is returning incorrect value
+- [#311](https://github.com/dcmjs-org/dcmjs/issues/311) Trouble doing basic loading
+- [#338](https://github.com/dcmjs-org/dcmjs/issues/338) DicomMessage.readFile failes if GroupLength parameter is wrong calculated
+- [#398](https://github.com/dcmjs-org/dcmjs/issues/398) Loss of precision when serializing Decimal String (DS) and Integer String (IS)
+- [#417](https://github.com/dcmjs-org/dcmjs/issues/417) Tag value [undefined] causing unable to write a dicomDict
+
+**Verified correct in 1.0** (43 — the rewrite already behaves right;
+the report is now pinned by a regression test; still open upstream: 15):
+
+- [#90](https://github.com/dcmjs-org/dcmjs/issues/90) DICOM Tag Length are Modified using dcmjs
+- [#91](https://github.com/dcmjs-org/dcmjs/issues/91) Text encoding, how to do it?
+- [#95](https://github.com/dcmjs-org/dcmjs/issues/95) writing dicom to file results in corrupted pixel data
+- [#111](https://github.com/dcmjs-org/dcmjs/issues/111) Naturalize and DenaturalizeDataset failed image result
+- [#114](https://github.com/dcmjs-org/dcmjs/issues/114) Should natruralizing datasets unpack Overlay data/ RedPaletteColorLookupTableData, etc.
+- [#145](https://github.com/dcmjs-org/dcmjs/issues/145) Reading encapsulated pixel data?
+- [#162](https://github.com/dcmjs-org/dcmjs/issues/162) Enable a force write option for files with abnormal VRs
+- [#231](https://github.com/dcmjs-org/dcmjs/issues/231) TypeError: Cannot redefine property: Alphabetic
+- [#242](https://github.com/dcmjs-org/dcmjs/issues/242) Invalid VR of the private creator tag of the "Implicit VR Endian" typed DICOM file
+- [#315](https://github.com/dcmjs-org/dcmjs/issues/315) Changing instance UID corrupts file, Invalid DICOM file, expected header is missing
+- [#365](https://github.com/dcmjs-org/dcmjs/issues/365) Order of tags gets messed up when edition DICOM SEG
+- [#366](https://github.com/dcmjs-org/dcmjs/issues/366) Length of Decimal String larger than 16 characters
+- [#404](https://github.com/dcmjs-org/dcmjs/issues/404) Can it optionally apply formatting?
+- [#478](https://github.com/dcmjs-org/dcmjs/issues/478) AsyncDicomReader().read({ untilTag: TAG, includeUntilTag: false }) is broken
+- [#487](https://github.com/dcmjs-org/dcmjs/issues/487) `CodeString.writeBytes()` throws on valid multivalued CS tag when individual value exceeds maxLength of 16
+
+_…and pinned although closed upstream:_
+
+- [#3](https://github.com/dcmjs-org/dcmjs/issues/3) Handle MappingResource and MappingResourceUID
+- [#6](https://github.com/dcmjs-org/dcmjs/issues/6) create NDD compatible JSON objects
+- [#10](https://github.com/dcmjs-org/dcmjs/issues/10) iterate through dataset with forEach instead of for...in
+- [#46](https://github.com/dcmjs-org/dcmjs/issues/46) LT does not allow multiple
+- [#52](https://github.com/dcmjs-org/dcmjs/issues/52) UN odd to even padding
+- [#53](https://github.com/dcmjs-org/dcmjs/issues/53) IntegerString (IS) and maybe other VRs should be Number not String
+- [#84](https://github.com/dcmjs-org/dcmjs/issues/84) toUTF8Array will convert ° into Â°
+- [#96](https://github.com/dcmjs-org/dcmjs/issues/96) DecimalString are not correctly written to buffer
+- [#115](https://github.com/dcmjs-org/dcmjs/issues/115) PixelRepresentation tag lost when saving an image
+- [#159](https://github.com/dcmjs-org/dcmjs/issues/159) writeBytes is crashing the browser when using encapsulated files with lots of frames
+- [#161](https://github.com/dcmjs-org/dcmjs/issues/161) DicomDict.write fails when a Sequence tag a OW type.
+- [#167](https://github.com/dcmjs-org/dcmjs/issues/167) File size keep increasing
+- [#172](https://github.com/dcmjs-org/dcmjs/issues/172) Expose the `cleanTags` function from anonymizer
+- [#175](https://github.com/dcmjs-org/dcmjs/issues/175) DecimalString values that use exponential notation are converted when reading a DICOM
+- [#196](https://github.com/dcmjs-org/dcmjs/issues/196) Error adding dicom headerError: Request more than currently allocated buffer
+- [#218](https://github.com/dcmjs-org/dcmjs/issues/218) naturalizeDataset make sequences of length 1 into an object, which makes it hard to write generic code - replaced with #219
+- [#263](https://github.com/dcmjs-org/dcmjs/issues/263) naturalizeDataset in v0.18.11 creates in memory objects of 300mb+
+- [#273](https://github.com/dcmjs-org/dcmjs/issues/273) Inconsistent data from SR generate report and naturalizing the dataset
+- [#282](https://github.com/dcmjs-org/dcmjs/issues/282) Bug: Fragment merging results in zero value arraybuffer
+- [#293](https://github.com/dcmjs-org/dcmjs/issues/293) Encapsulated pixel data of odd-length writes padding byte in incorrect location
+- [#324](https://github.com/dcmjs-org/dcmjs/issues/324) NaN and Infinity number values cause write to fail
+- [#374](https://github.com/dcmjs-org/dcmjs/issues/374) Getting ERROR: Value exceeds max length for some DICOM tags
+- [#381](https://github.com/dcmjs-org/dcmjs/issues/381) PN tags interpretation as union between object and string breaks DIMSE functionality
+- [#413](https://github.com/dcmjs-org/dcmjs/issues/413) Garbled character of transformed DCM file
+- [#418](https://github.com/dcmjs-org/dcmjs/issues/418) Tag consistency issue during roundtrip file loading/saving/loading
+- [#437](https://github.com/dcmjs-org/dcmjs/issues/437) When converting Philip MR files to JSON using json generate.js, Invalid tag in sequence error.
+- [#458](https://github.com/dcmjs-org/dcmjs/issues/458) Bug : Empty dicom file writen by 0.45
+- [#466](https://github.com/dcmjs-org/dcmjs/issues/466) DCMTK Error after passing in DcmJs write
+
+**Answered by 1.0 features** (11 — the ask IS a shipped capability,
+covered by the existing suite; still open upstream: 5):
+
+- [#300](https://github.com/dcmjs-org/dcmjs/issues/300) Offset is outside the bounds of the DataView
+- [#375](https://github.com/dcmjs-org/dcmjs/issues/375) Write issue for JPEG2000Loseless images
+- [#377](https://github.com/dcmjs-org/dcmjs/issues/377) Change in PixelSequence value
+- [#378](https://github.com/dcmjs-org/dcmjs/issues/378) Support for reading from a readable stream
+- [#500](https://github.com/dcmjs-org/dcmjs/issues/500) Add AsyncDicomWriter to allow writing DICOM files
+
+_…and closed-upstream asks the suite covers:_
+
+- [#65](https://github.com/dcmjs-org/dcmjs/issues/65) Convert JSON TO dicom object
+- [#125](https://github.com/dcmjs-org/dcmjs/issues/125) dcmjs.data.DicomMessage.readFile() fails for certain dicom SR
+- [#222](https://github.com/dcmjs-org/dcmjs/issues/222) pdf2dcm
+- [#290](https://github.com/dcmjs-org/dcmjs/issues/290) Reading a big sized DICOM: RangeError: Offset is outside the bounds of the DataView
+- [#326](https://github.com/dcmjs-org/dcmjs/issues/326) Reading malformed DICOM file causes infinite loop
+- [#434](https://github.com/dcmjs-org/dcmjs/issues/434) TrackingIdentifier constructor calls super(options) and injects raw options into the ContentSequence
+
+The headline for upstream: **39 of the 76 currently-open
+dcmjs-org issues are resolved by this fork**, each with a test that
+proves it.
+
 ## Triage table
 
 _(generated — do not edit by hand)_

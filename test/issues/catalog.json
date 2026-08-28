@@ -504,8 +504,8 @@
       "category": "covered",
       "area": "reader",
       "disposition": "DICOM JSON -> dataset -> Part 10 covered by fromDicomWebJson/denaturalize suites (cite exact tests)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "existing: test/eventStream/fromDicomWebJson.test.js (DICOM JSON \u2192 events \u2192 Part 10)",
+      "status": "covered",
       "notes": ""
     }
   },
@@ -959,8 +959,8 @@
       "category": "covered",
       "area": "reader",
       "disposition": "SR readFile covered by sample-sr round-trip suites (cite; issue file unavailable)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "existing: test/data.test.js:1007 (sample-sr.dcm read + round trip)",
+      "status": "covered",
       "notes": ""
     }
   },
@@ -1547,8 +1547,8 @@
       "category": "covered",
       "area": "writer",
       "disposition": "pdf2dcm exists: encapsulatePdf round-trip suite (cite encapsulatedPdf.test.js)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "existing: test/encapsulatedPdf.test.js + test/eventStream/fhirPdfEventStream.test.js",
+      "status": "covered",
       "notes": ""
     }
   },
@@ -1968,8 +1968,8 @@
       "category": "covered",
       "area": "reader",
       "disposition": "1 GB+ reads: streaming path is the answer; cite fromPart10Stream large-file tests + bounded-memory design",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "existing: test/eventStream/fromPart10Stream.test.js (chunked bounded-memory parse; 21.8 GB verified live in the video arc)",
+      "status": "covered",
       "notes": ""
     }
   },
@@ -2024,8 +2024,8 @@
       "category": "covered",
       "area": "reader",
       "disposition": "Encapsulated PDF ELE read covered by encapsulatedPdf round-trip suite (cite)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "existing: test/encapsulatedPdf.test.js (Encapsulated PDF ELE round trip)",
+      "status": "covered",
       "notes": ""
     }
   },
@@ -2158,8 +2158,8 @@
       "category": "covered",
       "area": "reader",
       "disposition": "missing meta group length: no infinite loop (no-meta-length-test.dcm fixture; cite hardening test)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "existing: test/data.test.js:949,975 (no-meta-length-test.dcm) + fromPart10Stream K2 no-meta-length gate",
+      "status": "covered",
       "notes": ""
     }
   },
@@ -2464,8 +2464,8 @@
       "category": "covered",
       "area": "writer",
       "disposition": "encapsulated (J2K) edit->write covered by lossless read-write suite (cite; else A)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "existing: test/lossless-read-write.test.js (encapsulated edit\u2192write round trips)",
+      "status": "covered",
       "notes": ""
     }
   },
@@ -2500,8 +2500,8 @@
       "category": "covered",
       "area": "writer",
       "disposition": "fragment structure preserved on no-edit rewrite (byte-faithful 1.0 write; cite lossless suite)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "existing: test/lossless-read-write.test.js (fragment-structure-preserving passthrough write)",
+      "status": "covered",
       "notes": ""
     }
   },
@@ -2518,8 +2518,8 @@
       "category": "covered",
       "area": "stream",
       "disposition": "readable-stream reading IS 1.0's fromPart10Stream (cite suite + bounded-memory tests)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "existing: test/eventStream/fromPart10Stream.test.js (ReadableStream/AsyncIterable sources)",
+      "status": "covered",
       "notes": ""
     }
   },
@@ -2808,8 +2808,8 @@
       "category": "covered",
       "area": "sr-seg",
       "disposition": "TrackingIdentifier super(options) regression \u2014 test/TrackingIdentifier.test.js",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "existing: test/TrackingIdentifier.test.js",
+      "status": "covered",
       "notes": ""
     }
   },
@@ -3116,8 +3116,8 @@
       "category": "covered",
       "area": "stream",
       "disposition": "AsyncDicomWriter ask is met by StreamingPart10Writer + event sources (cite suite)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "existing: test/eventStream/StreamingPart10Writer.test.js (+ event sources = the requested writer)",
+      "status": "covered",
       "notes": ""
     }
   },

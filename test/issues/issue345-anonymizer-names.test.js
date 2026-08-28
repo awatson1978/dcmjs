@@ -9,17 +9,17 @@
  *   PatientName/PatientID and emptying the remainder of the list.
  *
  * #345 (A — synthetic): https://github.com/dcmjs-org/dcmjs/issues/345
- *   Symptom: many strings in tagNamesToEmpty (src/anonymizer.js) are not
- *   real dictionary keywords (singular/plural mistakes and ad-hoc
- *   abbreviations like "RefStudySeq"), so cleanTags silently skips those
- *   tags — the data they were meant to scrub is left in place. The issue
- *   names five suspects: ReferringPhysicianTelephoneNumbers (list has
- *   ReferringPhysicianPhoneNumbers), PhysiciansOfRecord (has
- *   PhysicianOfRecord), NameOfPhysiciansReadingStudy (has
- *   NameOfPhysicianReadingStudy), OperatorsName (has OperatorName),
- *   AdmittingDiagnosesDescription (has AdmittingDiagnosisDescription).
- *   Observed: 103 of the 221 names fail to resolve via
- *   DicomMetaDictionary.nameMap — pinned below as a KNOWN GAP.
+ *   Symptom (historical): many strings in tagNamesToEmpty
+ *   (src/anonymizer.js) were not real dictionary keywords
+ *   (singular/plural mistakes and ad-hoc abbreviations like
+ *   "RefStudySeq"), so cleanTags silently skipped those tags — 103 of
+ *   the 221 names failed to resolve via DicomMetaDictionary.nameMap.
+ *   Fixed in this arc: every entry was corrected to its intended
+ *   dictionary keyword (including the issue's five suspects:
+ *   ReferringPhysicianTelephoneNumbers, PhysiciansOfRecord,
+ *   NameOfPhysiciansReadingStudy, OperatorsName,
+ *   AdmittingDiagnosesDescription); retired attributes now use the
+ *   RETIRED_ keyword prefix.
  *
  * Related existing coverage: test/anonymizer.test.js exercises cleanTags
  * behavior on fixtures; it does not validate the name list itself.
@@ -85,16 +85,15 @@ describe("issue #345 — every anonymizer tag name must be a real dictionary key
         expect(unresolved).toEqual([]);
     });
 
-    // KNOWN GAP: observed — 103 of the 221 entries returned by
-    // getTagsNameToEmpty() do not resolve via
-    // DicomMetaDictionary.nameMap, so cleanTags silently skips them and
-    // the corresponding PHI survives anonymization. The set includes the
-    // issue's five suspects (ReferringPhysicianPhoneNumbers,
-    // PhysicianOfRecord, NameOfPhysicianReadingStudy, OperatorName,
-    // AdmittingDiagnosisDescription) plus ~98 more ad-hoc names such as
-    // RefStudySeq, ContrastAllergies, SPSStartDate, PPSComments, ....
-    // Expected: every name resolves to a real dictionary keyword.
-    it.skip("KNOWN GAP #345: getTagsNameToEmpty contains names that resolve to no dictionary keyword", () => {
+    // Fixed in this arc: all 103 non-resolving entries in
+    // src/anonymizer.js tagNamesToEmpty were corrected to their intended
+    // dictionary keywords (the issue's five suspects plus ~98 more —
+    // e.g. RefStudySeq → ReferencedStudySequence, ContrastAllergies →
+    // Allergies, SPSStartDate → ScheduledProcedureStepStartDate,
+    // PPSComments → CommentsOnThePerformedProcedureStep; retired
+    // attributes use the dictionary's RETIRED_ keyword prefix). No names
+    // had to be removed.
+    it("#345: every getTagsNameToEmpty entry resolves to a dictionary keyword", () => {
         const names = dcmjs.anonymizer.getTagsNameToEmpty();
         const nonResolving = names.filter(
             name => !DicomMetaDictionary.nameMap[name]

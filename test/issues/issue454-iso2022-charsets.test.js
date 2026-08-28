@@ -75,33 +75,36 @@ const SCSH31_PN = "Yamada^Tarou=山田^太郎=やまだ^たろう"; // "\ISO 202
 const SCSH32_PN = "ﾔﾏﾀﾞ^ﾀﾛｳ=山田^太郎=やまだ^たろう"; // "ISO 2022 IR 13\ISO 2022 IR 87"
 
 describe("issue #373 — multi-valued SpecificCharacterSet must parse", () => {
-    // KNOWN GAP: observed `Error: Using multiple character sets is not
-    // supported: ,ISO 2022 IR 149` from DicomMessage.readFile (strict) on
-    // SCSI2, whose (0008,0005) is the standard-conformant "\ISO 2022 IR
-    // 149"; expected the file to parse without throwing — PS3.3
-    // C.12.1.1.2 requires supporting multiple values when code extensions
-    // are in use.
-    it.skip("KNOWN GAP #373: strict readFile throws 'multiple character sets not supported' on \\ISO 2022 IR 149", () => {
-        expect(() =>
-            DicomMessage.readFile(readCorpusFile("SCSI2"))
-        ).not.toThrow();
-    });
-
+    // Fixed in this arc: multi-valued (0008,0005) resolves to an ISO 2022
+    // escape-aware decoder (src/charset/iso2022.js) instead of throwing.
     itIfNetworkFixture("dclunie-charsets")(
-        "eager and event-stream paths converge on the same multiple-charset rejection (no path divergence)",
+        "#373: strict readFile parses \\ISO 2022 IR 149 without throwing",
+        () => {
+            expect(() =>
+                DicomMessage.readFile(readCorpusFile("SCSI2"))
+            ).not.toThrow();
+        }
+    );
+
+    // Updated companion (previously pinned the shared multiple-charset
+    // rejection): both paths now converge on the same decoded value.
+    itIfNetworkFixture("dclunie-charsets")(
+        "eager and event-stream paths converge on the same decoded multi-charset PN (no path divergence)",
         async () => {
             const buffer = readCorpusFile("SCSI2");
-            expect(() => DicomMessage.readFile(buffer)).toThrow(
-                /multiple character sets/
+            const eager = DicomMetaDictionary.naturalizeDataset(
+                DicomMessage.readFile(buffer).dict
             );
-            await expect(
-                DicomEventStream.fromPart10(buffer).toNaturalized()
-            ).rejects.toThrow(/multiple character sets/);
+            const streamed = await DicomEventStream.fromPart10(
+                buffer
+            ).toNaturalized();
+            expect(String(eager.PatientName)).toBe(SCSI2_PN);
+            expect(String(streamed.PatientName)).toBe(SCSI2_PN);
         }
     );
 
     itIfNetworkFixture("dclunie-charsets")(
-        "lenient readFile (ignoreErrors) degrades without crashing and keeps the ASCII PN component",
+        "lenient readFile (ignoreErrors) parses and keeps the ASCII PN component",
         () => {
             const dataset = naturalizeLenient("SCSI2");
             expect(String(dataset.PatientName)).toMatch(/^Hong\^Gildong=/);
@@ -112,41 +115,39 @@ describe("issue #373 — multi-valued SpecificCharacterSet must parse", () => {
 });
 
 describe("issue #284 — Korean (ISO 2022 IR 149) must decode to hangul", () => {
-    // KNOWN GAP: observed (with ignoreErrors) PatientName
-    // "Hong^Gildong=ESC$)Cûó^ESC$)CÑÎÔ×=…" — the ISO 2022 escape
-    // sequences designating KS X 1001 are left in the value and the
-    // EUC-KR bytes are decoded as latin1 mojibake (the reporter's
-    // "Çã³²µµ" class of corruption); expected the pydicom-equivalent
-    // decode "Hong^Gildong=洪^吉洞=홍^길동".
-    it.skip("KNOWN GAP #284: SCSI2 PatientName decodes to latin1 mojibake instead of hangul", () => {
-        const dataset = naturalizeLenient("SCSI2");
-        expect(String(dataset.PatientName)).toBe(SCSI2_PN);
-    });
+    // Fixed in this arc: ESC $ ) C designates KS X 1001 into G1 and the
+    // GR bytes decode via euc-kr, matching pydicom/DCMTK.
+    itIfNetworkFixture("dclunie-charsets")(
+        "#284: SCSI2 PatientName decodes to hangul",
+        () => {
+            const dataset = naturalizeLenient("SCSI2");
+            expect(String(dataset.PatientName)).toBe(SCSI2_PN);
+        }
+    );
 });
 
 describe("issues #454/#484 — ISO 2022 escape switching inside string values", () => {
-    // KNOWN GAP: observed (with ignoreErrors) PatientName
-    // "Yamada^Tarou=ESC$B;3EDESC(B^…" — the raw ESC sequences that
-    // switch G0 to JIS X 0208 and back survive into the decoded string
-    // and the kanji/kana bytes are decoded with the single active
-    // decoder, producing exactly the "Â"-artifact class of corruption
-    // reported for SR Findings nodes; expected escape-aware decoding
-    // "Yamada^Tarou=山田^太郎=やまだ^たろう". #484's ask — switch the
-    // decoder per escape scope without clobbering the dataset-global
-    // decoder — is the fix shape for this and the SCSH32 case.
-    it.skip("KNOWN GAP #454: SCSH31 (\\ISO 2022 IR 87) escape-switched PN not decoded (raw ESC bytes leak)", () => {
-        const dataset = naturalizeLenient("SCSH31");
-        expect(String(dataset.PatientName)).toBe(SCSH31_PN);
-    });
+    // Fixed in this arc: the Iso2022Decoder scans ESC sequences and decodes
+    // each segment with its designated charset (JIS X 0208 via iso-2022-jp),
+    // scoped per value — the dataset-global decoder is never clobbered.
+    itIfNetworkFixture("dclunie-charsets")(
+        "#454: SCSH31 (\\ISO 2022 IR 87) escape-switched PN decodes to kanji/kana",
+        () => {
+            const dataset = naturalizeLenient("SCSH31");
+            expect(String(dataset.PatientName)).toBe(SCSH31_PN);
+        }
+    );
 
-    // KNOWN GAP: observed "ﾔﾏﾀﾞ^ﾀﾛｳ=ESC$B;3EDESC(J^…" — the first
-    // component (JIS X 0201 katakana via ISO 2022 IR 13) happens to
-    // survive, but every escape-switched JIS X 0208 segment keeps its ESC
-    // bytes and mojibake; expected the full three-component name decoded.
-    it.skip("KNOWN GAP #484: SCSH32 (ISO 2022 IR 13\\ISO 2022 IR 87) mixed-designation PN not decoded", () => {
-        const dataset = naturalizeLenient("SCSH32");
-        expect(String(dataset.PatientName)).toBe(SCSH32_PN);
-    });
+    // Fixed in this arc: initial designations follow value 1 (ISO 2022 IR 13
+    // puts JIS X 0201 katakana in G1), so the mixed-designation name decodes
+    // fully across all three components.
+    itIfNetworkFixture("dclunie-charsets")(
+        "#484: SCSH32 (ISO 2022 IR 13\\ISO 2022 IR 87) mixed-designation PN decodes fully",
+        () => {
+            const dataset = naturalizeLenient("SCSH32");
+            expect(String(dataset.PatientName)).toBe(SCSH32_PN);
+        }
+    );
 
     itIfNetworkFixture("dclunie-charsets")(
         "lenient reads of the escape-switching files never emit replacement chars in the ASCII component",

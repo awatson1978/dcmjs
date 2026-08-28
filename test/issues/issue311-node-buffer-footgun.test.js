@@ -16,20 +16,11 @@
  * ArrayBuffer pool with valid Part 10 bytes copied to a nonzero offset,
  * and a Uint8Array view over exactly those bytes handed to readFile.
  *
- * 1.0 contract: either views are handled correctly (byteOffset
- * respected — parsing the view equals parsing the exact slice) or the
- * error is corrective. Observed: SplitDataView.addBuffer does
- * `buffer = buffer.buffer || buffer`, unwrapping the view to the WHOLE
- * pool and dropping byteOffset (only byteLength is kept), so the parse
- * window is pool bytes [0, view.byteLength):
- *  - pool prefix is not a preamble → throws "Invalid DICOM file,
- *    expected header is missing" — a misleading (the view's bytes ARE a
- *    valid file), but non-silent, failure. Pinned.
- *  - pool prefix happens to BE a valid file (e.g. two files read into
- *    one pool) → readFile silently parses the WRONG file's bytes.
- *    KNOWN GAP below.
- *  - views at byteOffset 0 work by accident (window degenerates to the
- *    view's own bytes). Pinned green as the current contract.
+ * 1.0 contract (fixed in this arc): views are handled correctly —
+ * SplitDataView.addBuffer honors typed-array view boundaries
+ * (byteOffset/byteLength), so parsing a view equals parsing
+ * view.buffer.slice(byteOffset, byteOffset + byteLength). Pooled Node
+ * Buffers at any byteOffset parse their own bytes, never the pool's.
  */
 
 import "../../src/index.js";
@@ -78,31 +69,24 @@ describe("issue #311/#370 — pooled Buffer/Uint8Array views into readFile", () 
         expect(dict[TagHex.Rows].Value).toEqual([FILE_A_ROWS]);
     });
 
-    it("pinned: a view at a nonzero byteOffset over junk-prefixed pool fails loudly, not silently", () => {
+    it("a view at a nonzero byteOffset over junk-prefixed pool parses its own bytes", () => {
         const bytes = fileA();
         const pool = new ArrayBuffer(bytes.length + 4096);
-        new Uint8Array(pool).fill(0xab); // junk where the parse window starts
+        new Uint8Array(pool).fill(0xab); // junk outside the view window
         const offset = 1024;
         new Uint8Array(pool).set(bytes, offset);
         const view = new Uint8Array(pool, offset, bytes.length);
-        // Current shape: byteOffset is dropped, the pool prefix is not a
-        // preamble, and readFile throws its header error. Misleading (the
-        // view's own bytes are a perfectly valid file) but not a silent
-        // garbage parse.
-        expect(() => DicomMessage.readFile(view)).toThrow(
-            /expected header|DICM/i
-        );
+        // Fixed in this arc: SplitDataView.addBuffer honors the view's
+        // byteOffset, so the view's own (valid) bytes parse instead of the
+        // pool-prefix junk throwing a misleading header error.
+        const { dict } = DicomMessage.readFile(view);
+        expect(dict[TagHex.Rows].Value).toEqual([FILE_A_ROWS]);
     });
 
-    // KNOWN GAP: observed — SplitDataView.addBuffer unwraps
-    // `view.buffer` and drops view.byteOffset, so readFile parses pool
-    // bytes [0, view.byteLength). When another valid file precedes the
-    // view in the pool (two files read into one Buffer pool — routine in
-    // Node), readFile(viewOfB) SILENTLY returns file A's dataset: same
-    // element count, wrong data, no error. Expected — parsing a view
-    // equals parsing view.buffer.slice(byteOffset, byteOffset+byteLength)
-    // (or a corrective error naming the byteOffset problem).
-    it.skip("KNOWN GAP #311: parsing a pooled view must equal parsing its exact slice", () => {
+    // Fixed in this arc: SplitDataView.addBuffer keeps typed-array view
+    // boundaries (byteOffset/byteLength) instead of unwrapping to the whole
+    // backing pool, so parsing a pooled view equals parsing its exact slice.
+    it("#311: parsing a pooled view must equal parsing its exact slice", () => {
         const a = fileA();
         const b = fileB();
         expect(a.length).toBe(b.length); // same layout, Rows differs
@@ -122,7 +106,7 @@ describe("issue #311/#370 — pooled Buffer/Uint8Array views into readFile", () 
         expect(Object.keys(dict).sort()).toEqual(Object.keys(sliceDict).sort());
     });
 
-    it("documents the observed silent wrong parse (drives the gap above)", () => {
+    it("a pooled view no longer silently parses the preceding file's bytes", () => {
         const a = fileA();
         const b = fileB();
         const pool = new ArrayBuffer(a.length + b.length);
@@ -130,8 +114,8 @@ describe("issue #311/#370 — pooled Buffer/Uint8Array views into readFile", () 
         new Uint8Array(pool).set(b, a.length);
         const viewOfB = new Uint8Array(pool, a.length, b.length);
         const { dict } = DicomMessage.readFile(viewOfB);
-        // NOT the desired contract — this pins today's footgun so the fix
-        // (flipping the skip above to green) also flips this expectation.
-        expect(dict[TagHex.Rows].Value).toEqual([FILE_A_ROWS]);
+        // Fixed in this arc: previously this returned file A's dataset
+        // (Rows 32) because the view's byteOffset was dropped.
+        expect(dict[TagHex.Rows].Value).toEqual([FILE_B_ROWS]);
     });
 });

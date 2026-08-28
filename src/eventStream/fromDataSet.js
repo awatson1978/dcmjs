@@ -49,8 +49,9 @@ function transferSyntaxOf(meta) {
     return ts && ts.Value ? ts.Value[0] : undefined;
 }
 
-/** Emit one tag entry (element, sequence, or binary) and its children. */
-function emitEntry(listener, tag, entry) {
+/** Emit one tag entry (element, sequence, or binary) and its children.
+ *  Exported for fromPart10's §6.2.2 UN-sequence emission (issue #363). */
+export function emitEntry(listener, tag, entry) {
     if (!entry) {
         return;
     }

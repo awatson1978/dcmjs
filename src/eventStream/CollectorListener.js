@@ -1,4 +1,7 @@
-import { EventStreamListener } from "./EventStreamListener.js";
+import {
+    EventStreamListener,
+    mergeFragmentsPerBotWindow
+} from "./EventStreamListener.js";
 
 /**
  * CollectorListener — a reference event-stream consumer that rebuilds a
@@ -14,7 +17,14 @@ import { EventStreamListener } from "./EventStreamListener.js";
  *   - scalar/multi-value element → { vr, Value: [...] }
  *   - sequence                   → { vr, Value: [ {itemDict}, ... ] }
  *   - binary                     → { vr, Value: [ArrayBuffer, ...] } (one entry
- *                                   per fragment; boundaries preserved, §33)
+ *                                   per fragment; boundaries preserved, §33 —
+ *                                   except encapsulated pixel data whose
+ *                                   startBinary carries a non-empty
+ *                                   basicOffsetTable: those fragments are
+ *                                   merged per BOT window at endBinary, so the
+ *                                   final Value shape matches the eager
+ *                                   reader's one-entry-per-frame contract,
+ *                                   issue #204)
  *   - bulk data reference        → { vr, Value: [ { BulkDataURI } ] }
  */
 export class CollectorListener extends EventStreamListener {
@@ -88,13 +98,25 @@ export class CollectorListener extends EventStreamListener {
         this._current.Value.push({ BulkDataURI: ref.uri });
     }
 
-    _baseStartBinary() {
-        // The current element accumulates fragments as Value entries.
+    _baseStartBinary(info = {}) {
+        // The current element accumulates fragments as Value entries. A
+        // non-empty basicOffsetTable is kept so endBinary can merge the
+        // fragments per BOT window (eager-reader shape parity, issue #204).
+        this._binaryInfo = info;
     }
 
     _baseBinaryFragment(chunk) {
         this._current.Value.push(chunk);
     }
 
-    _baseEndBinary() {}
+    _baseEndBinary() {
+        const bot = this._binaryInfo && this._binaryInfo.basicOffsetTable;
+        this._binaryInfo = null;
+        if (bot && bot.length && this._current) {
+            this._current.Value = mergeFragmentsPerBotWindow(
+                this._current.Value,
+                bot
+            );
+        }
+    }
 }

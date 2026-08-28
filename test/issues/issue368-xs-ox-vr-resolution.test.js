@@ -108,15 +108,13 @@ describe("issues #368/#437 — dictionary meta-VRs xs/ox resolve silently", () =
         expect(invalidVrCalls(validationLog.error)).toHaveLength(0);
     });
 
-    // KNOWN GAP: observed — with PixelRepresentation 1 the implicit
-    // reader still maps dictionary VR "xs" to US
-    // (ValueRepresentation.createByTypeString), so a stored SS -2 in
-    // (0028,0106) parses as US 65534; DicomMessage._readTag only has a
-    // dead `vrType == "xs"` branch on its unknown-tag path and never
-    // consults PixelRepresentation. Expected — PS3.5: US or SS chosen by
-    // PixelRepresentation, i.e. vr "SS" and Value [-2]. Severity: mild
-    // (sign misinterpretation of optional range attributes).
-    it.skip("KNOWN GAP #368: xs with PixelRepresentation 1 should resolve to SS (negative values intact)", () => {
+    // Fixed in this arc: DicomMessage._read threads the parsed
+    // (0028,0103) PixelRepresentation value through the per-element read
+    // options, and _readTag resolves dictionary VR "xs" to SS when
+    // PixelRepresentation is 1 (US otherwise, including when absent) —
+    // PS3.5's US-vs-SS resolution, replacing the dead `vrType == "xs"`
+    // branch on the unknown-tag path.
+    it("#368: xs with PixelRepresentation 1 resolves to SS (negative values intact)", () => {
         const buffer = implicitSample({
             [TagHex.PixelRepresentation]: { vr: "US", Value: [1] },
             [SMALLEST_PIXEL_VALUE]: { vr: "SS", Value: [-2] },

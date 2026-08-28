@@ -2,10 +2,10 @@
  * Issue-derived regression tests — AsyncDicomReader surface.
  *
  * #477 (A — synthetic): https://github.com/dcmjs-org/dcmjs/issues/477
- *   Symptoms reported: (1) docs/AsyncDicomReader-skill.md examples call
- *   reader.stream.setData(arrayBuffer), which does not exist on
- *   ReadBufferStream (workaround: addBuffer + setComplete) — pinned as a
- *   KNOWN GAP below; (2) the PixelData element was said to be wrongly
+ *   Symptoms reported: (1) docs/AsyncDicomReader-skill.md examples used
+ *   to call reader.stream.setData(arrayBuffer), which does not exist on
+ *   ReadBufferStream — fixed in this arc: the docs now show the real
+ *   addBuffer + setComplete API; (2) the PixelData element was said to be wrongly
  *   nested. Observed in 1.0: the PixelData element sits at the dataset
  *   TOP level (dict["7FE00010"]); its Value is an array of frames where
  *   each frame is an array of chunks — that frame nesting is the
@@ -26,11 +26,11 @@
  *   here for the record; the inclusion contract itself holds).
  *
  * #479 (A — synthetic): https://github.com/dcmjs-org/dcmjs/issues/479
- *   Symptom: AsyncDicomReader.readSingle() discards the rawValue that
- *   ValueRepresentation.read() returns, while the eager
+ *   Symptom (historical): AsyncDicomReader.readSingle() discarded the
+ *   rawValue that ValueRepresentation.read() returns, while the eager
  *   DicomMessage._readTag stores it as _rawValue — so formatting
- *   (e.g. DS "1.5000") is lost when writing an async-read dataset back.
- *   Observed in 1.0: still discarded — KNOWN GAP below.
+ *   (e.g. DS "1.5000") was lost when writing an async-read dataset back.
+ *   Fixed in this arc: readSingle() stores _rawValue equivalently.
  *
  * References: src/AsyncDicomReader.js, docs/AsyncDicomReader-skill.md,
  * src/utilities/DicomMetadataListener.js.
@@ -55,7 +55,7 @@ function sampleBuffer() {
     });
 }
 
-/** Feed a complete ArrayBuffer to a new reader (docs' setData workaround). */
+/** Feed a complete ArrayBuffer to a new reader (documented pattern). */
 function makeReader(buffer) {
     const reader = new AsyncDicomReader();
     reader.stream.addBuffer(buffer);
@@ -94,14 +94,21 @@ describe("issue #477 — readFile places PixelData at the dataset top level", ()
         }
     });
 
-    // KNOWN GAP: observed — reader.stream.setData is undefined
-    // (ReadBufferStream has addBuffer/setComplete instead), while
-    // docs/AsyncDicomReader-skill.md calls reader.stream.setData(...) in
-    // every example; expected the documented API to exist (or the docs
-    // to match the implementation).
-    it.skip("KNOWN GAP #477: docs reference reader.stream.setData(), which does not exist", () => {
+    // Fixed in this arc: docs/AsyncDicomReader-skill.md was corrected to
+    // use the real ReadBufferStream API — stream.addBuffer(buffer)
+    // followed by stream.setComplete() — instead of the never-implemented
+    // stream.setData(). This pins the documented invocation.
+    it("#477: the documented stream feed API (addBuffer + setComplete) exists and works", async () => {
         const reader = new AsyncDicomReader();
-        expect(typeof reader.stream.setData).toBe("function");
+        expect(reader.stream.setData).toBeUndefined();
+        expect(typeof reader.stream.addBuffer).toBe("function");
+        expect(typeof reader.stream.setComplete).toBe("function");
+
+        // The documented pattern reads a full file end to end.
+        reader.stream.addBuffer(sampleBuffer());
+        reader.stream.setComplete();
+        const { dict } = await reader.readFile();
+        expect(dict[DS_TAG].Value).toEqual([1.5]);
     });
 });
 
@@ -139,15 +146,11 @@ describe("issue #478 — read({ untilTag }) honors the flag without crashing", (
 });
 
 describe("issue #479 — rawValue retention after async read", () => {
-    // KNOWN GAP: observed — the async dict entry for a DS element is
-    // { vr: "DS", Value: [1.5] } with NO _rawValue, because
-    // AsyncDicomReader.readSingle() drops the rawValue returned by
-    // ValueRepresentation.read(); the eager DicomMessage.readFile entry
-    // for the same bytes is { vr: "DS", Value: [1.5],
-    // _rawValue: ["1.5000"] } (stored by DicomMessage._readTag), and the
-    // raw string is what preserves formatting on write. Expected the
-    // async reader to retain the raw value equivalently.
-    it.skip("KNOWN GAP #479: async read discards the DS raw string that the eager reader retains", async () => {
+    // Fixed in this arc: AsyncDicomReader.readSingle() now collects the
+    // rawValue returned by ValueRepresentation.read() (mirroring
+    // DicomMessage._readTag) and stores it as _rawValue on the dict
+    // entry, so formatting such as DS "1.5000" is preserved for write.
+    it("#479: async read retains the DS raw string like the eager reader", async () => {
         const buffer = sampleBuffer();
 
         const eager = DicomMessage.readFile(buffer);

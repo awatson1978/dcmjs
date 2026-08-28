@@ -12,10 +12,12 @@
  *   for NUL stripping across the string VRs.
  *
  * Findings pinned here: both the eager path (DicomMessage.readFile) and
- * the streaming path (fromPart10Stream → toNaturalized) preserve trailing
- * 0x00 pad bytes on SH/LO/PN/CS values (KNOWN GAP — the two paths at
- * least agree). Space padding is stripped correctly for CS/SH/LO (control
- * test kept green below).
+ * the streaming path (fromPart10Stream → toNaturalized) strip trailing
+ * 0x00 pad bytes on SH/LO/PN/CS values (fixed in this arc — read-side
+ * trims in ValueRepresentation now strip NULs alongside spaces; writes
+ * still pad with spaces per the standard, and _rawValue keeps the original
+ * bytes for lossless round trips). Space padding is stripped correctly for
+ * CS/SH/LO (control test kept green below).
  *
  * The synthetic file is deliberately malformed (NUL padding is not legal
  * for these VRs), hence validationLog is silenced.
@@ -75,13 +77,9 @@ function nulPaddedPart10() {
 }
 
 describe("issue #130 — trailing 0x00 padding must be stripped on read", () => {
-    // KNOWN GAP: observed values keep the trailing NUL characters in both
-    // read paths ("ACC\0", "CT\0\0", "desc1\0",
-    // "Doe^John\0\0"); expected the padding stripped ("ACC", "CT",
-    // "desc1", "Doe^John") the way DCMTK/pydicom read the same bytes.
-    // rtrim(/\s*$/) does not match \0 and the readPadded* helpers only
-    // look for each VR's declared pad byte (space for these VRs).
-    it.skip("KNOWN GAP #130: eager readFile keeps trailing NUL pad bytes on SH/CS/LO/PN", () => {
+    // Fixed in this arc: read-side string trims (rtrim + the CS/SH/LO/PN
+    // applyFormatting) strip trailing NULs like DCMTK/pydicom.
+    it("#130: eager readFile strips trailing NUL pad bytes on SH/CS/LO/PN", () => {
         const dicomDict = DicomMessage.readFile(nulPaddedPart10().buffer);
         expect(dicomDict.dict["00080050"].Value).toEqual(["ACC"]);
         expect(dicomDict.dict["00080060"].Value).toEqual(["CT"]);
@@ -91,11 +89,9 @@ describe("issue #130 — trailing 0x00 padding must be stripped on read", () => 
         ]);
     });
 
-    // KNOWN GAP: observed the same NUL retention through
-    // fromPart10Stream(...).toNaturalized() ("CT\0\0" etc.);
-    // expected stripped values. Eager and streaming at least agree — no
-    // path divergence, the gap is shared.
-    it.skip("KNOWN GAP #130: streaming path keeps trailing NUL pad bytes on SH/CS/LO/PN", async () => {
+    // Fixed in this arc: the streaming path shares the VR applyFormatting
+    // trims, so it strips the NUL padding identically to eager.
+    it("#130: streaming path strips trailing NUL pad bytes on SH/CS/LO/PN", async () => {
         const dataset = await DicomEventStream.fromPart10Stream(
             nulPaddedPart10()
         ).toNaturalized();

@@ -111,13 +111,11 @@ function expectFullBody(dict) {
 
 describe("issue #338 — wrong FileMetaInformationGroupLength", () => {
     describe("eager readFile", () => {
-        // KNOWN GAP: observed — group length +8 makes the meta window
-        // swallow the first 8 dataset bytes and readFile dies with the
-        // internal "Finding view is past end of input for start=…" stream
-        // error. Expected — tolerant resync at the first non-0002 element
-        // (like the streaming path) or a corrective error naming the meta
-        // group length.
-        it.skip("KNOWN GAP #338: group length +8 — body should parse or error should name the group length", () => {
+        // Fixed in this arc: readFile validates the declared (0002,0000)
+        // value against a structural walk of the meta elements (first
+        // non-0002 group tag wins) and uses the actual length, so the body
+        // parses in full despite the corrupted declared value.
+        it("#338: group length +8 — body parses (or error names the group length)", () => {
             const buffer = corruptedSample(v => v + 8);
             let dict;
             try {
@@ -129,11 +127,8 @@ describe("issue #338 — wrong FileMetaInformationGroupLength", () => {
             expectFullBody(dict);
         });
 
-        // KNOWN GAP: observed — group length -8 leaves the tail of the
-        // meta group in the body stream; parsing it as a dataset element
-        // fails with the same internal "Finding view is past end of
-        // input…" error. Expected — as above.
-        it.skip("KNOWN GAP #338: group length -8 — body should parse or error should name the group length", () => {
+        // Fixed in this arc: same structural meta walk as above.
+        it("#338: group length -8 — body parses (or error names the group length)", () => {
             const buffer = corruptedSample(v => v - 8);
             let dict;
             try {
@@ -145,11 +140,11 @@ describe("issue #338 — wrong FileMetaInformationGroupLength", () => {
             expectFullBody(dict);
         });
 
-        // KNOWN GAP: observed — group length 0 yields an empty metaHeader,
-        // and readFile crashes dereferencing the absent TransferSyntaxUID:
-        // "Cannot read properties of undefined (reading 'Value')" — a bare
-        // TypeError, not a corrective message. Expected — as above.
-        it.skip("KNOWN GAP #338: group length 0 — body should parse or error should name the group length", () => {
+        // Fixed in this arc: the structural walk recovers the real meta
+        // group from a declared length of 0, and a meta header that still
+        // lacks TransferSyntaxUID now raises a corrective error naming the
+        // meta group length instead of a bare TypeError.
+        it("#338: group length 0 — body parses (or error names the group length)", () => {
             const buffer = corruptedSample(() => 0);
             let dict;
             try {
@@ -161,12 +156,10 @@ describe("issue #338 — wrong FileMetaInformationGroupLength", () => {
             expectFullBody(dict);
         });
 
-        // KNOWN GAP: observed — with ignoreErrors:true the +8 case returns
-        // "successfully" with a garbage dict (a single misaligned tag such
-        // as 00010028) — exactly the silent tag loss the reporter hit.
-        // Expected — ignoreErrors recovers the body tags, not an
-        // arbitrary misparse.
-        it.skip("KNOWN GAP #338: ignoreErrors must not return a silent garbage parse", () => {
+        // Fixed in this arc: the structural meta walk applies to the
+        // ignoreErrors path too, so the body tags are recovered instead of
+        // a silent misaligned parse.
+        it("#338: ignoreErrors does not return a silent garbage parse", () => {
             const buffer = corruptedSample(v => v + 8);
             const { dict } = DicomMessage.readFile(buffer, {
                 ignoreErrors: true
@@ -174,19 +167,19 @@ describe("issue #338 — wrong FileMetaInformationGroupLength", () => {
             expectFullBody(dict);
         });
 
-        it("pinned: the eager failures are errors, not hangs or silent success", () => {
-            // Until the gap is fixed, pin the CURRENT shape so a change in
-            // behavior (better or worse) is noticed: all three corruptions
-            // throw synchronously on the default path.
+        it("all three corruptions parse synchronously on the default path", () => {
+            // Fixed in this arc: this previously pinned the broken shape
+            // (all three corruptions threw internal errors). The structural
+            // meta walk now recovers every case without throwing.
             expect(() =>
                 DicomMessage.readFile(corruptedSample(v => v + 8))
-            ).toThrow();
+            ).not.toThrow();
             expect(() =>
                 DicomMessage.readFile(corruptedSample(v => v - 8))
-            ).toThrow();
+            ).not.toThrow();
             expect(() =>
                 DicomMessage.readFile(corruptedSample(() => 0))
-            ).toThrow();
+            ).not.toThrow();
         });
     });
 

@@ -63,13 +63,11 @@ describe("issue #42 — denaturalize with null/undefined values is graceful", ()
         expect(thrown.message).toMatch(/denaturalizeValue/);
     });
 
-    // KNOWN GAP: observed a bare TypeError "Cannot read properties of null
-    // (reading 'constructor')" from denaturalizeValue's
-    // entry.constructor.name check when the array holds null; expected
-    // defined behavior — skip / empty element, or an error that names the
-    // offending keyword. [null] slips past the undefined-values guard
-    // (null !== undefined) and crashes exactly like the original report.
-    it.skip("KNOWN GAP #42: [null] value crashes denaturalizeValue with a bare TypeError", () => {
+    // Fixed in this arc: denaturalizeValue passes null entries through
+    // (instead of crashing on entry.constructor) and the max-length check in
+    // denaturalizeDataset guards null values, so [null] denaturalizes
+    // gracefully to an element holding [null].
+    it("#42: [null] value denaturalizes gracefully instead of crashing with a bare TypeError", () => {
         let result, thrown;
         try {
             result = DicomMetaDictionary.denaturalizeDataset({

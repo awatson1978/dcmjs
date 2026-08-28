@@ -1,5 +1,6 @@
 import pako from "pako";
 import SplitDataView from "./SplitDataView";
+import { createLatin1Decoder } from "./charset/latin1.js";
 import { toFloat } from "./utilities/toFloat";
 import { toInt } from "./utilities/toInt";
 
@@ -20,7 +21,10 @@ const RAW_ZERO_COPY_THRESHOLD = 64 * 1024;
  * when SpecificCharacterSet changes - it never mutates these defaults.
  */
 const DEFAULT_ENCODER = new TextEncoder();
-const DEFAULT_LATIN1_DECODER = new TextDecoder("latin1");
+// Guarded construction (#297): on runtimes without a latin1 TextDecoder this
+// falls back to a pure-JS byte->code-point decoder instead of throwing at
+// module load.
+const DEFAULT_LATIN1_DECODER = createLatin1Decoder();
 
 export class BufferStream {
     offset = 0;
@@ -393,14 +397,22 @@ export class BufferStream {
         return vr;
     }
 
-    readEncodedString(length) {
+    /**
+     * Decodes `length` bytes with the stream's active decoder.
+     * `delimiters` (optional Set of byte values) is forwarded to ISO 2022
+     * aware decoders as extra designation-reset delimiters (e.g. PN's ^/=);
+     * plain TextDecoders ignore it.
+     */
+    readEncodedString(length, delimiters) {
         if (this.offset + length >= this.view.byteLength) {
             length = this.view.byteLength - this.offset;
         }
         const view = new DataView(
             this.slice(this.offset, this.offset + length)
         );
-        const result = this.decoder.decode(view);
+        const result = delimiters
+            ? this.decoder.decode(view, { delimiters })
+            : this.decoder.decode(view);
         this.increment(length);
         return result;
     }
@@ -541,6 +553,12 @@ export class BufferStream {
         const newBuf = new ReadBufferStream(
             this.slice(this.offset, this.offset + length)
         );
+        // Propagate the active charset decoder into the substream so
+        // sequence-item datasets decode with the dataset's
+        // SpecificCharacterSet instead of the default latin1 (#503/#451).
+        if (this.decoder) {
+            newBuf.setDecoder(this.decoder);
+        }
         this.increment(length);
         newBuf.setComplete();
 

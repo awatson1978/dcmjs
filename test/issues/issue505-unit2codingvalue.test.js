@@ -34,15 +34,21 @@ describe("issue #505 — unit2CodingValue mapping table", () => {
         expect(coding.CodeValue).toBe("[hnsf'U]");
     });
 
-    // KNOWN GAP: observed unit2CodingValue("cm") ===
-    //   { CodeValue: "[arb'U]{cm}", CodingSchemeDesignator: "UCUM",
-    //     CodeMeaning: "arbitrary cm" }
-    // (the arbitrary-unit fallback, because "cm" is missing from
-    // knownUnits/unitCodeMap); expected the regular UCUM code
-    // CodeValue === "cm".
-    it.skip("KNOWN GAP #505: 'cm' falls through to [arb'U]{cm} instead of UCUM 'cm'", () => {
+    // Fixed in this arc: "cm" (plus the other plain UCUM length units
+    // "m" and "um") was added to knownUnits in
+    // src/utilities/TID300/unit2CodingValue.js, so centimetre
+    // measurements no longer fall through to the arbitrary-unit branch.
+    it("#505: 'cm' maps to the regular UCUM code 'cm'", () => {
         const coding = unit2CodingValue("cm");
         expect(coding.CodingSchemeDesignator).toBe("UCUM");
         expect(coding.CodeValue).toBe("cm");
+    });
+
+    it("#505: the plain UCUM length units 'm' and 'um' also resolve", () => {
+        for (const unit of ["m", "um"]) {
+            const coding = unit2CodingValue(unit);
+            expect(coding.CodingSchemeDesignator).toBe("UCUM");
+            expect(coding.CodeValue).toBe(unit);
+        }
     });
 });

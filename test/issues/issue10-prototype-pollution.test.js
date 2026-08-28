@@ -39,7 +39,7 @@ describe("issue #10 — polluted Object.prototype must not corrupt the round tri
     });
 
     it("naturalize → denaturalize → write → read with an enumerable prototype property", () => {
-        // eslint-disable-next-line no-extend-native
+         
         Object.prototype.__polluted = "x";
         try {
             const buffer = createSampleDicom({

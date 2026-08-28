@@ -35,12 +35,10 @@ describe("issue #356 — Tag.isPrivateCreator range per PS3.5 7.8", () => {
         expect(t(0x0009, 0x0000).isPrivateCreator()).toBe(false);
     });
 
-    // KNOWN GAP: observed isPrivateCreator() === true for (0009,0001) and
-    // (0009,000F); expected false — PS3.5 7.8.1 places private creators in
-    // elements 0x0010-0x00FF only, and reserves 0x0001-0x000F of odd groups
-    // (they "shall not be used"). The current check `element > 0x00` admits
-    // the reserved range.
-    it.skip("KNOWN GAP #356: reserved odd-group elements 0x0001-0x000F are misclassified as private creators", () => {
+    // Fixed in this arc: Tag.isPrivateCreator now requires element
+    // 0x0010-0x00FF per PS3.5 7.8.1, so the reserved odd-group elements
+    // 0x0001-0x000F are no longer classified as private creators.
+    it("#356: reserved odd-group elements 0x0001-0x000F are not private creators", () => {
         expect(t(0x0009, 0x0001).isPrivateCreator()).toBe(false);
         expect(t(0x0009, 0x000f).isPrivateCreator()).toBe(false);
     });

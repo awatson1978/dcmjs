@@ -190,20 +190,19 @@ describe("issue #204 — frame larger than fragment size (BOT-aware merge)", () 
         ]);
     });
 
-    // KNOWN GAP: observed — the streaming path surfaces the two raw
-    // fragments (two 64-byte entries) instead of the one merged 128-byte
-    // frame the eager reader produces for the same bytes; a BOT-aware
-    // consumer gets different PixelData shapes depending on the API used.
-    // Expected — path parity: one merged frame per BOT window (or a
-    // documented fragments-preserved contract on both paths).
-    it.skip("KNOWN GAP #204: streaming path should merge BOT-window fragments like the eager reader", async () => {
+    // Fixed in this arc: the event stream still emits raw fragments (the
+    // streaming contract), but the sources now surface the Basic Offset
+    // Table on startBinary and CollectorListener/NaturalizedListener merge
+    // fragments per BOT window at endBinary — so the final PixelData Value
+    // shape matches the eager reader's one-entry-per-frame contract.
+    it("#204: streaming path merges BOT-window fragments like the eager reader", async () => {
         const result = await streamParse(splitFrameBuffer());
         const pixelData = result.dict[TagHex.PixelData];
         expect(pixelData.Value).toHaveLength(1);
         expect(pixelData.Value[0].byteLength).toBe(128);
     });
 
-    it("pinned: streaming path loses no bytes — both fragments arrive intact", async () => {
+    it("pinned: streaming path loses no bytes — all fragment bytes arrive intact", async () => {
         const result = await streamParse(splitFrameBuffer());
         const pixelData = result.dict[TagHex.PixelData];
         const parts = pixelData.Value.map(v =>

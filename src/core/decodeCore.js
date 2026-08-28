@@ -5,13 +5,12 @@ import {
     EXPLICIT_BIG_ENDIAN,
     EXPLICIT_LITTLE_ENDIAN,
     IMPLICIT_LITTLE_ENDIAN,
-    VM_DELIMITER,
-    encodingMapping
+    VM_DELIMITER
 } from "../constants/dicom.js";
+import { resolveCharsetDecoder } from "../charset/iso2022.js";
 import { DicomMessage, singleVRs } from "../DicomMessage.js";
 import { Tag } from "../Tag.js";
 import { ValueRepresentation } from "../ValueRepresentation.js";
-import { log } from "../log.js";
 
 /**
  * Shared element-decode core extracted from src/lazy/LazyDicomReader.js.
@@ -110,7 +109,11 @@ export function resolveVrInstance(el, window) {
             if (elementData && elementData.vr) {
                 // UN with a known dictionary VR: eager re-parses the value
                 // as the dictionary VR via ParsedUnknownValue.
-                return ValueRepresentation.parseUnknownVr(elementData.vr);
+                let dictVr = elementData.vr;
+                if (dictVr === "xs") {
+                    dictVr = resolveXsVr(window);
+                }
+                return ValueRepresentation.parseUnknownVr(dictVr);
             }
         }
         return ValueRepresentation.createByTypeString(vrType);
@@ -122,6 +125,9 @@ export function resolveVrInstance(el, window) {
     let vrType;
     if (elementData) {
         vrType = elementData.vr;
+        if (vrType === "xs") {
+            vrType = resolveXsVr(window);
+        }
     } else if (el.hadUndefinedLength) {
         // eager: length == UNDEFINED_LENGTH (the parser corrects element
         // .length for undefined-length elements, so use the flag)
@@ -131,11 +137,21 @@ export function resolveVrInstance(el, window) {
     } else if (tag.isPrivateCreator()) {
         vrType = "LO";
     } else {
-        // (_readTag also has a `vrType == "xs"` arm here, but vrType is
-        // always undefined at that point in the eager code - unreachable.)
         vrType = "UN";
     }
     return ValueRepresentation.createByTypeString(vrType);
+}
+
+/**
+ * Resolves the dictionary meta-VR "xs" ("US or SS") by PixelRepresentation
+ * (PS3.5): SS when (0028,0103) is 1, US otherwise — including when the
+ * window carries no pixelRepresentation (parity with DicomMessage._readTag,
+ * fixed in this arc for issue #368). Sources thread the parsed
+ * (0028,0103) value onto their read window as `pixelRepresentation`;
+ * (0028,0103) precedes every xs tag in tag order.
+ */
+function resolveXsVr(window) {
+    return window.pixelRepresentation === 1 ? "SS" : "US";
 }
 
 /**
@@ -374,34 +390,13 @@ export function resolveCharacterSet(window, csEl, policy) {
         policy
     );
 
-    let decoder = null;
-
-    if (values.length > 0) {
-        let coding = values[0];
-        coding = coding.replace(/[_ ]/g, "-").toLowerCase();
-        if (coding in encodingMapping) {
-            coding = encodingMapping[coding];
-            decoder = new TextDecoder(coding);
-        } else if (policy.ignoreErrors) {
-            log.warn(
-                `Unsupported character set: ${coding}, using default character set`
-            );
-        } else {
-            throw Error(`Unsupported character set: ${coding}`);
-        }
-    }
-    if (values.length > 1) {
-        if (policy.ignoreErrors) {
-            log.warn(
-                "Using multiple character sets is not supported, proceeding with just the first character set",
-                values
-            );
-        } else {
-            throw Error(
-                `Using multiple character sets is not supported: ${values}`
-            );
-        }
-    }
+    // Shared charset resolution (single charsets, ISO 2022 code extensions,
+    // error policy) — src/charset/iso2022.js. Same eager error semantics:
+    // throws when ignoreErrors=false, warns and degrades to a null decoder
+    // when ignoreErrors=true.
+    const decoder = resolveCharsetDecoder(values, {
+        ignoreErrors: policy.ignoreErrors
+    });
 
     return {
         decoder,

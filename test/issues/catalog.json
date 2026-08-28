@@ -377,7 +377,7 @@
       "area": "values",
       "disposition": "denaturalizeValue on [null]/undefined arrays: graceful, actionable error (not TypeError)",
       "testFile": "test/issues/issue42-lenient-read-strict-write.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -469,7 +469,7 @@
       "area": "uid",
       "disposition": "DicomMetaDictionary.uid(): 2.25 UIDs must be UUID-derived per PS3.5 B.2 (not random digit strings)",
       "testFile": "test/issues/issue61-uuid-uids.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -749,7 +749,7 @@
       "area": "reader",
       "disposition": "missing preamble/DICM: readFile option or corrective error (sampleDicomPart10.stripPreamble)",
       "testFile": "test/issues/issue93-missing-preamble.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -978,7 +978,7 @@
       "area": "charset",
       "disposition": "NUL-padded strings (PN/CS/LO) strip trailing 0x00 on read",
       "testFile": "test/issues/issue130-nul-padded-strings.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -1422,7 +1422,7 @@
       "area": "reader",
       "disposition": "frame larger than fragment size: read merges fragments per frame (BOT-aware)",
       "testFile": "test/issues/issue204-fragments-and-frames.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -1512,7 +1512,7 @@
       "area": "naturalizer",
       "disposition": "private/custom tags survive naturalize->denaturalize via private dictionary registration",
       "testFile": "test/issues/issue388-private-tags.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -1897,7 +1897,7 @@
       "area": "charset",
       "disposition": "Korean (ISO 2022 IR 149) decode \u2014 dclunie charset corpus",
       "testFile": "test/issues/issue454-iso2022-charsets.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -1933,7 +1933,7 @@
       "area": "values",
       "disposition": "DS with comma decimal separator: defined, non-garbage behavior (raw preserved; no wrong number)",
       "testFile": "test/issues/issue398-ds-is-precision.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2007,7 +2007,7 @@
       "area": "charset",
       "disposition": "latin1 TextDecoder unavailable (mobile): graceful fallback (monkeypatch TextDecoder in test)",
       "testFile": "test/issues/issue297-latin1-fallback.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2081,7 +2081,7 @@
       "area": "reader",
       "disposition": "Node Buffer (pooled view) passed to readFile: works or corrective error \u2014 the .buffer footgun (with #370)",
       "testFile": "test/issues/issue311-node-buffer-footgun.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2195,7 +2195,7 @@
       "area": "reader",
       "disposition": "wrong FileMetaInformationGroupLength tolerated: body still parsed (sampleDicomPart10 patched length)",
       "testFile": "test/issues/issue338-wrong-meta-group-length.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2231,7 +2231,7 @@
       "area": "writer",
       "disposition": "RLE transfer syntax: fragmentMultiframe must not re-fragment frames (one fragment per frame preserved)",
       "testFile": "test/issues/issue293-encapsulated-write.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2249,7 +2249,7 @@
       "area": "anonymizer",
       "disposition": "every name in getTagsNameToEmpty resolves to a real dictionary keyword (list the wrong ones)",
       "testFile": "test/issues/issue345-anonymizer-names.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2285,7 +2285,7 @@
       "area": "values",
       "disposition": "Tag.isPrivateCreator range per PS3.5 7.8: creator element 0x10-0xFF; 0x01-0x0F excluded",
       "testFile": "test/issues/issue356-private-creator-range.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2335,12 +2335,12 @@
     "closedAt": null,
     "excerpt": "Hi dcmjs team,\nI am using OHIF viewer and it uses dcmjs to parse DICOM files.\nThe attached MR study fails to parse with dcmjs, but it works fine with cornerstone parser [Cornerstone file loader](https://www.cornerstonejs.org/live-examples/local.html)\n\nIf possible please add a file loader page like cornerstone as it's easy and quick to check/test.\n\n[907375E7.zip](https://github.com/dcmjs-org/dcmjs/files/12213782/907375E7.zip)\n\nPlease let me know how can I fix this.\n\nI tried the following:\n- Regenerate dictonary.js from dcmjs, didn't work.\n- Tried to add a if condition to getNextSequenceItemData to skip if the var nextTag = Tag.readTag(stream); is 2001, didn't work.\n\nI also saw [this fix for dcmtk,](https://git.dcmtk.org/?p=dcmtk.git;a=commit;h=0d3d794e71a3b9035c154a266834f93383083819) not sure if it's related.",
     "triage": {
-      "category": "B",
+      "category": "A",
       "area": "reader",
-      "disposition": "MR file with 'invalid tag in sequence' unreadable (ZIP attached upstream \u2014 vetted-attachment candidate)",
-      "testFile": "test/issues/issue78-unobtainable-fixtures.test.js",
-      "status": "blocked",
-      "notes": "Upstream attachment reproduces the failure (eager readFile: 'Invalid tag in sequence'; TS 1.2.840.10008.1.2.4.70 JPEG Lossless SV1) but contains REAL PHI (patient name/birth date/MRN/institution) \u2014 failed vetting, deleted, not cached. Needs an anonymized reproducer from upstream."
+      "disposition": "UN element with undefined length must parse as implicit-VR SQ (PS3.5 6.2.2) \u2014 synthetic reproducer built from transient diagnosis of the upstream attachment",
+      "testFile": "test/issues/issue363-un-undefined-length-sq.test.js",
+      "status": "green",
+      "notes": "Resolved under the tiered attachment policy: original diagnosed transiently (root cause: Philips (2001,105F) UN + undefined length; item content implicit-VR), synthetic JANE DOE reproducer committed, original (real PHI) deleted after diagnosis, never cached."
     }
   },
   {
@@ -2393,7 +2393,7 @@
       "area": "reader",
       "disposition": "dictionary VR 'xs' resolves silently to US/SS by PixelRepresentation (no log spam)",
       "testFile": "test/issues/issue368-xs-ox-vr-resolution.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2429,7 +2429,7 @@
       "area": "charset",
       "disposition": "multi-valued SpecificCharacterSet with code extensions ('\\\\ISO 2022 IR 149') parses (dclunie corpus)",
       "testFile": "test/issues/issue454-iso2022-charsets.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2591,7 +2591,7 @@
       "area": "naturalizer",
       "disposition": "SQ items containing private tags denaturalize without numeric-key/accessor collision",
       "testFile": "test/issues/issue388-private-tags.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2627,7 +2627,7 @@
       "area": "values",
       "disposition": "DS/IS precision: rawValue retention preserves 1.0000/+1.234/large-int on round trip (cite or extend precision tests)",
       "testFile": "test/issues/issue398-ds-is-precision.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2717,7 +2717,7 @@
       "area": "writer",
       "disposition": "element with Value [undefined] writes with defined behavior (skip/empty/corrective error, not TypeError)",
       "testFile": "test/issues/issue417-undefined-values.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2899,7 +2899,7 @@
       "area": "charset",
       "disposition": "ISO 2022 IR 100 escape-switching inside SR text decodes without mojibake (dclunie corpus)",
       "testFile": "test/issues/issue454-iso2022-charsets.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2917,7 +2917,7 @@
       "area": "values",
       "disposition": "UV VRinstance real (video arc); OL/OV/SV fall back to UN safely with single warning \u2014 assert both halves",
       "testFile": "test/issues/issue457-vr-instances.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -3009,7 +3009,7 @@
       "area": "stream",
       "disposition": "AsyncDicomReader.readFile: pixel data element not wrongly nested (+ docs setData mismatch)",
       "testFile": "test/issues/issue477-async-reader.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -3045,7 +3045,7 @@
       "area": "stream",
       "disposition": "AsyncDicomReader preserves rawValue like DicomMessage._readTag",
       "testFile": "test/issues/issue477-async-reader.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -3081,7 +3081,7 @@
       "area": "charset",
       "disposition": "SR node-level charset without clobbering global decoder (family #454/#503; dclunie corpus)",
       "testFile": "test/issues/issue454-iso2022-charsets.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -3135,7 +3135,7 @@
       "area": "charset",
       "disposition": "SQ-nested strings decode with dataset SpecificCharacterSet, not hard-coded latin1 (eager + stream paths)",
       "testFile": "test/issues/issue503-sq-nested-charset.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   },
@@ -3153,7 +3153,7 @@
       "area": "sr-utilities",
       "disposition": "unit2CodingValue('cm') maps to UCUM cm, not [arb'U]{cm} (pure function; cheap despite SR area)",
       "testFile": "test/issues/issue505-unit2codingvalue.test.js",
-      "status": "gap",
+      "status": "green",
       "notes": ""
     }
   }

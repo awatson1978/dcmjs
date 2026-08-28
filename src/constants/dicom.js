@@ -3,6 +3,7 @@ export const IMPLICIT_LITTLE_ENDIAN = "1.2.840.10008.1.2";
 export const EXPLICIT_LITTLE_ENDIAN = "1.2.840.10008.1.2.1";
 export const DEFLATED_EXPLICIT_LITTLE_ENDIAN = "1.2.840.10008.1.2.1.99";
 export const EXPLICIT_BIG_ENDIAN = "1.2.840.10008.1.2.2";
+export const RLE_LOSSLESS = "1.2.840.10008.1.2.5";
 
 /**
  * The raw hex value is the maximum 32 bit unsigned integer,

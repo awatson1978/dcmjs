@@ -128,11 +128,9 @@ function buildUnUndefinedLengthFile() {
 describe("issue #363 — UN element with undefined length is an implicit-VR sequence", () => {
     const buffer = buildUnUndefinedLengthFile();
 
-    // KNOWN GAP: observed — eager readFile throws "Invalid tag in
-    // sequence" when it reaches the implicit-VR item content inside the
-    // undefined-length UN element; expected — PS3.5 §6.2.2 parse of the
-    // item as implicit VR, and parsing continues past the element.
-    it.skip("KNOWN GAP #363: eager readFile parses UN/undefined-length per PS3.5 6.2.2 and reaches later elements", () => {
+    // Fixed in this arc: _readTag reads UN + undefined length as SQ with
+    // the implicit-VR syntax (PS3.5 §6.2.2).
+    it("#363: eager readFile parses UN/undefined-length per PS3.5 6.2.2 and reaches later elements", () => {
         const dicomDict = DicomMessage.readFile(buffer);
         // The element after the UN sequence is the user-visible victory:
         expect(dicomDict.dict["20500020"].Value[0]).toBe("IDENTITY");
@@ -148,10 +146,9 @@ describe("issue #363 — UN element with undefined length is an implicit-VR sequ
         ).toContain("DOE^JANE");
     });
 
-    // KNOWN GAP: observed — the streaming path also fails to walk the
-    // implicit item content; expected — same §6.2.2 handling, both
-    // paths agreeing.
-    it.skip("KNOWN GAP #363: streaming path handles UN/undefined-length identically", async () => {
+    // Fixed in this arc: the streaming eager-window leaf path emits the
+    // §6.2.2-parsed items as sequence events (shared emitDecodedLeaf).
+    it("#363: streaming path handles UN/undefined-length identically", async () => {
         const dataset = await DicomEventStream.fromPart10Stream(
             new Uint8Array(buffer)
         ).toNaturalized();

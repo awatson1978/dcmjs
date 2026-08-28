@@ -186,28 +186,51 @@ export default class SplitDataView {
      * @param {*} options.transfer to transfer the buffer to be owned
      */
     addBuffer(buffer, options = null) {
-        buffer = buffer.buffer || buffer;
-        const start = options?.start || 0;
-        const end = options?.end || buffer.byteLength;
+        // Fixed in this arc: typed-array views (including pooled Node
+        // Buffers) keep their byteOffset/byteLength window into the backing
+        // ArrayBuffer. The old `buffer.buffer || buffer` unwrap dropped the
+        // byteOffset, silently parsing the wrong bytes of a shared pool
+        // (issue #311). options.start/end remain view-relative.
+        let start, end;
+        if (ArrayBuffer.isView(buffer)) {
+            const viewOffset = buffer.byteOffset;
+            const viewLength = buffer.byteLength;
+            start = viewOffset + (options?.start || 0);
+            end = viewOffset + (options?.end ?? viewLength);
+            buffer = buffer.buffer;
+        } else {
+            buffer = buffer.buffer || buffer;
+            start = options?.start || 0;
+            end = options?.end ?? buffer.byteLength;
+        }
         const transfer =
             options?.transfer ?? (start === 0 && end === buffer.byteLength);
         if (start === end) {
             return;
         }
-        const addBuffer = transfer ? buffer : buffer.slice(start, end);
+        const chunkLength = end - start;
         const lastOffset = this.offsets.length
             ? this.offsets[this.offsets.length - 1]
             : 0;
         const lastLength = this.lengths.length
             ? this.lengths[this.lengths.length - 1]
             : 0;
-        this.buffers.push(addBuffer);
-        this.views.push(new DataView(addBuffer));
+        if (transfer) {
+            // Adopt the backing buffer, windowed to [start, end) via an
+            // offset-aware DataView (slice/writeBuffer already honor the
+            // chunk view's byteOffset for zero-copy windows).
+            this.buffers.push(buffer);
+            this.views.push(new DataView(buffer, start, chunkLength));
+        } else {
+            const copied = buffer.slice(start, end);
+            this.buffers.push(copied);
+            this.views.push(new DataView(copied));
+        }
         this.offsets.push(lastOffset + lastLength);
-        this.lengths.push(addBuffer.byteLength);
-        this.size += addBuffer.byteLength;
-        this.byteLength += addBuffer.byteLength;
-        this.writableAllocated += addBuffer.byteLength;
+        this.lengths.push(chunkLength);
+        this.size += chunkLength;
+        this.byteLength += chunkLength;
+        this.writableAllocated += chunkLength;
     }
 
     /**

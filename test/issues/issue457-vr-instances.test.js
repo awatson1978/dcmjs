@@ -12,8 +12,9 @@
  * from the upstream report: UV got a real Unsigned64BitVeryLong instance
  * (added for the Supplement 225 video arc), while OL/OV/SV intentionally
  * remain UN fallbacks — safe byte-preserving reads/writes — with the log
- * demoted from error to warn; this file pins that split contract rather
- * than requiring four dedicated implementations.
+ * demoted from error to warn and emitted at most once per unknown type;
+ * this file pins that split contract rather than requiring four dedicated
+ * implementations.
  */
 import { ValueRepresentation } from "../../src/ValueRepresentation.js";
 import { validationLog } from "../../src/log.js";
@@ -50,6 +51,9 @@ describe("issue #457 — VR registry coverage for OL, OV, SV, UV", () => {
     });
 
     it("fallback logs at warn severity, not error (no validation-error spam)", () => {
+        // Uses a type no other test in this file has looked up: the fallback
+        // now warns at most once per type, so a previously-seen type would
+        // (correctly) stay silent here.
         const warns = [];
         const errors = [];
         const origWarn = validationLog.warn;
@@ -57,7 +61,7 @@ describe("issue #457 — VR registry coverage for OL, OV, SV, UV", () => {
         validationLog.warn = (...args) => warns.push(args);
         validationLog.error = (...args) => errors.push(args);
         try {
-            ValueRepresentation.createByTypeString("OL");
+            ValueRepresentation.createByTypeString("QX");
         } finally {
             validationLog.warn = origWarn;
             validationLog.error = origError;
@@ -66,12 +70,10 @@ describe("issue #457 — VR registry coverage for OL, OV, SV, UV", () => {
         expect(warns.length).toBeGreaterThanOrEqual(1);
     });
 
-    // KNOWN GAP: observed one validation warning per createByTypeString call
-    // (3 lookups -> 3 warnings); expected the known OL/OV/SV fallbacks to
-    // warn at most once per type — per-element repetition reproduces the log
-    // spam the issue (and #368's "lots of 'Invalid vr type...' messages")
-    // complains about on files with many such elements.
-    it.skip("KNOWN GAP #457: OL/OV/SV fallback warns on every lookup instead of at most once per type", () => {
+    // Fixed in this arc: createByTypeString tracks unknown types in a
+    // module-level seen-set and warns only on the first lookup of each type,
+    // with identical UN-fallback semantics — no more per-element log spam.
+    it("#457: OL/OV/SV fallback warns at most once per type across repeated lookups", () => {
         const warns = [];
         const origWarn = validationLog.warn;
         validationLog.warn = (...args) => warns.push(args);

@@ -5,6 +5,7 @@ import {
     decodeWithEagerReadTag,
     seedReadContext
 } from "../core/decodeCore.js";
+import { emitEntry } from "./fromDataSet.js";
 
 /**
  * fromPart10 — a genuine raw-bytes Part 10 -> event-stream generator.
@@ -102,6 +103,28 @@ export async function fromPart10(buffer, listener, options = {}) {
     );
     const decoder = csResult?.decoder ?? null;
 
+    // Thread the parsed (0028,0103) PixelRepresentation onto the body
+    // window so resolveVrInstance can resolve the "xs" (US-or-SS) meta-VR
+    // per PS3.5 (issue #368). seedReadContext builds a fresh window per
+    // call, so the in-place assignment is private to this parse; every
+    // `{ ...bodyWindow }` copy below inherits the property.
+    const prEl = elements.x00280103;
+    if (prEl) {
+        try {
+            const prValues = decodeElementValues(
+                bodyWindow,
+                prEl,
+                resolveVrInstance(prEl, bodyWindow),
+                policy
+            ).values;
+            if (prValues && prValues.length) {
+                bodyWindow.pixelRepresentation = prValues[0];
+            }
+        } catch {
+            // Undecodable PixelRepresentation: keep the US default.
+        }
+    }
+
     for (const key of bodyKeys) {
         emitElement(
             listener,
@@ -181,10 +204,17 @@ function emitElement(
         return;
     }
 
-    // Encapsulated pixel data -> raw fragments.
+    // Encapsulated pixel data -> raw fragments. The parser's Basic Offset
+    // Table (when non-empty) rides on startBinary so BOT-aware listeners
+    // can merge fragments per frame window (issue #204); the fragment
+    // events themselves stay raw.
     if (el.encapsulatedPixelData && el.fragments) {
         listener.startElement(tag, { vr: vrInstance.type, length: el.length });
-        listener.startBinary({ encapsulated: true });
+        const startBinaryInfo = { encapsulated: true };
+        if (el.basicOffsetTable && el.basicOffsetTable.length) {
+            startBinaryInfo.basicOffsetTable = Array.from(el.basicOffsetTable);
+        }
+        listener.startBinary(startBinaryInfo);
         for (const f of el.fragments) {
             listener.binaryFragment(fragmentBuffer(bodyWindow, f));
         }
@@ -203,7 +233,7 @@ function emitElement(
             el,
             policy
         );
-        emitValues(listener, tag, vrInstance, el, values, rawValues);
+        emitDecodedLeaf(listener, tag, vrInstance, el, values, rawValues);
         return;
     }
 
@@ -217,6 +247,42 @@ function emitElement(
         vrInstance,
         policy
     );
+    emitValues(listener, tag, vrInstance, el, values, rawValues);
+}
+
+/**
+ * Emit an eager-decoded undefined-length leaf. PS3.5 §6.2.2 (issue #363):
+ * the eager reader parses a UN element with undefined length as an
+ * implicit-VR sequence, so the decode yields item dicts — those are
+ * emitted as sequence events (matching the eager dict shape); everything
+ * else routes through emitValues. Exported for fromPart10Stream's
+ * eager-window leaf path so both sources agree.
+ */
+export function emitDecodedLeaf(
+    listener,
+    tag,
+    vrInstance,
+    el,
+    values,
+    rawValues
+) {
+    if (
+        vrInstance.type === "UN" &&
+        el.hadUndefinedLength &&
+        Array.isArray(values) &&
+        values.every(isItemDictLike)
+    ) {
+        listener.startSequence(tag, { vr: "SQ", length: el.length });
+        for (const itemDict of values) {
+            listener.startItem({});
+            for (const childTag of Object.keys(itemDict)) {
+                emitEntry(listener, childTag, itemDict[childTag]);
+            }
+            listener.endItem();
+        }
+        listener.endSequence();
+        return;
+    }
     emitValues(listener, tag, vrInstance, el, values, rawValues);
 }
 
@@ -243,6 +309,16 @@ export function emitValues(listener, tag, vrInstance, el, values, rawValues) {
         index++;
     }
     listener.endElement();
+}
+
+function isItemDictLike(v) {
+    return (
+        v &&
+        typeof v === "object" &&
+        !(v instanceof ArrayBuffer) &&
+        !ArrayBuffer.isView(v) &&
+        Object.keys(v).every(k => /^[0-9A-Fx]{8,9}$/i.test(k))
+    );
 }
 
 function isBufferLike(v) {

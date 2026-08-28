@@ -53,6 +53,66 @@ export const EVENT_STREAM_VOCABULARY = [
 /** Contract version — generators and listeners can declare conformance. */
 export const CONTRACT_VERSION = "1.0.0-A";
 
+/**
+ * Merge raw encapsulated-pixel-data fragments into one buffer per Basic
+ * Offset Table window (issue #204 — eager-reader shape parity for
+ * BOT-aware listeners). The event stream itself stays raw (one
+ * binaryFragment per on-wire fragment); listeners that rebuild a dataset
+ * call this at endBinary time when startBinary carried a non-empty
+ * `basicOffsetTable`.
+ *
+ * Fragment offsets are reconstructed from the fragment lengths: fragment
+ * i's item header starts at Σ_{j<i} (8 + length_j), matching the BOT's
+ * item-header-relative offset convention. Grouping and merge semantics
+ * mirror BinaryRepresentation.readBytes: a single-fragment window stays
+ * that fragment's buffer; a multi-fragment window merges into one
+ * ArrayBuffer.
+ *
+ * @param {Array<ArrayBuffer|TypedArray>} fragments raw fragment buffers
+ * @param {number[]} basicOffsetTable BOT offsets (item-header relative)
+ * @returns {Array<ArrayBuffer|TypedArray>} one entry per BOT window
+ */
+export function mergeFragmentsPerBotWindow(fragments, basicOffsetTable) {
+    if (!basicOffsetTable || basicOffsetTable.length === 0) {
+        return fragments;
+    }
+    const toBytes = f =>
+        f instanceof ArrayBuffer
+            ? new Uint8Array(f)
+            : new Uint8Array(f.buffer, f.byteOffset, f.byteLength);
+    let offset = 0;
+    const placed = fragments.map(fragment => {
+        const length = fragment.byteLength;
+        const entry = { fragment, offset, length };
+        offset += 8 + length;
+        return entry;
+    });
+    const frames = [];
+    for (let i = 0; i < basicOffsetTable.length; i++) {
+        const start = basicOffsetTable[i];
+        const stop =
+            i + 1 < basicOffsetTable.length
+                ? basicOffsetTable[i + 1]
+                : Number.POSITIVE_INFINITY;
+        const windowFragments = placed.filter(
+            f => f.offset >= start && f.offset < stop
+        );
+        if (windowFragments.length === 1) {
+            frames.push(windowFragments[0].fragment);
+            continue;
+        }
+        const frameSize = windowFragments.reduce((n, f) => n + f.length, 0);
+        const merged = new Uint8Array(frameSize);
+        let position = 0;
+        for (const f of windowFragments) {
+            merged.set(toBytes(f.fragment), position);
+            position += f.length;
+        }
+        frames.push(merged.buffer);
+    }
+    return frames;
+}
+
 export class EventStreamListener {
     /**
      * @param {...Object} filters - Filter objects. Each may implement any

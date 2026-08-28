@@ -153,14 +153,11 @@ describe("issue #159 - many-frame encapsulated write completes without quadratic
 });
 
 describe("issue #340 - RLE Lossless frames must stay one fragment per frame", () => {
-    // KNOWN GAP: observed - BinaryRepresentation.writeBytes re-fragments
-    // every frame larger than 20 KB regardless of transfer syntax
-    // (src/ValueRepresentation.js, fragmentSize = 1024*20, no RLE check),
-    // so 3 x 30 KB RLE frames emit 6 fragments. Expected - PS3.5 Annex G:
-    // RLE Lossless requires exactly one fragment per frame, so the write
-    // must emit 3 fragments (dcm4che logs "RLE Segment too short" and
-    // DCMTK produces corrupted cine loops otherwise).
-    it.skip("KNOWN GAP #340: default write re-fragments >20KB RLE frames instead of preserving one fragment per frame", () => {
+    // Fixed in this arc: BinaryRepresentation.writeBytes now forces
+    // fragmentMultiframe off when the transfer syntax is RLE Lossless
+    // (1.2.840.10008.1.2.5), so frames are never split across fragments
+    // regardless of the fragmentMultiframe write option (PS3.5 Annex G).
+    it("#340: default write preserves one fragment per frame for >20KB RLE frames", () => {
         const frameBytes = 30 * 1024; // > writer fragment size to provoke re-fragmentation
         const frames = makeFrames(3, frameBytes);
         expect(frameBytes).toBeGreaterThan(WRITER_FRAGMENT_SIZE);

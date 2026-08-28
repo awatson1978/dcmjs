@@ -28,9 +28,10 @@
  * original source string as `_rawValue` and writes it back byte-preserving
  * when Value is unchanged (see test/lossless-read-write.test.js for the
  * dict-level pins of " +1.4000  ", "1.2345e2", and the >2^53 integer), while
- * the DICOM JSON model output emits DS/IS as JSON Numbers with NO _rawValue
- * (schema purity, #404) — dcm4chee parity rather than the string encoding the
- * upstream reports assumed. This file covers the angles the existing
+ * the DICOM JSON model output emits DS/IS as JSON Numbers when lossless and
+ * as the raw string when Number() would lose integer precision (PS3.18
+ * F.2.3.1 allows both), with NO _rawValue key (schema purity, #404) —
+ * dcm4chee parity for normal values. This file covers the angles the existing
  * precision suite does not: the wire bytes themselves, the JSON-model number
  * typing, and the JSON-model large-integer consequence.
  *
@@ -200,13 +201,11 @@ describe("issue #287 — DS with comma decimal separator", () => {
         ]);
     });
 
-    // KNOWN GAP: observed Value [347, 347] — DecimalString.applyFormatting
-    // strips the comma ("0,347" -> "0347" -> 347), silently yielding a number
-    // 1000x the intended 0.347 (the upstream file yielded 143 the same way).
-    // Expected: a non-garbage outcome — the string preserved as-is, or
-    // null/NaN with _rawValue retained, or a corrective warning; never a
-    // silently wrong finite number.
-    it.skip("KNOWN GAP #287: comma-decimal DS silently parses to a wrong finite number (0,347 -> 347)", () => {
+    // Fixed in this arc: DecimalString.applyFormatting now validates against
+    // the PS3.5 DS character grammar instead of stripping invalid characters;
+    // "0,347" parses to null with a validation warning while the original
+    // text stays in _rawValue — never a silently wrong finite number.
+    it("#287: comma-decimal DS parses to null with rawValue retained (0,347 never becomes 347)", () => {
         const value = readCommaDs().dict["00280030"].Value[0];
         const acceptable =
             value === "0,347" || value === null || Number.isNaN(value);
@@ -259,16 +258,13 @@ describe("issues #398/#53 — DS/IS precision contract and the DICOM JSON model"
         expect(json["00181190"].Value).toEqual([1.234]);
     });
 
-    // KNOWN GAP: observed JSON-model Value [9007199254740992] for the DS
-    // source string "9007199254740993" — the >2^53 integer is silently
-    // truncated by Number conversion and the JSON output carries no raw
-    // string (by the #404 schema-purity contract, _rawValue never leaks into
-    // the JSON model). Expected: the JSON model should not silently lose
-    // integer precision — PS3.18 F.2.3.1's string encoding of DS is the
-    // standard's escape hatch for exactly this case. Note the DicomDict path
-    // DOES retain it (pinned in test/lossless-read-write.test.js); the loss
-    // is JSON-model-only.
-    it.skip("KNOWN GAP #398: DICOM JSON model silently truncates DS integers beyond 2^53 with rawValue lost", async () => {
+    // Fixed in this arc: DicomWebJsonWriter now applies PS3.18 F.2.3.1's
+    // number-or-string choice per value — DS/IS emit JSON numbers when the
+    // conversion is lossless (dcm4chee parity, #53) and fall back to the raw
+    // source string when Number() would lose integer precision (>2^53), so
+    // the JSON model never silently truncates and _rawValue still never
+    // leaks (#404).
+    it("#398: DICOM JSON model preserves DS integers beyond 2^53 via the F.2.3.1 string encoding", async () => {
         const d = makeDict();
         d.dict["00181041"] = {
             vr: "DS",

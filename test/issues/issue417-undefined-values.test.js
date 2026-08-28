@@ -13,8 +13,8 @@
  * Defined behavior pinned here (either is acceptable):
  *   a) the element is skipped or written empty, and the output re-reads; or
  *   b) the write fails with a corrective error NAMING the offending tag.
- * A bare TypeError/"Not a number: undefined" satisfies neither and is a
- * KNOWN GAP.
+ * 1.0 takes (b): DicomMessage.write annotates element-write failures with
+ * the tag being written, preserving the underlying cause in the message.
  *
  * Also pins the naturalized-side contract: a naturalized field explicitly
  * set to undefined is OMITTED by denaturalizeDataset (the #418-family
@@ -40,12 +40,10 @@ beforeAll(() => {
 });
 
 describe("issue #417 - dict entry with Value [undefined] has defined write behavior", () => {
-    // KNOWN GAP: observed - dicomDict.write() throws the bare
-    // "Not a number: undefined" from toInt/WriteBufferStream.writeUint16
-    // (src/utilities/toInt.js) with no mention of the offending tag
-    // (0010,21C0). Expected - either the element is skipped/written empty
-    // (output re-reads), or a corrective error naming the tag/keyword.
-    it.skip("KNOWN GAP #417: write() on {vr:'US', Value:[undefined]} throws a bare 'Not a number: undefined' instead of skipping or naming the tag", () => {
+    // Fixed in this arc: DicomMessage.write annotates element-write failures
+    // with the tag being written, so the buffer-layer "Not a number:
+    // undefined" now surfaces as a corrective error naming 001021C0.
+    it("#417: write() on {vr:'US', Value:[undefined]} fails with a corrective error naming the tag", () => {
         const dicomDict = DicomMessage.readFile(
             createSampleDicom({ dict: EXTRA_DICT })
         );
@@ -91,11 +89,12 @@ describe("issue #417 - dict entry with Value [undefined] has defined write behav
             error = e;
         }
 
-        // Documents today's observed failure mode so the fix pass can
-        // flip the skipped test above: the write DOES throw, and the
-        // message is the context-free buffer error.
+        // The write throws the same annotated error as the default-options
+        // path: the underlying buffer failure is preserved in the message
+        // and the offending tag is named.
         expect(error).toBeDefined();
         expect(String(error.message)).toMatch(/Not a number: undefined/);
+        expect(String(error.message)).toMatch(/001021C0/i);
     });
 });
 

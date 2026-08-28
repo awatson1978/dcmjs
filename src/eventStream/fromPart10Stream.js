@@ -26,7 +26,9 @@
 
 import pako from "pako";
 import { ReadBufferStream } from "../BufferStream.js";
-import { fromPart10, emitValues } from "./fromPart10.js";
+import { DicomMessage } from "../DicomMessage.js";
+import { fromPart10, emitValues, emitDecodedLeaf } from "./fromPart10.js";
+import { fromDataSet } from "./fromDataSet.js";
 import {
     EXPLICIT_LITTLE_ENDIAN,
     EXPLICIT_BIG_ENDIAN,
@@ -211,14 +213,28 @@ async function fromPart10StreamImpl(input, listener, options, parseState) {
     }
 
     if (rawDatasetFallback) {
-        // K2 placeholder: raw datasets / non-DICOM input still uses the
-        // fully-buffered K1 delegation path.  This guarantees exact error
-        // parity with fromPart10 (which propagates the tokenizer's error
-        // via seedReadContext) without requiring early message reconstruction.
-        // K3+ may detect and short-circuit earlier.
         await feedPromise;
         if (feedError) throw feedError;
         const byteArray = new Uint8Array(stream.slice(0, stream.size));
+        // Fixed in this arc (issue #93): with an explicit opt-in
+        // (allowMissingHeader, or the tolerant ignoreErrors mode) a bare
+        // (meta-less, DIMSE-style) dataset is force-read: the eager reader
+        // parses it via readFile({ allowMissingHeader: true }) — Explicit
+        // Little Endian assumed unless implicit VR is detected — and the
+        // resulting dict is replayed as events through fromDataSet.
+        if (options.allowMissingHeader || options.ignoreErrors) {
+            const bareDict = DicomMessage.readFile(byteArray.buffer, {
+                ...options,
+                allowMissingHeader: true
+            });
+            await fromDataSet(bareDict, listener);
+            return;
+        }
+        // Default path unchanged (K2 delegation): raw datasets / non-DICOM
+        // input uses the fully-buffered K1 delegation path.  This guarantees
+        // exact error parity with fromPart10 (which propagates the
+        // tokenizer's error via seedReadContext) without requiring early
+        // message reconstruction.
         await fromPart10(byteArray.buffer, listener, options);
         return;
     }
@@ -963,6 +979,13 @@ async function fromPart10StreamImpl(input, listener, options, parseState) {
             const csResult = resolveCharacterSet(win, elLike, policy);
             newDecoder = csResult?.decoder ?? null;
         }
+        // (0028,0103) PixelRepresentation drives the "xs" (US-or-SS)
+        // meta-VR resolution of subsequent elements (issue #368). EMPTY_WIN
+        // is the window handed to resolveVrInstance and is created per
+        // parse, so the in-place update is private to this stream.
+        if (tagStr === "00280103" && values && values.length) {
+            EMPTY_WIN.pixelRepresentation = values[0];
+        }
         emitValues(target, tagStr, vrInstance, elLike, values, rawValues);
         bsrc.offset = valueEndAbs;
         return newDecoder;
@@ -1013,10 +1036,12 @@ async function fromPart10StreamImpl(input, listener, options, parseState) {
             vr: vrInstance.type,
             length: UNDEFINED_LEN
         });
-        target.startBinary({ encapsulated: true });
         bsrc.offset = dataOffsetAbs;
 
-        // Basic Offset Table item (FFFE,E000) — skip its bytes.
+        // Basic Offset Table item (FFFE,E000) — its offsets are surfaced on
+        // startBinary so BOT-aware listeners can merge fragments per frame
+        // window (issue #204); its bytes are then skipped (buffered
+        // fromPart10 does NOT emit it as a fragment).
         if (!(await ensureAbs(bsrc.offset + 8))) {
             throw new Error(
                 `fromPart10Stream: truncated: encapsulated BOT header at ${bsrc.offset}`
@@ -1024,14 +1049,24 @@ async function fromPart10StreamImpl(input, listener, options, parseState) {
         }
         const botLen = getU32(bsrc.offset + 4);
         bsrc.offset += 8;
+        const startBinaryInfo = { encapsulated: true };
         if (botLen > 0) {
             if (!(await ensureAbs(bsrc.offset + botLen))) {
                 throw new Error(
                     `fromPart10Stream: truncated: encapsulated BOT (${botLen} bytes)`
                 );
             }
+            const botCount = Math.floor(botLen / 4);
+            if (botCount > 0) {
+                const basicOffsetTable = new Array(botCount);
+                for (let i = 0; i < botCount; i++) {
+                    basicOffsetTable[i] = getU32(bsrc.offset + i * 4);
+                }
+                startBinaryInfo.basicOffsetTable = basicOffsetTable;
+            }
             bsrc.offset += botLen;
         }
+        target.startBinary(startBinaryInfo);
 
         for (;;) {
             if (!(await ensureAbs(bsrc.offset + 8))) {
@@ -1121,7 +1156,7 @@ async function fromPart10StreamImpl(input, listener, options, parseState) {
             eagerEl,
             policy
         );
-        emitValues(target, tagStr, vrInstance, eagerEl, values, rawValues);
+        emitDecodedLeaf(target, tagStr, vrInstance, eagerEl, values, rawValues);
         bsrc.offset = end;
     }
 

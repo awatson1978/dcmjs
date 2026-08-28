@@ -22,8 +22,30 @@ bottom is the input to a later, prioritized fix pass.
      `ValueRepresentation` / `DicomMetaDictionary` calls).
    - **B — fixture**: needs a real file — the dcmjs-org/data network
      corpus (gated by `itIfNetworkFixture`, cached in
-     `$TMPDIR/dcmjs-test`) or a PHI-vetted issue attachment cached the
-     same way (never committed; provenance noted in the test docblock).
+     `$TMPDIR/dcmjs-test`) or an issue attachment handled under the
+     tiered rule below.
+
+   **Issue-attachment policy (tiered).** A file attached to a bug report
+   carries the reporter's implicit agreement that it be used to fix the
+   bug — but the reporter's intent is not the patient's consent, so use
+   is tiered by persistence:
+   1. *Diagnose transiently.* Download, reproduce, and step through the
+      failure locally. Ephemeral use is the whole point of the
+      attachment.
+   2. *Prefer a synthetic reproducer.* Identify the exact byte pattern
+      that triggers the bug and rebuild it with fictional identity
+      (JANE DOE / JANE FOX), fictional UIDs, and garbage pixels. This is
+      committable and can even be contributed back upstream.
+   3. *Else keep a verified-anonymized derivative.* When the quirk
+      resists synthesis, scrub the copy — patient module, dates,
+      institution/physician names, accession, private tags, UID
+      remapping, and a check for burned-in pixel text — verify the
+      scrub by dumping every string-VR element, cache the derivative
+      like a network fixture, and record provenance + scrub method in
+      the test docblock.
+   4. *Never retain or commit the original.* Delete it once the
+      synthetic/derivative exists; PHI-bearing bytes never enter the
+      repo or the fixture cache.
    - **C — contract**: behavior the 1.0 rewrite deliberately defined or
      changed (single-item-SQ naturalization, IS/DS as JSON numbers,
      rawValue retention, PN proxies …). The test asserts the NEW
@@ -101,7 +123,7 @@ behavior in this library, the skipped test that reproduces it, severity.
 _(generated — do not edit by hand)_
 
 <!-- TRIAGE-TABLE-START -->
-### A — synthetic reproducer (50)
+### A — synthetic reproducer (51)
 
 | # | Title | State | Area | Disposition | Test | Status |
 |---|---|---|---|---|---|---|
@@ -138,6 +160,7 @@ _(generated — do not edit by hand)_
 | [340](https://github.com/dcmjs-org/dcmjs/issues/340) | US cine loops with Transfer Syntax RLE Lossless are corrupted after DicomMessage.write when fragmentMultiframe option is enabled  | open | writer | RLE transfer syntax: fragmentMultiframe must not re-fragment frames (one fragment per frame preserved) | test/issues/issue293-encapsulated-write.test.js | gap |
 | [345](https://github.com/dcmjs-org/dcmjs/issues/345) | anonymizer uses incorrect tag names | open | anonymizer | every name in getTagsNameToEmpty resolves to a real dictionary keyword (list the wrong ones) | test/issues/issue345-anonymizer-names.test.js | gap |
 | [356](https://github.com/dcmjs-org/dcmjs/issues/356) | private Tags take element wrong into account | open | values | Tag.isPrivateCreator range per PS3.5 7.8: creator element 0x10-0xFF; 0x01-0x0F excluded | test/issues/issue356-private-creator-range.test.js | gap |
+| [363](https://github.com/dcmjs-org/dcmjs/issues/363) | Invalid tag in sequence : Unable to parse MR Dicom file in dcmjs. Cornerstone able to parse and works fine | open | reader | UN element with undefined length must parse as implicit-VR SQ (PS3.5 6.2.2) — synthetic reproducer built from transient diagnosis of the upstream attachment | test/issues/issue363-un-undefined-length-sq.test.js | gap |
 | [365](https://github.com/dcmjs-org/dcmjs/issues/365) | Order of tags gets messed up when edition DICOM SEG | open | writer | edited dataset writes with ascending tag order regardless of naturalized key insertion order | test/issues/issue365-tag-order.test.js | green |
 | [366](https://github.com/dcmjs-org/dcmjs/issues/366) | Length of Decimal String larger than 16 characters | open | values | DS 16-char formatting: 0.99990081787109 writes within 16 chars (DS/IS cluster) | test/issues/issue398-ds-is-precision.test.js | green |
 | [368](https://github.com/dcmjs-org/dcmjs/issues/368) | Lots of 'Invalid vr type... ' log messages in dcmjs release 0.29.11 | open | reader | dictionary VR 'xs' resolves silently to US/SS by PixelRepresentation (no log spam) | test/issues/issue368-xs-ox-vr-resolution.test.js | gap |
@@ -156,7 +179,7 @@ _(generated — do not edit by hand)_
 | [503](https://github.com/dcmjs-org/dcmjs/issues/503) | Sequence-nested string content decoded with Latin-1 instead of SpecificCharacterSet (UTF-8 mojibake) | open | charset | SQ-nested strings decode with dataset SpecificCharacterSet, not hard-coded latin1 (eager + stream paths) | test/issues/issue503-sq-nested-charset.test.js | gap |
 | [505](https://github.com/dcmjs-org/dcmjs/issues/505) | unit2CodingValue has no entry for "cm" — centimetre measurements become [arb'U]{cm} | open | sr-utilities | unit2CodingValue('cm') maps to UCUM cm, not [arb'U]{cm} (pure function; cheap despite SR area) | test/issues/issue505-unit2codingvalue.test.js | gap |
 
-### B — needs fixture (8)
+### B — needs fixture (7)
 
 | # | Title | State | Area | Disposition | Test | Status |
 |---|---|---|---|---|---|---|
@@ -164,7 +187,6 @@ _(generated — do not edit by hand)_
 | [86](https://github.com/dcmjs-org/dcmjs/issues/86) | readFile failing on (some?) images with palette color LUTs | open | reader | readFile on palette-color-LUT images (OHIF #1350 file) | test/issues/issue78-unobtainable-fixtures.test.js | blocked |
 | [284](https://github.com/dcmjs-org/dcmjs/issues/284) | [Question] Dataset in different language  | closed | charset | Korean (ISO 2022 IR 149) decode — dclunie charset corpus | test/issues/issue454-iso2022-charsets.test.js | gap |
 | [347](https://github.com/dcmjs-org/dcmjs/issues/347) | The saved image file is inconsistent with the source file. | closed | writer | positioning lines (overlay in pixel high bits?) lost after read->save (fixture link likely dead; note only) | test/issues/issue78-unobtainable-fixtures.test.js | blocked |
-| [363](https://github.com/dcmjs-org/dcmjs/issues/363) | Invalid tag in sequence : Unable to parse MR Dicom file in dcmjs. Cornerstone able to parse and works fine | open | reader | MR file with 'invalid tag in sequence' unreadable (ZIP attached upstream — vetted-attachment candidate) | test/issues/issue78-unobtainable-fixtures.test.js | blocked |
 | [373](https://github.com/dcmjs-org/dcmjs/issues/373) | Reading dicom file | open | charset | multi-valued SpecificCharacterSet with code extensions ('\\ISO 2022 IR 149') parses (dclunie corpus) | test/issues/issue454-iso2022-charsets.test.js | gap |
 | [454](https://github.com/dcmjs-org/dcmjs/issues/454) | Wrong decoding from ISO 2022 IR 100 to ISO IR 192 (UTF-8)? | open | charset | ISO 2022 IR 100 escape-switching inside SR text decodes without mojibake (dclunie corpus) | test/issues/issue454-iso2022-charsets.test.js | gap |
 | [484](https://github.com/dcmjs-org/dcmjs/issues/484) | Handle SR node encoding without overriding global encoding. | open | charset | SR node-level charset without clobbering global decoder (family #454/#503; dclunie corpus) | test/issues/issue454-iso2022-charsets.test.js | gap |

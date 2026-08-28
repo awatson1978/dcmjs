@@ -68,22 +68,4 @@ describe("issues #78/#86 — fixtures unobtainable (BLOCKED placeholders)", () =
     it.skip("BLOCKED: fixture unobtainable — #86 palette-color-LUT readFile succeeds and LUT descriptors naturalize", () => {
         throw new Error("unreachable placeholder");
     });
-
-    // BLOCKED: fixture FAILED PHI VETTING — issue #363 ("Invalid tag in
-    // sequence : Unable to parse MR Dicom file"). The upstream GitHub
-    // attachment (907375E7.zip) DOES reproduce: eager readFile throws
-    // "Invalid tag in sequence" on a JPEG Lossless SV1
-    // (1.2.840.10008.1.2.4.70) MR instance that dicomParser reads fine.
-    // But the file carries real patient identity (name, birth date, MRN,
-    // institution), so under the synthetic+vetted-attachments policy it
-    // was deleted, not cached. Needs an anonymized reproducer from
-    // upstream (asking the reporter, or re-creating the sequence quirk
-    // synthetically once the failing tag pattern is known). When one
-    // lands: readFile must parse it (or fail with a corrective message
-    // naming the offending tag), and eager/stream paths must agree.
-    // Issue #347 ("saved image inconsistent with source" — positioning
-    // lines lost) is also fixture-dead: self-hosted link is gone.
-    it.skip("BLOCKED: fixture failed PHI vetting — #363 'Invalid tag in sequence' MR file parses", () => {
-        throw new Error("unreachable placeholder");
-    });
 });

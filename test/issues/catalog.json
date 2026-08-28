@@ -2335,12 +2335,12 @@
     "closedAt": null,
     "excerpt": "Hi dcmjs team,\nI am using OHIF viewer and it uses dcmjs to parse DICOM files.\nThe attached MR study fails to parse with dcmjs, but it works fine with cornerstone parser [Cornerstone file loader](https://www.cornerstonejs.org/live-examples/local.html)\n\nIf possible please add a file loader page like cornerstone as it's easy and quick to check/test.\n\n[907375E7.zip](https://github.com/dcmjs-org/dcmjs/files/12213782/907375E7.zip)\n\nPlease let me know how can I fix this.\n\nI tried the following:\n- Regenerate dictonary.js from dcmjs, didn't work.\n- Tried to add a if condition to getNextSequenceItemData to skip if the var nextTag = Tag.readTag(stream); is 2001, didn't work.\n\nI also saw [this fix for dcmtk,](https://git.dcmtk.org/?p=dcmtk.git;a=commit;h=0d3d794e71a3b9035c154a266834f93383083819) not sure if it's related.",
     "triage": {
-      "category": "B",
+      "category": "A",
       "area": "reader",
-      "disposition": "MR file with 'invalid tag in sequence' unreadable (ZIP attached upstream \u2014 vetted-attachment candidate)",
-      "testFile": "test/issues/issue78-unobtainable-fixtures.test.js",
-      "status": "blocked",
-      "notes": "Upstream attachment reproduces the failure (eager readFile: 'Invalid tag in sequence'; TS 1.2.840.10008.1.2.4.70 JPEG Lossless SV1) but contains REAL PHI (patient name/birth date/MRN/institution) \u2014 failed vetting, deleted, not cached. Needs an anonymized reproducer from upstream."
+      "disposition": "UN element with undefined length must parse as implicit-VR SQ (PS3.5 6.2.2) \u2014 synthetic reproducer built from transient diagnosis of the upstream attachment",
+      "testFile": "test/issues/issue363-un-undefined-length-sq.test.js",
+      "status": "gap",
+      "notes": "Resolved under the tiered attachment policy: original diagnosed transiently (root cause: Philips (2001,105F) UN + undefined length; item content implicit-VR), synthetic JANE DOE reproducer committed, original (real PHI) deleted after diagnosis, never cached."
     }
   },
   {

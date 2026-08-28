@@ -78,6 +78,9 @@ importers:
       cpy-cli:
         specifier: 7.0.0
         version: 7.0.0
+      dcmjs-upstream:
+        specifier: npm:dcmjs@^0.52.0
+        version: dcmjs@0.52.0
       dicom-parser:
         specifier: 1.8.21
         version: 1.8.21
@@ -3476,6 +3479,10 @@ packages:
   data-urls@2.0.0:
     resolution: {integrity: sha512-X5eWTSXO/BJmpdIKCRuKUgSCgAN0OwliVK3yPKbwIWU1Tdw5BRajxlzMidvh+gwko9AfQ9zIj52pzF91Q3YAvQ==}
     engines: {node: '>=10'}
+
+  dcmjs@0.52.0:
+    resolution: {integrity: sha512-0/mT9NACKnwnOnkUx7JAqmWxRcUr7HiCoptw1KhN2StNYE0Hy6+tmpI7CU+lJuBc4rFpcMCalvI8QO6JkJ+7Fg==}
+    engines: {node: '>=22.13'}
 
   debounce@1.2.1:
     resolution: {integrity: sha512-XRRe6Glud4rd/ZGQfiV1ruXSfbvfJedlV9Y6zOlP+2K04vBYiJEte6stfFkCP03aMnY5tsipamumUjL14fofug==}
@@ -12538,6 +12545,16 @@ snapshots:
       abab: 2.0.6
       whatwg-mimetype: 2.3.0
       whatwg-url: 8.7.0
+
+  dcmjs@0.52.0:
+    dependencies:
+      '@babel/runtime-corejs3': 7.29.2
+      adm-zip: 0.5.17
+      gl-matrix: 3.4.4
+      lodash.clonedeep: 4.5.0
+      loglevel: 1.9.2
+      ndarray: 1.0.19
+      pako: 2.1.0
 
   debounce@1.2.1: {}
 

@@ -20,7 +20,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CATALOG_PATH = path.join(__dirname, "..", "test", "issues", "catalog.json");
+const CATALOG_PATH = path.join(
+    __dirname,
+    "..",
+    "test",
+    "issues",
+    "catalog.json"
+);
 const REPO = "dcmjs-org/dcmjs";
 const EXCERPT_LENGTH = 1500;
 
@@ -107,8 +113,10 @@ function refresh() {
     fs.writeFileSync(CATALOG_PATH, JSON.stringify(merged, null, 2) + "\n");
     const untriaged = merged.filter(entry => !entry.triage.category).length;
     console.log(
-        `catalog: ${merged.length} issues → ${path.relative(process.cwd(), CATALOG_PATH)}` +
-            (untriaged ? ` (${untriaged} untriaged)` : "")
+        `catalog: ${merged.length} issues → ${path.relative(
+            process.cwd(),
+            CATALOG_PATH
+        )}` + (untriaged ? ` (${untriaged} untriaged)` : "")
     );
 }
 
@@ -128,15 +136,22 @@ function table() {
         }
         lines.push(`### ${CATEGORY_LABELS[category]} (${rows.length})`);
         lines.push("");
-        lines.push("| # | Title | State | Area | Disposition | Test | Status |");
+        lines.push(
+            "| # | Title | State | Area | Disposition | Test | Status |"
+        );
         lines.push("|---|---|---|---|---|---|---|");
         for (const entry of rows) {
             const title = entry.title.replace(/\|/g, "\\|");
-            const disposition = (entry.triage.disposition || "").replace(/\|/g, "\\|");
+            const disposition = (entry.triage.disposition || "").replace(
+                /\|/g,
+                "\\|"
+            );
             lines.push(
                 `| [${entry.number}](${entry.url}) | ${title} | ${entry.state} | ` +
                     `${entry.triage.area || ""} | ${disposition} | ` +
-                    `${entry.triage.testFile || ""} | ${entry.triage.status || ""} |`
+                    `${entry.triage.testFile || ""} | ${
+                        entry.triage.status || ""
+                    } |`
             );
         }
         lines.push("");

@@ -48,8 +48,8 @@
       "category": "C",
       "area": "naturalizer",
       "disposition": "MappingResource vs MappingResourceUID must naturalize to distinct keywords (no UID-suffix dropping)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue3-keyword-contract.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -106,8 +106,8 @@
       "category": "C",
       "area": "naturalizer",
       "disposition": "NDD naming contract: keywords keep UID/Sequence suffixes; no UID value auto-naming (fold with #3)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue3-keyword-contract.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -142,8 +142,8 @@
       "category": "A",
       "area": "naturalizer",
       "disposition": "polluted Object.prototype must not corrupt naturalize/denaturalize/write (forEach-not-for-in)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue10-prototype-pollution.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -376,8 +376,8 @@
       "category": "A",
       "area": "values",
       "disposition": "denaturalizeValue on [null]/undefined arrays: graceful, actionable error (not TypeError)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue42-lenient-read-strict-write.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -394,8 +394,8 @@
       "category": "A",
       "area": "values",
       "disposition": "LT is single-valued: backslash inside LT text must round-trip as ONE value",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue46-lt-single-valued.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -412,8 +412,8 @@
       "category": "C",
       "area": "values",
       "disposition": "UN odd-length pads with NUL to even (current PS3.5 contract); assert round-trip preserves declared length",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue52-un-padding.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -430,8 +430,8 @@
       "category": "C",
       "area": "values",
       "disposition": "IS/DS emit as JSON Numbers in the DICOM JSON model (dcm4chee parity)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue398-ds-is-precision.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -468,8 +468,8 @@
       "category": "A",
       "area": "uid",
       "disposition": "DicomMetaDictionary.uid(): 2.25 UIDs must be UUID-derived per PS3.5 B.2 (not random digit strings)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue61-uuid-uids.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -614,8 +614,8 @@
       "category": "B",
       "area": "reader",
       "disposition": "some RLE-encoded SEGs unreadable (fixture: dcmjs-org/data or vetted attachment)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue78-unobtainable-fixtures.test.js",
+      "status": "blocked",
       "notes": ""
     }
   },
@@ -634,8 +634,8 @@
       "category": "A",
       "area": "charset",
       "disposition": "UTF-8 write must not double-encode (deg sign -> 0xC2 0xB0 exactly once) with ISO_IR 192",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue84-utf8-write-roundtrip.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -672,8 +672,8 @@
       "category": "B",
       "area": "reader",
       "disposition": "readFile on palette-color-LUT images (OHIF #1350 file)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue78-unobtainable-fixtures.test.js",
+      "status": "blocked",
       "notes": ""
     }
   },
@@ -710,8 +710,8 @@
       "category": "C",
       "area": "writer",
       "disposition": "defined-length SQ rewritten as undefined length: legal, semantically equal round trip (byte-identity non-goal; document)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue293-encapsulated-write.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -728,8 +728,8 @@
       "category": "A",
       "area": "charset",
       "disposition": "upsertTag with non-ASCII + SpecificCharacterSet ISO_IR 192 round-trips (write side of #84)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue84-utf8-write-roundtrip.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -748,8 +748,8 @@
       "category": "A",
       "area": "reader",
       "disposition": "missing preamble/DICM: readFile option or corrective error (sampleDicomPart10.stripPreamble)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue93-missing-preamble.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -768,8 +768,8 @@
       "category": "A",
       "area": "writer",
       "disposition": "multi-frame RGB: edit strings then write; pixels byte-identical after round trip",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue111-roundtrip-integrity.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -786,8 +786,8 @@
       "category": "A",
       "area": "values",
       "disposition": "DS 4.8 (Number) writes a value, not empty (DS/IS cluster)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue398-ds-is-precision.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -865,8 +865,8 @@
       "category": "A",
       "area": "naturalizer",
       "disposition": "naturalize->denaturalize->write->read round trip on synthetic multiframe stays valid + equal",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue111-roundtrip-integrity.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -903,8 +903,8 @@
       "category": "C",
       "area": "naturalizer",
       "disposition": "contract: naturalizer does NOT unpack OverlayData/palette bulk (document shape via test)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue3-keyword-contract.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -923,8 +923,8 @@
       "category": "A",
       "area": "writer",
       "disposition": "PixelRepresentation (US, value 0) survives read->naturalize->denaturalize->write->read",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue111-roundtrip-integrity.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -977,8 +977,8 @@
       "category": "A",
       "area": "charset",
       "disposition": "NUL-padded strings (PN/CS/LO) strip trailing 0x00 on read",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue130-nul-padded-strings.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -1085,8 +1085,8 @@
       "category": "A",
       "area": "reader",
       "disposition": "encapsulated multiframe: every frame surfaced, not only the first (fragments->frames via BOT)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue204-fragments-and-frames.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -1139,8 +1139,8 @@
       "category": "A",
       "area": "writer",
       "disposition": "many-frame encapsulated write: 120+ frames complete correctly (no per-frame quadratic blowup)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue293-encapsulated-write.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -1157,8 +1157,8 @@
       "category": "A",
       "area": "writer",
       "disposition": "OW element inside SQ item writes without error and round-trips",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue293-encapsulated-write.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -1175,8 +1175,8 @@
       "category": "C",
       "area": "writer",
       "disposition": "abnormal-VR force write via writeOptions (allowInvalidVRLength) \u2014 assert option contract both ways",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue162-force-write.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -1211,8 +1211,8 @@
       "category": "A",
       "area": "writer",
       "disposition": "read->write cycles: byte size stabilizes after first rewrite (no unbounded growth)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue111-roundtrip-integrity.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -1269,8 +1269,8 @@
       "category": "C",
       "area": "anonymizer",
       "disposition": "cleanTags + getTagsNameToEmpty exported and functional (assert public surface)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue345-anonymizer-names.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -1289,8 +1289,8 @@
       "category": "A",
       "area": "values",
       "disposition": "DS exponential notation round-trips within 16 chars (write re-formats, no throw)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue398-ds-is-precision.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -1401,8 +1401,8 @@
       "category": "A",
       "area": "writer",
       "disposition": "upsert PN then write: buffer growth handles size increase (no 'more than allocated' error)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue365-tag-order.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -1421,8 +1421,8 @@
       "category": "A",
       "area": "reader",
       "disposition": "frame larger than fragment size: read merges fragments per frame (BOT-aware)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue204-fragments-and-frames.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -1511,8 +1511,8 @@
       "category": "A",
       "area": "naturalizer",
       "disposition": "private/custom tags survive naturalize->denaturalize via private dictionary registration",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue388-private-tags.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -1529,8 +1529,8 @@
       "category": "C",
       "area": "naturalizer",
       "disposition": "single-item SQ naturalization contract (array-with-proxy; PerFrameFunctionalGroupsSequence[0] works)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue218-single-item-sq.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -1601,8 +1601,8 @@
       "category": "A",
       "area": "naturalizer",
       "disposition": "naturalizing twice / re-naturalizing PN values must not throw 'Cannot redefine property: Alphabetic'",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue231-pn-accessors.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -1658,8 +1658,8 @@
       "category": "A",
       "area": "reader",
       "disposition": "implicit-VR private creator tag resolves VR LO (PS3.5 7.8.1), not UN",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue242-implicit-private-creator.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -1804,8 +1804,8 @@
       "category": "A",
       "area": "naturalizer",
       "disposition": "naturalized output contains no injected null padding (0.18.11 300MB regression class)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue3-keyword-contract.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -1858,8 +1858,8 @@
       "category": "C",
       "area": "naturalizer",
       "disposition": "proxy single-item array consistency between naturalize and SR generate (fold with #218)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue218-single-item-sq.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -1878,8 +1878,8 @@
       "category": "A",
       "area": "reader",
       "disposition": "fragment merge uses byte-correct typed copy (no zero-filled result)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue204-fragments-and-frames.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -1896,8 +1896,8 @@
       "category": "B",
       "area": "charset",
       "disposition": "Korean (ISO 2022 IR 149) decode \u2014 dclunie charset corpus",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue454-iso2022-charsets.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -1932,8 +1932,8 @@
       "category": "A",
       "area": "values",
       "disposition": "DS with comma decimal separator: defined, non-garbage behavior (raw preserved; no wrong number)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue398-ds-is-precision.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -1988,8 +1988,8 @@
       "category": "A",
       "area": "writer",
       "disposition": "odd-length encapsulated frames: pad byte per frame's final fragment, not tag end (pydicom parity)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue293-encapsulated-write.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2006,8 +2006,8 @@
       "category": "A",
       "area": "charset",
       "disposition": "latin1 TextDecoder unavailable (mobile): graceful fallback (monkeypatch TextDecoder in test)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue297-latin1-fallback.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -2080,8 +2080,8 @@
       "category": "C",
       "area": "reader",
       "disposition": "Node Buffer (pooled view) passed to readFile: works or corrective error \u2014 the .buffer footgun (with #370)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue311-node-buffer-footgun.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -2098,8 +2098,8 @@
       "category": "A",
       "area": "writer",
       "disposition": "naturalize -> change SOPInstanceUID -> denaturalize -> write yields valid Part 10 with updated meta",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue315-uid-rewrite.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2138,8 +2138,8 @@
       "category": "A",
       "area": "values",
       "disposition": "NaN/Infinity in FD/FL/DS: read succeeds; write has defined behavior (value or corrective error), never bare throw",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue398-ds-is-precision.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2194,8 +2194,8 @@
       "category": "A",
       "area": "reader",
       "disposition": "wrong FileMetaInformationGroupLength tolerated: body still parsed (sampleDicomPart10 patched length)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue338-wrong-meta-group-length.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -2230,8 +2230,8 @@
       "category": "A",
       "area": "writer",
       "disposition": "RLE transfer syntax: fragmentMultiframe must not re-fragment frames (one fragment per frame preserved)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue293-encapsulated-write.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -2248,8 +2248,8 @@
       "category": "A",
       "area": "anonymizer",
       "disposition": "every name in getTagsNameToEmpty resolves to a real dictionary keyword (list the wrong ones)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue345-anonymizer-names.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -2266,9 +2266,9 @@
       "category": "B",
       "area": "writer",
       "disposition": "positioning lines (overlay in pixel high bits?) lost after read->save (fixture link likely dead; note only)",
-      "testFile": "",
-      "status": "triaged",
-      "notes": ""
+      "testFile": "test/issues/issue78-unobtainable-fixtures.test.js",
+      "status": "blocked",
+      "notes": "Fixture link dead (self-hosted server)."
     }
   },
   {
@@ -2284,8 +2284,8 @@
       "category": "A",
       "area": "values",
       "disposition": "Tag.isPrivateCreator range per PS3.5 7.8: creator element 0x10-0xFF; 0x01-0x0F excluded",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue356-private-creator-range.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -2338,9 +2338,9 @@
       "category": "B",
       "area": "reader",
       "disposition": "MR file with 'invalid tag in sequence' unreadable (ZIP attached upstream \u2014 vetted-attachment candidate)",
-      "testFile": "",
-      "status": "triaged",
-      "notes": ""
+      "testFile": "test/issues/issue78-unobtainable-fixtures.test.js",
+      "status": "blocked",
+      "notes": "Upstream attachment reproduces the failure (eager readFile: 'Invalid tag in sequence'; TS 1.2.840.10008.1.2.4.70 JPEG Lossless SV1) but contains REAL PHI (patient name/birth date/MRN/institution) \u2014 failed vetting, deleted, not cached. Needs an anonymized reproducer from upstream."
     }
   },
   {
@@ -2356,8 +2356,8 @@
       "category": "A",
       "area": "writer",
       "disposition": "edited dataset writes with ascending tag order regardless of naturalized key insertion order",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue365-tag-order.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2374,8 +2374,8 @@
       "category": "A",
       "area": "values",
       "disposition": "DS 16-char formatting: 0.99990081787109 writes within 16 chars (DS/IS cluster)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue398-ds-is-precision.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2392,8 +2392,8 @@
       "category": "A",
       "area": "reader",
       "disposition": "dictionary VR 'xs' resolves silently to US/SS by PixelRepresentation (no log spam)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue368-xs-ox-vr-resolution.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -2428,8 +2428,8 @@
       "category": "B",
       "area": "charset",
       "disposition": "multi-valued SpecificCharacterSet with code extensions ('\\\\ISO 2022 IR 149') parses (dclunie corpus)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue454-iso2022-charsets.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -2446,8 +2446,8 @@
       "category": "A",
       "area": "values",
       "disposition": "garbage over-length AS/TM values read leniently (rawValue kept), strict only on write",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue42-lenient-read-strict-write.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2554,8 +2554,8 @@
       "category": "C",
       "area": "naturalizer",
       "disposition": "PN union contract: naturalized PN object + toString/DIMSE-compatible access (with #413)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue231-pn-accessors.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2590,8 +2590,8 @@
       "category": "A",
       "area": "naturalizer",
       "disposition": "SQ items containing private tags denaturalize without numeric-key/accessor collision",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue388-private-tags.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -2626,8 +2626,8 @@
       "category": "C",
       "area": "values",
       "disposition": "DS/IS precision: rawValue retention preserves 1.0000/+1.234/large-int on round trip (cite or extend precision tests)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue398-ds-is-precision.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -2644,8 +2644,8 @@
       "category": "C",
       "area": "values",
       "disposition": "DICOM JSON model output is schema-clean: no _rawValue keys leak into DicomWebJsonWriter output",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue404-json-model-purity.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2680,8 +2680,8 @@
       "category": "C",
       "area": "naturalizer",
       "disposition": "PN [{Alphabetic}] shape writes back to valid PN bytes (fold with #381)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue231-pn-accessors.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2716,8 +2716,8 @@
       "category": "A",
       "area": "writer",
       "disposition": "element with Value [undefined] writes with defined behavior (skip/empty/corrective error, not TypeError)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue417-undefined-values.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -2734,8 +2734,8 @@
       "category": "A",
       "area": "writer",
       "disposition": "round trip preserves full element set of encapsulated-PDF fixture (dcmjs-dimse regression class)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue111-roundtrip-integrity.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2826,8 +2826,8 @@
       "category": "A",
       "area": "reader",
       "disposition": "dictionary VR 'ox' resolves silently to OW/OB (fold with #368)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue368-xs-ox-vr-resolution.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2880,8 +2880,8 @@
       "category": "A",
       "area": "charset",
       "disposition": "decoder applies to strings parsed after 00080005 wherever it appears; nested content uses dataset charset (fold #503)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue503-sq-nested-charset.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2898,8 +2898,8 @@
       "category": "B",
       "area": "charset",
       "disposition": "ISO 2022 IR 100 escape-switching inside SR text decodes without mojibake (dclunie corpus)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue454-iso2022-charsets.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -2916,8 +2916,8 @@
       "category": "C",
       "area": "values",
       "disposition": "UV VRinstance real (video arc); OL/OV/SV fall back to UN safely with single warning \u2014 assert both halves",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue457-vr-instances.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -2934,8 +2934,8 @@
       "category": "A",
       "area": "writer",
       "disposition": "pixel data never silently lost on write (allowInvalidVRLength path; 0.45 regression class; with #466)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue111-roundtrip-integrity.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -2990,8 +2990,8 @@
       "category": "A",
       "area": "writer",
       "disposition": "written output re-parses strictly (our own strict re-read as DCMTK proxy; fold with #458)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue111-roundtrip-integrity.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -3008,8 +3008,8 @@
       "category": "A",
       "area": "stream",
       "disposition": "AsyncDicomReader.readFile: pixel data element not wrongly nested (+ docs setData mismatch)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue477-async-reader.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -3026,8 +3026,8 @@
       "category": "A",
       "area": "stream",
       "disposition": "AsyncDicomReader.read({untilTag, includeUntilTag:false}) honors the flag without crash",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue477-async-reader.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -3044,8 +3044,8 @@
       "category": "A",
       "area": "stream",
       "disposition": "AsyncDicomReader preserves rawValue like DicomMessage._readTag",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue477-async-reader.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -3080,8 +3080,8 @@
       "category": "B",
       "area": "charset",
       "disposition": "SR node-level charset without clobbering global decoder (family #454/#503; dclunie corpus)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue454-iso2022-charsets.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -3098,8 +3098,8 @@
       "category": "A",
       "area": "values",
       "disposition": "multivalued/private CS: per-component >16 chars has an escape hatch (lenient read; write option), not hard throw",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue487-cs-multivalue-length.test.js",
+      "status": "green",
       "notes": ""
     }
   },
@@ -3134,8 +3134,8 @@
       "category": "A",
       "area": "charset",
       "disposition": "SQ-nested strings decode with dataset SpecificCharacterSet, not hard-coded latin1 (eager + stream paths)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue503-sq-nested-charset.test.js",
+      "status": "gap",
       "notes": ""
     }
   },
@@ -3152,8 +3152,8 @@
       "category": "A",
       "area": "sr-utilities",
       "disposition": "unit2CodingValue('cm') maps to UCUM cm, not [arb'U]{cm} (pure function; cheap despite SR area)",
-      "testFile": "",
-      "status": "triaged",
+      "testFile": "test/issues/issue505-unit2codingvalue.test.js",
+      "status": "gap",
       "notes": ""
     }
   }

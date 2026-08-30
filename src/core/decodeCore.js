@@ -5,9 +5,11 @@ import {
     EXPLICIT_BIG_ENDIAN,
     EXPLICIT_LITTLE_ENDIAN,
     IMPLICIT_LITTLE_ENDIAN,
+    UNDEFINED_LENGTH,
     VM_DELIMITER
 } from "../constants/dicom.js";
 import { resolveCharsetDecoder } from "../charset/iso2022.js";
+import { log } from "../log.js";
 import { DicomMessage, singleVRs } from "../DicomMessage.js";
 import { Tag } from "../Tag.js";
 import { ValueRepresentation } from "../ValueRepresentation.js";
@@ -232,7 +234,7 @@ export function buildElementStream(window, el, policy) {
         window.littleEndian,
         {
             start,
-            stop: start + el.length,
+            stop: start + effectiveElementLength(window, el, true),
             // eager's body stream carries noCopy (getBuffer then returns
             // Uint8Array instead of ArrayBuffer); its meta stream comes from
             // stream.more(), which drops it
@@ -243,6 +245,34 @@ export function buildElementStream(window, el, policy) {
         stream.setDecoder(window.decoder);
     }
     return stream;
+}
+
+/**
+ * Corrective guard: a defined length that overruns the underlying buffer is
+ * a corrupt length (or a derailed walk). Historic (and test-pinned) leniency
+ * reads truncated trailing elements, so the length is CLAMPED to the bytes
+ * actually available — but no longer silently (the corruption is logged, and
+ * phantom multi-GB allocations from garbage lengths are avoided). Parity
+ * with the classic reader's overrun clamp in DicomMessage._readTag.
+ */
+function effectiveElementLength(window, el, warn) {
+    const available =
+        window.arrayBuffer.byteLength - (window.baseOffset + el.dataOffset);
+    if (
+        el.length === undefined ||
+        el.length === UNDEFINED_LENGTH ||
+        el.length <= available
+    ) {
+        return el.length;
+    }
+    if (warn) {
+        log.warn(
+            `decodeCore: element ${el.tag || ""} declares ${el.length} ` +
+                `bytes but only ${Math.max(available, 0)} remain in the ` +
+                `buffer; clamping to the remaining bytes`
+        );
+    }
+    return Math.max(available, 0);
 }
 
 /**
@@ -258,7 +288,10 @@ export function buildElementStream(window, el, policy) {
  */
 export function decodeElementValues(window, el, vrInstance, policy) {
     const vr = vrInstance;
-    const length = el.length;
+    // Clamped for buffer-overrunning corrupt lengths (see
+    // effectiveElementLength); buildElementStream applies (and logs) the
+    // same clamp for the stream's stop offset.
+    const length = effectiveElementLength(window, el, false);
     const stream = buildElementStream(window, el, policy);
     const readOptions = { forceStoreRaw: policy.forceStoreRaw };
 
@@ -461,7 +494,25 @@ export function seedReadContext(byteArray, options = {}) {
         }
     };
 
-    const dataSet = parseDicom(arr, parseOptions);
+    let dataSet;
+    try {
+        dataSet = parseDicom(arr, parseOptions);
+    } catch (err) {
+        if (err instanceof Error) {
+            throw err;
+        }
+        // The parser throws plain objects ({ exception, dataSet }) for some
+        // malformed inputs (e.g. mixed explicit/implicit VR corpus files).
+        // Surface a real Error with the parser's message instead of an
+        // opaque "[object Object]" rejection; the original throw rides on
+        // `cause` for callers that want the partial dataSet.
+        const message = (err && (err.exception || err.message)) || String(err);
+        const wrapped = new Error(
+            `seedReadContext: parser rejected input: ${message}`
+        );
+        wrapped.cause = err;
+        throw wrapped;
+    }
 
     // metaWindow: original input buffer, always explicit little endian.
     // Meta element offsets index arr (the compressed original), not

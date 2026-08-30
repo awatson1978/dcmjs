@@ -143,6 +143,11 @@ function discover(target, found) {
 
 function errText(err) {
     if (err instanceof Error) { return err.message || err.constructor.name; }
+    // dicom-parser throws plain { exception, dataSet } objects — surface the
+    // message instead of "[object Object]".
+    if (err && typeof err === "object" && err.exception) {
+        return String(err.exception);
+    }
     return String(err ?? "unknown rejection");
 }
 
@@ -298,8 +303,15 @@ function diffAgainstDicomParser(dict, byteArray, out) {
             out.push(`${keyword}: dcmjs missing, dicom-parser has ${JSON.stringify(legacy)}`);
             continue;
         }
-        if (typeof ours === "object" && !isStringLike(ours) && ours.Alphabetic !== undefined) {
-            ours = ours.Alphabetic; // PN model form
+        if (typeof ours === "object" && !isStringLike(ours) &&
+            (ours.Alphabetic !== undefined || ours.Ideographic !== undefined ||
+                ours.Phonetic !== undefined)) {
+            // PN model form: recompose the full component-group string
+            // (alphabetic=ideographic=phonetic, PS3.5 6.2.1) so files with
+            // ideographic/phonetic groups compare against dicom-parser's raw
+            // string instead of falsely reporting the groups as dropped.
+            ours = [ours.Alphabetic ?? "", ours.Ideographic ?? "", ours.Phonetic ?? ""]
+                .join("=").replace(/=+$/, "");
         }
         if (String(ours).trim() !== String(legacy).trim()) {
             out.push(`${keyword}: dcmjs ${JSON.stringify(String(ours))}` +

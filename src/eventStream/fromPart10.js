@@ -240,14 +240,18 @@ function emitElement(
     // Decode the value(s) with the core primitives, then route by the DECODED
     // type: byte-blob VRs (OB/OW/OF/OD/UN) produce ArrayBuffers and go to the
     // binary sub-stream; everything else (incl. numeric "binary" VRs like
-    // SL/US which decode to numbers) goes to value().
+    // SL/US which decode to numbers) goes to value(). Routed through
+    // emitDecodedLeaf (not emitValues directly): a defined-length element
+    // stored as UN whose dictionary VR is SQ (ParsedUnknownValue — the
+    // "explicit-VR SQ encoded as UN" corpus shape) decodes to item dicts
+    // that must surface as sequence events, exactly like the classic path.
     const { values, rawValues } = decodeElementValues(
         window,
         el,
         vrInstance,
         policy
     );
-    emitValues(listener, tag, vrInstance, el, values, rawValues);
+    emitDecodedLeaf(listener, tag, vrInstance, el, values, rawValues);
 }
 
 /**
@@ -266,9 +270,16 @@ export function emitDecodedLeaf(
     values,
     rawValues
 ) {
+    // Sequence-shaped decodes: (a) UN with undefined length parsed as an
+    // implicit-VR sequence (PS3.5 §6.2.2, issue #363), and (b) defined-length
+    // UN whose dictionary VR is SQ (ParsedUnknownValue re-parses the value as
+    // a sequence — corpus shape "EVRLE SQ as UN"). Both decode to item dicts
+    // in `values` and must be emitted as sequence events; emitting them
+    // through the scalar value() path crashed on rawValues[index] (the
+    // corpus bare-TypeError cluster).
     if (
-        vrInstance.type === "UN" &&
-        el.hadUndefinedLength &&
+        (vrInstance.type === "SQ" ||
+            (vrInstance.type === "UN" && el.hadUndefinedLength)) &&
         Array.isArray(values) &&
         values.every(isItemDictLike)
     ) {
@@ -291,10 +302,19 @@ export function emitDecodedLeaf(
  * Exported for reuse by fromPart10Stream's K3 incremental body loop.
  */
 export function emitValues(listener, tag, vrInstance, el, values, rawValues) {
-    if (values.some(isBufferLike)) {
+    // Normalize the decoded shapes: some VR reads legitimately yield a bare
+    // value or no rawValues array (classic stores these shapes untouched in
+    // the dict; the event stream must not crash on them — corpus
+    // bare-TypeError cluster).
+    const list = Array.isArray(values)
+        ? values
+        : values === undefined || values === null
+        ? []
+        : [values];
+    if (list.some(isBufferLike)) {
         listener.startElement(tag, { vr: vrInstance.type, length: el.length });
         listener.startBinary({ encapsulated: false });
-        for (const buf of values) {
+        for (const buf of list) {
             listener.binaryFragment(buf);
         }
         listener.endBinary();
@@ -304,8 +324,11 @@ export function emitValues(listener, tag, vrInstance, el, values, rawValues) {
 
     listener.startElement(tag, { vr: vrInstance.type, length: el.length });
     let index = 0;
-    for (const v of values) {
-        listener.value(v, { index, rawValue: rawValues[index] });
+    for (const v of list) {
+        listener.value(v, {
+            index,
+            rawValue: Array.isArray(rawValues) ? rawValues[index] : undefined
+        });
         index++;
     }
     listener.endElement();

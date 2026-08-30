@@ -22,6 +22,45 @@ import { resolveCharsetDecoder } from "./charset/iso2022.js";
 
 export const singleVRs = ["SQ", "OF", "OW", "OB", "UN", "LT"];
 
+// VRs whose stored bytes are decoded through SpecificCharacterSet
+// (PS3.5 6.1.2.3) — every other VR's repertoire is the default (ASCII).
+const CHARSET_AFFECTED_VRS = new Set([
+    "SH",
+    "LO",
+    "ST",
+    "LT",
+    "PN",
+    "UC",
+    "UT"
+]);
+
+/**
+ * True when any character in the (possibly nested) value falls outside
+ * 7-bit ASCII. Handles part10-style strings, String objects, value arrays
+ * and DICOM JSON PersonName objects ({Alphabetic, Ideographic, Phonetic}).
+ */
+function hasNonAsciiCharacters(value) {
+    if (value == null) {
+        return false;
+    }
+    if (typeof value === "string" || value instanceof String) {
+        const str = String(value);
+        for (let i = 0; i < str.length; i++) {
+            if (str.charCodeAt(i) > 0x7f) {
+                return true;
+            }
+        }
+        return false;
+    }
+    if (Array.isArray(value)) {
+        return value.some(hasNonAsciiCharacters);
+    }
+    if (typeof value === "object") {
+        return Object.values(value).some(hasNonAsciiCharacters);
+    }
+    return false;
+}
+
 // One-time deprecation notice for the lazy core (2026-08-02 stakeholder
 // decision: the event stream delivers the strategic benefit; the lazy core
 // and its byte-identity passthrough are deprecated for removal next release).
@@ -360,6 +399,124 @@ export class DicomMessage {
         return dicomDict;
     }
 
+    /**
+     * Resolves the opt-in `preserveSpecificCharacterSet` write option
+     * against what the writer can actually honor. dcmjs's eager reader
+     * decodes every string element to a JS string at read time and retains
+     * the DECODED string (not the original bytes) in `_rawValue`, so
+     * byte-faithful re-encoding into a legacy charset is impossible — the
+     * library has no ISO 2022 (or other legacy) encoder. The achievable
+     * contract, applied here: the original (0008,0005) terms may be kept
+     * only when every charset-affected string value's UTF-8 encoding is
+     * ALSO a valid encoding under the original declaration — true for any
+     * value when the governing charset is ISO_IR 192 (UTF-8), and for
+     * pure-ASCII values under every other declaration. Otherwise strict
+     * mode (`true`) throws naming the first non-representable element and
+     * lenient mode (`"lenient"`) logs a warning and falls back to the
+     * default policy (re-encode as UTF-8, rewrite (0008,0005) to
+     * ISO_IR 192) for the whole dataset.
+     *
+     * Returns the writeOptions to use: unchanged when the option is off or
+     * honorable, or a copy with the option removed on lenient fallback.
+     */
+    static _resolveCharsetWritePolicy(dict, writeOptions) {
+        const mode = writeOptions && writeOptions.preserveSpecificCharacterSet;
+        if (!mode) {
+            return writeOptions;
+        }
+        const offender = DicomMessage._findNonRepresentableElement(
+            dict,
+            false,
+            ""
+        );
+        if (!offender) {
+            return writeOptions;
+        }
+        const charsetElement = dict[TagHex.SpecificCharacterSet];
+        const terms =
+            (charsetElement &&
+                (charsetElement._rawValue || charsetElement.Value)) ||
+            [];
+        const termsDescription = terms.length
+            ? `SpecificCharacterSet ${JSON.stringify(terms)}`
+            : "the default (ASCII) repertoire";
+        if (mode === "lenient") {
+            log.warn(
+                `preserveSpecificCharacterSet: element ${offender.tag} ` +
+                    `(VR ${offender.vr}) contains characters not representable ` +
+                    `under ${termsDescription} (dcmjs retains decoded strings, ` +
+                    `not the original bytes, and has no legacy-charset ` +
+                    `encoder); falling back to UTF-8 and rewriting ` +
+                    `(0008,0005) to ISO_IR 192.`
+            );
+            const fallback = { ...writeOptions };
+            delete fallback.preserveSpecificCharacterSet;
+            return fallback;
+        }
+        throw new Error(
+            `preserveSpecificCharacterSet: element ${offender.tag} ` +
+                `(VR ${offender.vr}) contains characters not representable ` +
+                `under ${termsDescription}. dcmjs retains decoded strings, ` +
+                `not the original bytes, so it cannot re-encode this value ` +
+                `into the original character set. Use ` +
+                `{ preserveSpecificCharacterSet: "lenient" } to fall back ` +
+                `to UTF-8 (ISO_IR 192) for such datasets, or the default ` +
+                `write() to always transcode.`
+        );
+    }
+
+    /**
+     * Depth-first scan (sorted tag order, recursing into SQ items) for the
+     * first charset-affected string element whose to-be-written value is
+     * not representable under its governing original charset. A dataset's
+     * governing charset is its own (0008,0005) original terms when the
+     * element is present (nested items may re-declare), else the parent's.
+     * ISO_IR 192 governs => everything is representable; any other
+     * declaration (including none/default repertoire) => pure ASCII only.
+     * Returns { tag, vr } with a path-qualified tag string, or null.
+     */
+    static _findNonRepresentableElement(dict, inheritedUtf8Safe, path) {
+        let utf8Safe = inheritedUtf8Safe;
+        const charsetElement = dict[TagHex.SpecificCharacterSet];
+        if (charsetElement) {
+            const terms =
+                charsetElement._rawValue || charsetElement.Value || [];
+            const termArray = Array.isArray(terms) ? terms : [terms];
+            utf8Safe =
+                termArray.length === 1 &&
+                String(termArray[0]).trim() === "ISO_IR 192";
+        }
+        const sortedTags = Object.keys(dict).sort();
+        for (const tagString of sortedTags) {
+            const tagObject = dict[tagString];
+            if (!tagObject || !tagObject.vr) {
+                continue;
+            }
+            if (tagObject.vr === "SQ") {
+                const items = tagObject.Value || [];
+                for (let i = 0; i < items.length; i++) {
+                    const found = DicomMessage._findNonRepresentableElement(
+                        items[i],
+                        utf8Safe,
+                        `${path}${tagString}[${i}].`
+                    );
+                    if (found) {
+                        return found;
+                    }
+                }
+            } else if (!utf8Safe && CHARSET_AFFECTED_VRS.has(tagObject.vr)) {
+                const values = DicomMessage._getTagWriteValues(
+                    tagObject.vr,
+                    tagObject
+                );
+                if (hasNonAsciiCharacters(values)) {
+                    return { tag: `${path}${tagString}`, vr: tagObject.vr };
+                }
+            }
+        }
+        return null;
+    }
+
     static writeTagObject(stream, tagString, vr, values, syntax, writeOptions) {
         var tag = Tag.fromString(tagString);
 
@@ -415,8 +572,12 @@ export class DicomMessage {
         // lengths (pinned in test/data.test.js).
         const nonDefaultEncodingOptions =
             writeOptions != null &&
-            writeOptions.fragmentMultiframe !== undefined &&
-            !writeOptions.fragmentMultiframe;
+            ((writeOptions.fragmentMultiframe !== undefined &&
+                !writeOptions.fragmentMultiframe) ||
+                // preserveSpecificCharacterSet restores the original
+                // (0008,0005) terms on the re-encode path below; verbatim
+                // source spans would bypass that restore.
+                !!writeOptions.preserveSpecificCharacterSet);
         const passthroughSource =
             !nonDefaultEncodingOptions &&
             lazyWriteContext &&
@@ -446,7 +607,24 @@ export class DicomMessage {
 
             var tag = Tag.fromString(tagString);
 
-            var values = DicomMessage._getTagWriteValues(vrType, tagObject);
+            var values;
+            if (
+                writeOptions &&
+                writeOptions.preserveSpecificCharacterSet &&
+                tagString === TagHex.SpecificCharacterSet &&
+                tagObject._rawValue
+            ) {
+                // Opt-in preserve mode: the reader rewrote Value to
+                // ["ISO_IR 192"] at the (0008,0005) rewrite site in _read,
+                // but _rawValue retains the original terms as read (they
+                // are ASCII by definition, so the decode was lossless).
+                // Restore them. DicomDict.write has already vetted (via
+                // _resolveCharsetWritePolicy) that every affected string
+                // value is representable under these terms.
+                values = tagObject._rawValue;
+            } else {
+                values = DicomMessage._getTagWriteValues(vrType, tagObject);
+            }
 
             try {
                 written += tag.write(

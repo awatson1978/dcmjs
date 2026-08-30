@@ -24,6 +24,8 @@
 // Options:
 //   --chunk-size <bytes>      streaming chunk size (default 65536)
 //   --compare-dicom-parser    also diff core tags against dicom-parser
+//   --validate                run validate() (layers 1+2) on each classic
+//                             result; per-rule issue histogram in the summary
 //   --json <file>             write the full JSON report to a file
 //   --quiet                   only print findings and the summary
 //
@@ -35,7 +37,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const require = createRequire(import.meta.url);
 const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -57,6 +59,7 @@ const args = process.argv.slice(2);
 const inputs = [];
 let chunkSize = 64 * 1024;
 let compareDicomParser = false;
+let doValidate = false;
 let jsonOut = null;
 let quiet = false;
 
@@ -66,6 +69,8 @@ for (let i = 0; i < args.length; i++) {
         chunkSize = parseInt(args[++i], 10);
     } else if (arg === "--compare-dicom-parser") {
         compareDicomParser = true;
+    } else if (arg === "--validate") {
+        doValidate = true;
     } else if (arg === "--json") {
         jsonOut = args[++i];
     } else if (arg === "--quiet") {
@@ -86,6 +91,18 @@ if (inputs.length === 0) {
 let dicomParser = null;
 if (compareDicomParser) {
     dicomParser = require("dicom-parser");
+}
+
+// Opt-in validation (Workstream B calibration): validate() layers 1+2 over
+// each file's classic parse; histogram appended to the final report. The
+// validation source is ESM and loaded straight from src (Node's module
+// syntax detection handles the typeless package).
+let validateFn = null;
+const validationHistogram = {};
+if (doValidate) {
+    ({ validate: validateFn } = await import(
+        pathToFileURL(path.join(repoRoot, "src", "validation", "index.js")).href
+    ));
 }
 
 // ---------------------------------------------------------------------------
@@ -325,6 +342,21 @@ for (const file of files) {
         record.classicError = errText(err);
     }
 
+    // 1b. opt-in validation over the classic result (informational only —
+    //     issues are calibration data, not runner failures)
+    if (validateFn && classicDict) {
+        try {
+            const validation = await validateFn(classicDict);
+            record.validation = validation.summary;
+            for (const issue of validation.issues) {
+                validationHistogram[issue.rule] =
+                    (validationHistogram[issue.rule] || 0) + 1;
+            }
+        } catch (err) {
+            record.validationError = errText(err);
+        }
+    }
+
     // 2. buffered event-stream reference
     let buffered = null;
     try {
@@ -413,8 +445,24 @@ if (slowest.length && !quiet) {
     slowest.forEach(r => console.log(`  ${r.streamMs}ms  ${r.file}`));
 }
 
+if (doValidate) {
+    console.log("\nvalidation issue histogram (layers 1+2, per rule):");
+    const rules = Object.keys(validationHistogram).sort(
+        (a, b) => validationHistogram[b] - validationHistogram[a]
+    );
+    if (rules.length === 0) {
+        console.log("  (no issues)");
+    }
+    rules.forEach(rule =>
+        console.log(`  ${String(validationHistogram[rule]).padStart(6)}  ${rule}`)
+    );
+}
+
 if (jsonOut) {
-    fs.writeFileSync(jsonOut, JSON.stringify(report, null, 2));
+    const payload = doValidate
+        ? { files: report, validationHistogram }
+        : report;
+    fs.writeFileSync(jsonOut, JSON.stringify(payload, null, 2));
     console.log("full report: " + jsonOut);
 }
 

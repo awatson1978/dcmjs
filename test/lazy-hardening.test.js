@@ -93,7 +93,11 @@ describe("H2: ignoreErrors honored during materialization", () => {
             },
             "00100020": { vr: "LO", Value: ["P1"] }
         };
-        return dicomDict.write();
+        // Deliberate charset declaration (possibly bogus / in-item): the
+        // default write policy normalizes (0008,0005) to ISO_IR 192, so
+        // these fixtures author their declarations in preserve mode
+        // (ASCII values, so the representability vetting passes).
+        return dicomDict.write({ preserveSpecificCharacterSet: true });
     }
 
     test("ignoreErrors:false - eager throws at readFile, lazy throws the same error at first access (documented divergence)", () => {
@@ -874,7 +878,9 @@ describe("W2: _lazyWriteContext", () => {
         if (charsets) {
             dicomDict.dict["00080005"] = { vr: "CS", Value: charsets };
         }
-        return dicomDict.write();
+        // Preserve mode so the deliberate declaration survives the default
+        // write policy's ISO_IR 192 normalization (ASCII values vet clean).
+        return dicomDict.write({ preserveSpecificCharacterSet: true });
     }
 
     test("shape: non-enumerable, source byte array and the file's stored transfer syntax", () => {

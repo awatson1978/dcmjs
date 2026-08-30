@@ -540,7 +540,11 @@ describe("resolveCharacterSet", () => {
         };
         const dd = new DicomDict(meta);
         dd.dict = dict;
-        return dd.write();
+        // Deliberate (possibly bogus) charset declaration: the default
+        // write policy normalizes (0008,0005) to ISO_IR 192, so fixtures
+        // that must DECLARE a specific term are authored in preserve mode
+        // (values here are ASCII, so the representability vetting passes).
+        return dd.write({ preserveSpecificCharacterSet: true });
     }
 
     test("returns null when csEl is null/undefined", () => {

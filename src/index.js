@@ -71,6 +71,7 @@ import { DSRNormalizer } from "./normalizers.js";
 import adapters from "./adapters/index.js";
 import utilities from "./utilities/index.js";
 import eventStream from "./eventStream/index.js";
+import validation, { validate } from "./validation/index.js";
 // Media storage (PS3.10): DICOMDIR builder
 import media from "./media/index.js";
 import sr from "./sr/index.js";
@@ -179,6 +180,8 @@ const dcmjs = {
     normalizers,
     sr,
     utilities,
+    validation,
+    validate,
     log,
     anonymizer,
     async
@@ -204,6 +207,8 @@ export {
     normalizers,
     sr,
     utilities,
+    validation,
+    validate,
     log
 };
 

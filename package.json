@@ -16,6 +16,9 @@
         },
         "./schema/iods": {
             "import": "./src/schema/iodIndex.js"
+        },
+        "./validation": {
+            "import": "./src/validation/index.js"
         }
     },
     "files": [

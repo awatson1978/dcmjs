@@ -22,6 +22,7 @@ export { fromDicomWebJson } from "./fromDicomWebJson.js";
 export { createVideoEventSource } from "./fromVideo.js";
 export { createEventAsyncIterable } from "./asyncIterator.js";
 export { DicomEventStream, Naturalized, DicomWebJson } from "./api.js";
+export { ValidationListener } from "../validation/ValidationListener.js";
 
 import {
     EventStreamListener,
@@ -40,6 +41,7 @@ import { fromDicomWebJson } from "./fromDicomWebJson.js";
 import { createVideoEventSource } from "./fromVideo.js";
 import { createEventAsyncIterable } from "./asyncIterator.js";
 import { DicomEventStream, Naturalized, DicomWebJson } from "./api.js";
+import { ValidationListener } from "../validation/ValidationListener.js";
 
 export default {
     EventStreamListener,
@@ -58,5 +60,6 @@ export default {
     createEventAsyncIterable,
     DicomEventStream,
     Naturalized,
-    DicomWebJson
+    DicomWebJson,
+    ValidationListener
 };

@@ -24,7 +24,21 @@
  *   palette.descriptor  palette LUT descriptor triplet vs LUT data length
  *   ts.encapsulation  transfer-syntax vs pixel-data encapsulation coherence
  *   fmi.groupLength   declared (0002,0000) vs recomputed meta group length
- *   iod.unavailable   layer 3 stub notice (IOD validation lands in a later PR)
+ *   iod.type1.missing   Type 1 attribute of an enforced module is missing
+ *                     (ERROR top-level; WARNING on nested paths — flattened
+ *                     any-item granularity, see layer3.js)
+ *   iod.type1.empty   Type 1 attribute of an enforced module is present but
+ *                     empty (severity as iod.type1.missing)
+ *   iod.type2.missing   Type 2 attribute of an enforced module is missing
+ *                     (severity as iod.type1.missing)
+ *   iod.conditional   Type 1C/2C attribute absent — INFO with the condition
+ *                     text (conditions are reporting-only; never an error)
+ *   iod.conditionalModule  usage "C" module not in use — INFO with the
+ *                     module condition text
+ *   iod.unknownAttribute  attribute belongs to no module of the resolved
+ *                     CIOD (INFO, rate-limited)
+ *   iod.unknownSopClass  SOP Class UID absent or not in the IOD catalog
+ *                     (single WARNING; layer 3 stops)
  */
 
 export const Severity = {
@@ -39,7 +53,13 @@ export const RULES = [
     "charset.terms",
     "charset.valueOrder",
     "fmi.groupLength",
-    "iod.unavailable",
+    "iod.conditional",
+    "iod.conditionalModule",
+    "iod.type1.empty",
+    "iod.type1.missing",
+    "iod.type2.missing",
+    "iod.unknownAttribute",
+    "iod.unknownSopClass",
     "palette.descriptor",
     "pixel.bitsStored",
     "pixel.dataLength",

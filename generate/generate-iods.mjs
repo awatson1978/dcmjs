@@ -12,8 +12,10 @@ import {
     buildIodCatalog,
     iodIndexSource,
     iodModulesPackedSource,
-    iodJsonSchemaSource
+    iodJsonSchemaSource,
+    iodTypesSource
 } from "./buildIodCatalog.mjs";
+import { naturalizedRules } from "../src/schema/naturalizedRules.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dataDir = join(root, "generate", "data", "dicom-standard");
@@ -53,6 +55,14 @@ try {
     mkdirSync(join(root, "schema"), { recursive: true });
     writeFileSync(join(root, "schema", "iod.schema.json"), iodJsonSchemaSource(catalog));
     console.log("wrote schema/iod.schema.json");
+    // Typed IOD datasets (Workstream D) — raw source, same convention as
+    // types/dcmjs-schema.d.ts (generate-schema.mjs writes it unformatted).
+    mkdirSync(join(root, "types"), { recursive: true });
+    writeFileSync(
+        join(root, "types", "dcmjs-iods.d.ts"),
+        iodTypesSource(catalog, naturalizedRules.attributes)
+    );
+    console.log("wrote types/dcmjs-iods.d.ts");
 } catch (err) {
     console.error(`generate-iods FAILED: ${err.message}`);
     process.exit(1);

@@ -17,53 +17,53 @@ dcmjs 1.0 is a significant enhancement (with some API-breaking changes),
 made possible by the generous support of the National Institutes of Health
 and Massachusetts General Hospital. Updates include:
 
-- **Event streaming.** Historically, reading a DICOM file meant loading the
-  whole thing into memory and getting back one large object. dcmjs can now
-  also treat a file as a *stream of events* — "an element started", "here
-  is a value", "a sequence began" — flowing from a source, through optional
-  filters, into a writer. This matters because most tasks (inspect a few
-  tags, change a patient name, convert a format) never needed the whole
-  file in memory in the first place, and because filters let you modify
-  data in flight with a few lines of code. See Event Stream below.
-- **Ultra large file support.** A consequence of event streaming: pairing
-  the streaming reader with the streaming writer keeps memory bounded by
-  the largest single piece of pixel data, not by the file. Digital
-  pathology slides, surgical video, and large multiframe instances can be
-  gigabytes — larger than available RAM — and the streaming pipeline has
-  been exercised against a 21.8 GB video instance while holding only a
-  couple of gigabytes in memory.
-- **Deprecation of the lazy reader.** dcmjs absorbed the dicom-parser
-  tokenizer and grew a "lazy" reader that records where each element lives
-  and only materializes values when touched. After evaluation, the proven
-  eager reader (read everything up front) remains the default engine of
-  record; the lazy core is deprecated (`DCMJS_CORE=lazy` or
-  `readFile(buffer, { core: "lazy" })`) and scheduled for removal.
-- **More correct writing.** Element lengths are recomputed (backpatched)
-  as files are written, and the deflated transfer syntax — a DICOM
-  encoding that promises the file body is compressed — is now actually
-  written compressed, fixing a long-standing 0.x bug where such files
-  claimed compression they did not have.
-- **Directory parsing.** A DICOMDIR is the index file on DICOM interchange
-  media (CDs, DVDs, USB filesets) — one DICOM file whose records point at
-  all the others. It now reads like any other dataset, and `dcmjs.media`
-  builds new DICOMDIRs with correct byte offsets, which is the hard part
-  of writing one. See Images and Directories below.
-- **Interoperability support.** DICOM describes images; FHIR is how the
-  rest of the healthcare IT world exchanges data. The `@dcmjs/fhir`
-  package maps between the two in both directions — datasets out to FHIR
-  resources, and FHIR Patient demographics back onto DICOM. See Fast
-  Healthcare Interoperability below.
-- **Video support.** An MP4's H.264 stream can travel inside a DICOM
-  video instance *verbatim* (Supplement 225) — `fromVideo`/`toVideo`
-  encapsulate and recover it byte-identically, with no transcoding and no
-  pixel decoding, streaming at any file size. See Images and Directories
-  below.
-- **Monorepo.** The repository now hosts several packages: the vendored
-  tokenizer in `packages/parser` (private), the FHIR mappers in
-  `packages/fhir`, the documentation site in `packages/docs`, and the main
-  `dcmjs` package at the root.
-- **Removed:** the deprecated `DicomMessage.read`/`readTag` statics and the legacy
-  `DICOMWEB` class (use [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client)).
+-   **Event streaming.** Historically, reading a DICOM file meant loading the
+    whole thing into memory and getting back one large object. dcmjs can now
+    also treat a file as a _stream of events_ — "an element started", "here
+    is a value", "a sequence began" — flowing from a source, through optional
+    filters, into a writer. This matters because most tasks (inspect a few
+    tags, change a patient name, convert a format) never needed the whole
+    file in memory in the first place, and because filters let you modify
+    data in flight with a few lines of code. See Event Stream below.
+-   **Ultra large file support.** A consequence of event streaming: pairing
+    the streaming reader with the streaming writer keeps memory bounded by
+    the largest single piece of pixel data, not by the file. Digital
+    pathology slides, surgical video, and large multiframe instances can be
+    gigabytes — larger than available RAM — and the streaming pipeline has
+    been exercised against a 21.8 GB video instance while holding only a
+    couple of gigabytes in memory.
+-   **Deprecation of the lazy reader.** dcmjs absorbed the dicom-parser
+    tokenizer and grew a "lazy" reader that records where each element lives
+    and only materializes values when touched. After evaluation, the proven
+    eager reader (read everything up front) remains the default engine of
+    record; the lazy core is deprecated (`DCMJS_CORE=lazy` or
+    `readFile(buffer, { core: "lazy" })`) and scheduled for removal.
+-   **More correct writing.** Element lengths are recomputed (backpatched)
+    as files are written, and the deflated transfer syntax — a DICOM
+    encoding that promises the file body is compressed — is now actually
+    written compressed, fixing a long-standing 0.x bug where such files
+    claimed compression they did not have.
+-   **Directory parsing.** A DICOMDIR is the index file on DICOM interchange
+    media (CDs, DVDs, USB filesets) — one DICOM file whose records point at
+    all the others. It now reads like any other dataset, and `dcmjs.media`
+    builds new DICOMDIRs with correct byte offsets, which is the hard part
+    of writing one. See Images and Directories below.
+-   **Interoperability support.** DICOM describes images; FHIR is how the
+    rest of the healthcare IT world exchanges data. The `@dcmjs/fhir`
+    package maps between the two in both directions — datasets out to FHIR
+    resources, and FHIR Patient demographics back onto DICOM. See Fast
+    Healthcare Interoperability below.
+-   **Video support.** An MP4's H.264 stream can travel inside a DICOM
+    video instance _verbatim_ (Supplement 225) — `fromVideo`/`toVideo`
+    encapsulate and recover it byte-identically, with no transcoding and no
+    pixel decoding, streaming at any file size. See Images and Directories
+    below.
+-   **Monorepo.** The repository now hosts several packages: the vendored
+    tokenizer in `packages/parser` (private), the FHIR mappers in
+    `packages/fhir`, the documentation site in `packages/docs`, and the main
+    `dcmjs` package at the root.
+-   **Removed:** the deprecated `DicomMessage.read`/`readTag` statics and the legacy
+    `DICOMWEB` class (use [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client)).
 
 # Where 2.0 is headed
 
@@ -73,7 +73,7 @@ short version, in plain terms.
 
 **The goal.** Stop measuring this library against the old C++ toolkits.
 The real target is that someone building a medical imaging application
-in JavaScript should *never have to leave JavaScript* — no Python
+in JavaScript should _never have to leave JavaScript_ — no Python
 scripts on the side, no Java servers, no native code — and still be
 fully standards-conformant. Some things we deliberately will not build
 (the 1990s hospital networking protocols, image rendering) because
@@ -101,8 +101,8 @@ instead of three times — that is the whole trick of the first batch of
 
 **The other big idea: learn from the competition — legally.** The
 mature toolkits' most valuable possession is not their code. It is
-thirty years of *"we hit a weird file from a scanner in 1998 and here
-is what we learned."* That knowledge sits in the open, in four places:
+thirty years of _"we hit a weird file from a scanner in 1998 and here
+is what we learned."_ That knowledge sits in the open, in four places:
 
 1. **Their test files.** Decades of collected weird, broken, and
    hostile DICOM files, freely downloadable. We feed them all through
@@ -110,7 +110,7 @@ is what we learned."* That knowledge sits in the open, in four places:
    handles, that is a bug found for free.
 2. **Their validators' checklists.** The gold-standard validation
    tools publish what they check and how loudly. Reading those lists
-   tells us which rules *actually matter in the field*, so our
+   tells us which rules _actually matter in the field_, so our
    validator is useful on day one instead of crying wolf.
 3. **Their bug trackers.** The mining pipeline that converted this
    project's own issue tracker into a regression suite (see
@@ -135,34 +135,34 @@ line.
 
 _Overall the code should:_
 
-- Support reading and writing of correct DICOM objects in JavaScript for browser or node environments
-- Provide a programmer-friendly JavaScript environment for using and manipulating DICOM objects
-- Include a set of useful demos to encourage correct usage of dcmjs and modern DICOM objects
-- Encourage correct referencing of instances and composite context when creating derived objects
-- Current target is modern web browsers, but a set of node-based utilities also makes sense someday
+-   Support reading and writing of correct DICOM objects in JavaScript for browser or node environments
+-   Provide a programmer-friendly JavaScript environment for using and manipulating DICOM objects
+-   Include a set of useful demos to encourage correct usage of dcmjs and modern DICOM objects
+-   Encourage correct referencing of instances and composite context when creating derived objects
+-   Current target is modern web browsers, but a set of node-based utilities also makes sense someday
 
 _Architectural goals include:_
 
-- Use modern JavaScript programming methods (currently ES6) but avoid heavy frameworks
-- Leverage modern DICOM standards but avoid legacy parts
-- Support straightforward integration with multiple JavaScript deployment targets (browser, node, etc) and frameworks.
+-   Use modern JavaScript programming methods (currently ES6) but avoid heavy frameworks
+-   Leverage modern DICOM standards but avoid legacy parts
+-   Support straightforward integration with multiple JavaScript deployment targets (browser, node, etc) and frameworks.
 
 _Parts of DICOM that dcmjs *will* focus on:_
 
-- Enhanced Multiframe Images
-- Segmentation Objects
-- Parametric Maps
-- Structured Reports
+-   Enhanced Multiframe Images
+-   Segmentation Objects
+-   Parametric Maps
+-   Structured Reports
 
 _Parts of DICOM that dcmjs *will not* focus on:_
 
-- DIMSE (legacy networking like C-STORE, C-FIND, C-MOVE, etc). See the [dcmjs-dimse](https://github.com/PantelisGeorgiadis/dcmjs-dimse) project for that.
-- Physical Media (optical disks). See [this FAQ](https://www.dclunie.com/medical-image-faq/html/index.html) if you need to work with those.
-- Image rendering. See [dcmjs-imaging](https://github.com/PantelisGeorgiadis/dcmjs-imaging) for this.
-- Encapsulated transfer syntax transcoding. See [dcmjs-codecs](https://github.com/PantelisGeorgiadis/dcmjs-codecs) for this.
-- 3D rendering.  See [vtk.js](https://kitware.github.io/vtk-js/index.html).
-- Radiology review application - see [OHIF](https://ohif.org).
-- Deidentification and data organization - see [dcm-organize](https://github.com/bebbi/dcm-organize) for this.
+-   DIMSE (legacy networking like C-STORE, C-FIND, C-MOVE, etc). See the [dcmjs-dimse](https://github.com/PantelisGeorgiadis/dcmjs-dimse) project for that.
+-   Physical Media (optical disks). See [this FAQ](https://www.dclunie.com/medical-image-faq/html/index.html) if you need to work with those.
+-   Image rendering. See [dcmjs-imaging](https://github.com/PantelisGeorgiadis/dcmjs-imaging) for this.
+-   Encapsulated transfer syntax transcoding. See [dcmjs-codecs](https://github.com/PantelisGeorgiadis/dcmjs-codecs) for this.
+-   3D rendering. See [vtk.js](https://kitware.github.io/vtk-js/index.html).
+-   Radiology review application - see [OHIF](https://ohif.org).
+-   Deidentification and data organization - see [dcm-organize](https://github.com/bebbi/dcm-organize) for this.
 
 # Usage
 
@@ -195,9 +195,9 @@ streaming rather than materializing the whole dataset up front.
 ```javascript
 // Part 10 bytes -> naturalized dataset, via the event stream.
 // Equivalent to DicomMessage.readFile(...) + naturalizeDataset(...), streamed.
-const dataset = await dcmjs.eventStream.DicomEventStream
-    .fromPart10(arrayBuffer)
-    .toNaturalized();
+const dataset = await dcmjs.eventStream.DicomEventStream.fromPart10(
+    arrayBuffer
+).toNaturalized();
 
 console.log(dataset.Modality, dataset.StudyInstanceUID, dataset.NumberOfFrames);
 ```
@@ -207,13 +207,13 @@ A `DicomEventStream` wraps a re-runnable source; choose a sink:
 ```javascript
 const events = dcmjs.eventStream.DicomEventStream.fromPart10(arrayBuffer);
 
-const dataset = await events.toNaturalized();    // naturalized { ...keywords }
-const json    = await events.toDicomWebJson();   // DICOM JSON model
-const tree    = await events.toDataSet();         // { meta, dict } tag tree
-const bytes   = await events.toPart10();          // round-trip back to Part 10
-const fhir    = await events.toFhir();            // { patient, imagingStudy, documentReference }
-const pdf     = await events.toPdf();             // embedded PDF out of an Encapsulated PDF instance
-const video   = await events.toVideo();           // byte-identical MP4 out of a video instance
+const dataset = await events.toNaturalized(); // naturalized { ...keywords }
+const json = await events.toDicomWebJson(); // DICOM JSON model
+const tree = await events.toDataSet(); // { meta, dict } tag tree
+const bytes = await events.toPart10(); // round-trip back to Part 10
+const fhir = await events.toFhir(); // { patient, imagingStudy, documentReference }
+const pdf = await events.toPdf(); // embedded PDF out of an Encapsulated PDF instance
+const video = await events.toVideo(); // byte-identical MP4 out of a video instance
 ```
 
 Other sources — the same sinks apply to each:
@@ -222,17 +222,17 @@ Other sources — the same sinks apply to each:
 const { DicomEventStream } = dcmjs.eventStream;
 
 DicomEventStream.fromPart10Stream(chunksOrReadableStream); // chunked bytes, bounded memory
-DicomEventStream.fromDataSet({ meta, dict });              // an already-parsed dataset
-DicomEventStream.fromDicomWebJson(dicomJson);              // DICOM JSON model
-DicomEventStream.fromImage(decoded, options);              // decoded pixels (see Images and Directories)
-DicomEventStream.fromPdf(pdfBytes, options);               // PDF -> Encapsulated PDF instance
-DicomEventStream.fromFhir(resource, options);              // content-carrying FHIR resource (below)
-DicomEventStream.fromVideo(mp4Bytes, options);             // MP4 -> video instance (see Images and Directories)
-DicomEventStream.fromVideoStream(reader, options);         // same, from a { size, read } reader — any file size
-DicomEventStream.from(source);                             // auto-detect Part 10 / dataset / DICOM JSON
+DicomEventStream.fromDataSet({ meta, dict }); // an already-parsed dataset
+DicomEventStream.fromDicomWebJson(dicomJson); // DICOM JSON model
+DicomEventStream.fromImage(decoded, options); // decoded pixels (see Images and Directories)
+DicomEventStream.fromPdf(pdfBytes, options); // PDF -> Encapsulated PDF instance
+DicomEventStream.fromFhir(resource, options); // content-carrying FHIR resource (below)
+DicomEventStream.fromVideo(mp4Bytes, options); // MP4 -> video instance (see Images and Directories)
+DicomEventStream.fromVideoStream(reader, options); // same, from a { size, read } reader — any file size
+DicomEventStream.from(source); // auto-detect Part 10 / dataset / DICOM JSON
 ```
 
-`fromFhir` sources the FHIR resources that carry *content*, not just
+`fromFhir` sources the FHIR resources that carry _content_, not just
 context: a `DocumentReference` or `Media` whose attachment embeds inline
 data (or a `Bundle` holding one, plus optionally a `Patient` for
 demographics). An embedded PDF becomes an Encapsulated PDF instance. An
@@ -243,7 +243,7 @@ transfer syntax choice), never the pixels.
 
 ```javascript
 const events = DicomEventStream.fromFhir(mediaResource, {
-    patient: patientResource   // demographics applied via fhir.patientToDataset
+    patient: patientResource // demographics applied via fhir.patientToDataset
 });
 const keyImage = await events.toPart10();
 ```
@@ -262,8 +262,12 @@ For element-level work (progress, filtering, validation) without materializing
 the whole dataset, consume the events directly:
 
 ```javascript
-for await (const { type, args } of
-        dcmjs.eventStream.DicomEventStream.fromPart10(arrayBuffer).asyncIterable()) {
+for await (const {
+    type,
+    args
+} of dcmjs.eventStream.DicomEventStream.fromPart10(
+    arrayBuffer
+).asyncIterable()) {
     // type: 'startElement' | 'value' | 'startSequence' | 'startItem' | ...
 }
 
@@ -280,7 +284,7 @@ how large the input file is:
 const { fromPart10Stream, StreamingPart10Writer } = dcmjs.eventStream;
 
 const writer = new StreamingPart10Writer(
-    { onChunk: (bytes) => output.write(bytes) },
+    { onChunk: bytes => output.write(bytes) },
     ...filters
 );
 await fromPart10Stream(inputReadableStream, writer);
@@ -289,6 +293,31 @@ await fromPart10Stream(inputReadableStream, writer);
 The listener/writer classes behind the `to*` sinks (`NaturalizedListener`,
 `DicomWebJsonWriter`, `Part10Writer`, `CollectorListener`) are also
 exported for direct use with `process()`.
+
+## Character sets on write
+
+By default, `DicomDict.write()` transcodes: text read from any legacy
+character set (Latin-1, ISO 2022 Japanese, GB18030, …) is written back as
+UTF-8 and `SpecificCharacterSet` (0008,0005) is rewritten to `ISO_IR 192`.
+This is conformant and lossless for the _characters_ — dcmjs decodes all
+strings at read time and has no legacy-charset encoder, so UTF-8 is the
+only encoding it can reliably produce.
+
+If a downstream system requires the original declaration, opt in with:
+
+```javascript
+dicomDict.write({ preserveSpecificCharacterSet: true });
+```
+
+This keeps the original (0008,0005) terms as read, and is honored only
+when the written bytes remain valid under them: any value when the
+original charset was already `ISO_IR 192` (UTF-8), and pure-ASCII values
+under every other declaration. Because dcmjs retains decoded strings, not
+the original bytes, non-ASCII values under a legacy charset cannot be
+re-encoded — strict mode (`true`) throws an error naming the first such
+element, while `{ preserveSpecificCharacterSet: "lenient" }` logs a
+warning and falls back to the default UTF-8 / `ISO_IR 192` behavior for
+that dataset.
 
 ## Images and Directories
 
@@ -318,16 +347,16 @@ const part10 = await events.toPart10();
 Two rules keep the output honest. First, measurements taken from the
 actual pixels (rows, columns, bit depth, samples per pixel) always
 override whatever the metadata claims. Second, when the metadata
-identifies an original instance, the result is written as a *derived*
+identifies an original instance, the result is written as a _derived_
 image: it receives a newly generated SOPInstanceUID, its ImageType is
 marked `DERIVED\SECONDARY`, and a SourceImageSequence points back at the
-original. Reusing the original UID would assert that the rebuilt file *is*
+original. Reusing the original UID would assert that the rebuilt file _is_
 the original, which it is not — the pixels passed through an export and
 back.
 
 ### Video encapsulation (`dcmjs.encapsulated`)
 
-DICOM can carry an H.264 video stream *verbatim*: the MP4's bytes become
+DICOM can carry an H.264 video stream _verbatim_: the MP4's bytes become
 the encapsulated PixelData of a Video Photographic Image instance, split
 into fragments that are consecutive byte ranges of the one stream
 (Supplement 225). No transcoding, no pixel decoding — so extraction is
@@ -393,7 +422,9 @@ const { patient, imagingStudy } = dcmjs.fhir.fromPart10(arrayBuffer);
 
 // Or from an already-naturalized dataset:
 const dicomDict = dcmjs.data.DicomMessage.readFile(arrayBuffer);
-const dataset = dcmjs.data.DicomMetaDictionary.naturalizeDataset(dicomDict.dict);
+const dataset = dcmjs.data.DicomMetaDictionary.naturalizeDataset(
+    dicomDict.dict
+);
 const { patient, imagingStudy } = dcmjs.fhir.toFhir(dataset);
 
 // Many instances of one study -> a collection Bundle
@@ -408,15 +439,15 @@ dcmjs.fhir.toFhir(dataset, {
 
 API surface (all also importable from `@dcmjs/fhir` inside this repo):
 
-| Function | Input | Output |
-| --- | --- | --- |
-| `fromPart10(arrayBuffer, options?)` | Part 10 ArrayBuffer | `{ patient, imagingStudy }` |
-| `toFhir(dataset, options?)` | naturalized dataset | `{ patient, imagingStudy }` |
-| `toBundle(datasets, options?)` | naturalized dataset array (one study) | FHIR `Bundle` (`type: collection`) |
-| `patientFromDataset(dataset)` | naturalized dataset | FHIR `Patient` or `null` |
-| `imagingStudyFromDataset(dataset, options?)` | naturalized dataset | FHIR `ImagingStudy` or `null` |
-| `imagingStudyFromDatasets(datasets, options?)` | naturalized dataset array | one aggregated `ImagingStudy` or `null` |
-| `patientToDataset(patient)` | FHIR `Patient` | DICOM patient-module attributes |
+| Function                                       | Input                                 | Output                                  |
+| ---------------------------------------------- | ------------------------------------- | --------------------------------------- |
+| `fromPart10(arrayBuffer, options?)`            | Part 10 ArrayBuffer                   | `{ patient, imagingStudy }`             |
+| `toFhir(dataset, options?)`                    | naturalized dataset                   | `{ patient, imagingStudy }`             |
+| `toBundle(datasets, options?)`                 | naturalized dataset array (one study) | FHIR `Bundle` (`type: collection`)      |
+| `patientFromDataset(dataset)`                  | naturalized dataset                   | FHIR `Patient` or `null`                |
+| `imagingStudyFromDataset(dataset, options?)`   | naturalized dataset                   | FHIR `ImagingStudy` or `null`           |
+| `imagingStudyFromDatasets(datasets, options?)` | naturalized dataset array             | one aggregated `ImagingStudy` or `null` |
+| `patientToDataset(patient)`                    | FHIR `Patient`                        | DICOM patient-module attributes         |
 
 Options: `fhirVersion` (`'R4'`/`'R4B'`, default `'R4B'` — anything else
 throws), `subject` (FHIR Reference for `ImagingStudy.subject`),
@@ -424,16 +455,16 @@ throws), `subject` (FHIR Reference for `ImagingStudy.subject`),
 
 Mapping notes (per the IHE Radiology MADO mapping):
 
-- `Patient`: `PatientID` -> MR identifier, `PatientName` (PN) -> `HumanName`,
-  `PatientBirthDate` -> ISO `birthDate`, `PatientSex` -> `gender` plus
-  US Core `birthsex` / `sex-for-clinical-use` extensions.
-- `ImagingStudy`: `StudyInstanceUID` -> `urn:dicom:uid` identifier
-  (`urn:oid:` value), `AccessionNumber` -> ACSN identifier,
-  `StudyDate`/`Time` -> `started`, series `Modality` -> DCM ontology coding
-  (with a study-level modality union), `SeriesNumber`/`InstanceNumber`
-  (IS) emitted as numbers, `SOPClassUID` -> `urn:ietf:rfc:3986` sopClass.
-- Absent elements are omitted entirely — no empty strings or nulls in the
-  output (permissive in, strict out).
+-   `Patient`: `PatientID` -> MR identifier, `PatientName` (PN) -> `HumanName`,
+    `PatientBirthDate` -> ISO `birthDate`, `PatientSex` -> `gender` plus
+    US Core `birthsex` / `sex-for-clinical-use` extensions.
+-   `ImagingStudy`: `StudyInstanceUID` -> `urn:dicom:uid` identifier
+    (`urn:oid:` value), `AccessionNumber` -> ACSN identifier,
+    `StudyDate`/`Time` -> `started`, series `Modality` -> DCM ontology coding
+    (with a study-level modality union), `SeriesNumber`/`InstanceNumber`
+    (IS) emitted as numbers, `SOPClassUID` -> `urn:ietf:rfc:3986` sopClass.
+-   Absent elements are omitted entirely — no empty strings or nulls in the
+    output (permissive in, strict out).
 
 ### FHIR → DICOM
 
@@ -451,21 +482,21 @@ dcmjs.fhir.patientToDataset(patientResource);
 Where FHIR is richer than DICOM, the mapping has to choose, and the
 choices are fixed here rather than left to each caller:
 
-- A `Patient` may carry several names; the `official` name is used, never
-  the `maiden` — so a resource holding both a married and a maiden name
-  maps to the married one regardless of array order.
-- Among multiple identifiers, one typed MR (medical record number) is
-  preferred.
-- `Patient.gender` is an administrative field, not clinical sex, and it is
-  the only field consulted (profile extensions such as US Core birthsex
-  are not): `male` -> `M`, `female` -> `F`, `other` or any unrecognized
-  value -> `O`, `unknown` or absent -> empty. Empty is deliberate: DICOM
-  defines PatientSex as Type 2 (must be present, may be empty), and an
-  empty value is the standard way to record "not known".
-- The result always contains all four attributes, with empty strings for
-  anything the resource does not carry. Applying it therefore replaces the
-  previous identity completely, rather than leaving stale values from a
-  prior patient behind.
+-   A `Patient` may carry several names; the `official` name is used, never
+    the `maiden` — so a resource holding both a married and a maiden name
+    maps to the married one regardless of array order.
+-   Among multiple identifiers, one typed MR (medical record number) is
+    preferred.
+-   `Patient.gender` is an administrative field, not clinical sex, and it is
+    the only field consulted (profile extensions such as US Core birthsex
+    are not): `male` -> `M`, `female` -> `F`, `other` or any unrecognized
+    value -> `O`, `unknown` or absent -> empty. Empty is deliberate: DICOM
+    defines PatientSex as Type 2 (must be present, may be empty), and an
+    empty value is the standard way to record "not known".
+-   The result always contains all four attributes, with empty strings for
+    anything the resource does not carry. Applying it therefore replaces the
+    previous identity completely, rather than leaving stale values from a
+    prior patient behind.
 
 Tests: `pnpm exec jest packages/fhir`.
 
@@ -509,11 +540,11 @@ Publish new version automatically from commit:
 
 Use the following "Commit Message Format" when drafting commit messages. If you're merging a 3rd party's PR, you have the ability to override the supplied commit messages by doing a "Squash & Merge":
 
-- [Commit Message Format](https://semantic-release.gitbook.io/semantic-release/#commit-message-format)
+-   [Commit Message Format](https://semantic-release.gitbook.io/semantic-release/#commit-message-format)
 
 Note: Be wary of `BREAKING_CHANGE` in commit message descriptions, as this can force a major version bump.
 
-Be sure to use lower case for the first letter of your semantic commit message, so use `fix` not `Fix` or `feat` not `Feat`, have a space after the : and make the PR github review title follow the SAME rules.  It is the PR review title that determins the final commit message and will be used for semantic detection.
+Be sure to use lower case for the first letter of your semantic commit message, so use `fix` not `Fix` or `feat` not `Feat`, have a space after the : and make the PR github review title follow the SAME rules. It is the PR review title that determins the final commit message and will be used for semantic detection.
 
 Note: a new package version will be published only if the commit comes from a PR.
 
@@ -521,14 +552,14 @@ Note: a new package version will be published only if the commit comes from a PR
 
 It is advised to use the git-cz, i.e.:
 
-- install git-cz
+-   install git-cz
 
 ```bash
 pnpm add -g git-cz
 # or: npm install -g git-cz
 ```
 
-- how to commit
+-   how to commit
 
 ```bash
 git-cz --non-interactive --type=fix --subject="commit message"
@@ -542,26 +573,28 @@ The dcmjs library includes DICOM data dictionaries that map DICOM tags to their 
 
 ### Dictionary Files
 
-- **`src/dictionary.fast.js`** - Pre-compiled fast dictionary (used at runtime)
-- **`generate/dictionary.mjs`** - Source dictionary generator
-- **`src/dictionary.private.data.js`** - Private tag definitions
-- Since 1.0, `DicomMetaDictionary.nameMap` is built lazily on first access instead of at import time
+-   **`src/dictionary.fast.js`** - Pre-compiled fast dictionary (used at runtime)
+-   **`generate/dictionary.mjs`** - Source dictionary generator
+-   **`src/dictionary.private.data.js`** - Private tag definitions
+-   Since 1.0, `DicomMetaDictionary.nameMap` is built lazily on first access instead of at import time
 
 ### Updating the Dictionary
 
 When DICOM standards are updated or new tags need to be added:
 
 1. **Generate the dictionary from DICOM standards** (downloads latest PS3.6 and PS3.7 XML from dicom.nema.org):
-   ```bash
-   pnpm run generate-dictionary
-   ```
-   This creates/updates `generate/dictionary.js` with the latest tag definitions.
+
+    ```bash
+    pnpm run generate-dictionary
+    ```
+
+    This creates/updates `generate/dictionary.js` with the latest tag definitions.
 
 2. **Pack the dictionary into optimized format**:
-   ```bash
-   pnpm run pack-dictionary
-   ```
-   This generates the optimized `src/dictionary.fast.js` used at runtime.
+    ```bash
+    pnpm run pack-dictionary
+    ```
+    This generates the optimized `src/dictionary.fast.js` used at runtime.
 
 ### Why the Fast Dictionary?
 
@@ -582,10 +615,11 @@ UMD (dcmjs.js):                  72.11 ms
 ```
 
 The fast dictionary reduces initial load time by over 9x, making it especially beneficial for:
-- Server-side applications that spawn multiple workers
-- Build tools and bundlers
-- Applications with frequent module reloading during development
-- Environments where startup time is critical
+
+-   Server-side applications that spawn multiple workers
+-   Build tools and bundlers
+-   Applications with frequent module reloading during development
+-   Environments where startup time is critical
 
 ## Community Participation
 
@@ -609,48 +643,48 @@ dcmjs is production-tested (OHIF, Cornerstone adapters, ~15k weekly npm download
 
 ## Implemented
 
-- Eager in-place Part 10 reading (the engine of record), plus a deprecated lazy offset-based core behind `DCMJS_CORE=lazy`
-- Part 10 writing with length backpatching and deflate-on-write
-- Bidirectional conversion to and from part 10 binary DICOM and DICOM standard JSON encoding (as in [DICOMweb](http://dicomweb.org))
-- Bidirectional conversion to and from DICOM standard JSON and a programmer-friendly high-level version (the "naturalized" form)
-- Creation of derived DICOM objects such as Segmentations and Structured Reports
-- Packed data dictionary with lazy initialization, character set support, anonymization, streaming reader
+-   Eager in-place Part 10 reading (the engine of record), plus a deprecated lazy offset-based core behind `DCMJS_CORE=lazy`
+-   Part 10 writing with length backpatching and deflate-on-write
+-   Bidirectional conversion to and from part 10 binary DICOM and DICOM standard JSON encoding (as in [DICOMweb](http://dicomweb.org))
+-   Bidirectional conversion to and from DICOM standard JSON and a programmer-friendly high-level version (the "naturalized" form)
+-   Creation of derived DICOM objects such as Segmentations and Structured Reports
+-   Packed data dictionary with lazy initialization, character set support, anonymization, streaming reader
 
 ## In development (1.x backlog)
 
-- Removing the deprecated lazy read core and its byte-identity passthrough write path (eager remained the engine of record after the beta evaluation)
-- Retiring or re-platforming the legacy `AsyncDicomReader` — the event stream's `fromPart10Stream` is the strategic streaming path
-- Public subpath packaging for the raw parser tier, and a broader TypeScript surface (the `./dictionary` and `./schema` subpaths, with schema typings, already ship)
-- See the docs site roadmap page (`packages/docs/docs/development/roadmap.md`, R8 checklist) for the full list
+-   Removing the deprecated lazy read core and its byte-identity passthrough write path (eager remained the engine of record after the beta evaluation)
+-   Retiring or re-platforming the legacy `AsyncDicomReader` — the event stream's `fromPart10Stream` is the strategic streaming path
+-   Public subpath packaging for the raw parser tier, and a broader TypeScript surface (the `./dictionary` and `./schema` subpaths, with schema typings, already ship)
+-   See the docs site roadmap page (`packages/docs/docs/development/roadmap.md`, R8 checklist) for the full list
 
 # History
 
-- 2014
-  - [DCMTK](dcmtk.org) cross compiled to javascript at [CTK Hackfest](http://www.commontk.org/index.php/CTK-Hackfest-May-2014). While this was useful and powerful, it was heavyweight for typical web usage.
-- 2016
-  - A [Medical Imaging Web Appliction meeting at Stanford](http://qiicr.org/web/outreach/Medical-Imaging-Web-Apps/) and [follow-on hackfest in Boston](http://qiicr.org/web/outreach/MIWS-hackfest/) helped elaborate the needs for manipulating DICOM in pure Javascript.
-  - Based on [DICOM Part 10 read/write code](https://github.com/OHIF/dicom-dimse) initiated by Weiwei Wu of [OHIF](http://ohif.org), Steve Pieper [developed further features](https://github.com/pieper/sites/tree/gh-pages/dcmio) and [examples of creating multiframe and segmentation objects](https://github.com/pieper/sites/tree/gh-pages/DICOMzero) discussed with the community at RSNA
-- 2017
-  - At [NA-MIC Project Week 25](https://na-mic.org/wiki/Project_Week_25) Erik Ziegler and Steve Pieper [worked](https://na-mic.org/wiki/Project_Week_25/DICOM_Segmentation_Support_for_Cornerstone_and_OHIF_Viewer)
-    with the community to define some example use cases to mix the pure JavaScript DICOM code with Cornerstone and [CornerstoneTools](https://github.com/chafey/cornerstoneTools).
-- 2018-2022
-  - Work continues to develop SR and SEG support to [OHIFViewer](http://ohif.org) allow interoperability with [DICOM4QI](https://legacy.gitbook.com/book/qiicr/dicom4qi/details)
-- 2022-present
-  - dcmjs is used by a number of projects and as of January 2025 has about 15,000 weekly [downloads from npm]([url](https://www.npmjs.com/package/dcmjs)).
+-   2014
+    -   [DCMTK](dcmtk.org) cross compiled to javascript at [CTK Hackfest](http://www.commontk.org/index.php/CTK-Hackfest-May-2014). While this was useful and powerful, it was heavyweight for typical web usage.
+-   2016
+    -   A [Medical Imaging Web Appliction meeting at Stanford](http://qiicr.org/web/outreach/Medical-Imaging-Web-Apps/) and [follow-on hackfest in Boston](http://qiicr.org/web/outreach/MIWS-hackfest/) helped elaborate the needs for manipulating DICOM in pure Javascript.
+    -   Based on [DICOM Part 10 read/write code](https://github.com/OHIF/dicom-dimse) initiated by Weiwei Wu of [OHIF](http://ohif.org), Steve Pieper [developed further features](https://github.com/pieper/sites/tree/gh-pages/dcmio) and [examples of creating multiframe and segmentation objects](https://github.com/pieper/sites/tree/gh-pages/DICOMzero) discussed with the community at RSNA
+-   2017
+    -   At [NA-MIC Project Week 25](https://na-mic.org/wiki/Project_Week_25) Erik Ziegler and Steve Pieper [worked](https://na-mic.org/wiki/Project_Week_25/DICOM_Segmentation_Support_for_Cornerstone_and_OHIF_Viewer)
+        with the community to define some example use cases to mix the pure JavaScript DICOM code with Cornerstone and [CornerstoneTools](https://github.com/chafey/cornerstoneTools).
+-   2018-2022
+    -   Work continues to develop SR and SEG support to [OHIFViewer](http://ohif.org) allow interoperability with [DICOM4QI](https://legacy.gitbook.com/book/qiicr/dicom4qi/details)
+-   2022-present
+    -   dcmjs is used by a number of projects and as of January 2025 has about 15,000 weekly [downloads from npm](<[url](https://www.npmjs.com/package/dcmjs)>).
 
 # Support
 
 The developers gratefully acknowledge their research support:
 
-- The [National Institutes of Health](https://www.nih.gov/)
-- [Massachusetts General Hospital](https://www.massgeneral.org/)
-- Open Health Imaging Foundation ([OHIF](http://ohif.org))
-- Quantitative Image Informatics for Cancer Research ([QIICR](http://qiicr.org))
-- [Radiomics](http://radiomics.io)
-- The [Neuroimage Analysis Center](http://nac.spl.harvard.edu)
-- The [National Center for Image Guided Therapy](http://ncigt.org)
-- The [NCI Imaging Data Commons](https://imagingdatacommons.github.io/) NCI Imaging Data Commons: contract number 19X037Q from Leidos Biomedical Research under Task Order HHSN26100071 from NCI
-- dcmjs is being used and partially supported by [dicom-curate](https://github.com/bebbi/dicom-curate)
+-   The [National Institutes of Health](https://www.nih.gov/)
+-   [Massachusetts General Hospital](https://www.massgeneral.org/)
+-   Open Health Imaging Foundation ([OHIF](http://ohif.org))
+-   Quantitative Image Informatics for Cancer Research ([QIICR](http://qiicr.org))
+-   [Radiomics](http://radiomics.io)
+-   The [Neuroimage Analysis Center](http://nac.spl.harvard.edu)
+-   The [National Center for Image Guided Therapy](http://ncigt.org)
+-   The [NCI Imaging Data Commons](https://imagingdatacommons.github.io/) NCI Imaging Data Commons: contract number 19X037Q from Leidos Biomedical Research under Task Order HHSN26100071 from NCI
+-   dcmjs is being used and partially supported by [dicom-curate](https://github.com/bebbi/dicom-curate)
 
 ## Logging
 

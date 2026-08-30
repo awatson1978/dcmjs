@@ -66,11 +66,11 @@ Each differential, what a home run means, and where it's batting:
 
 | Gap | Home run = | Status | Tranche | Size |
 |---|---|---|---|---|
-| Part 3 metadata pipeline (keystone) | Generated, gated IOD/module/Type catalog powering three other gaps | not started | 1 | L |
-| Validation engine | `dcmjs.validate()` reports Type-1 violations on a CT with tag-level findings; streamable over 20 GB files | not started | 1 | L |
-| Charset completion | Every PS3.3 defined term decodes; write-side policy documented + opt-in preserve | 80% done | 1 | S+M |
-| Typed IOD datasets | `DicomDataset<"1.2.840.10008.5.1.4.1.1.2">` compiles with Rows required; `asIod()` narrows at runtime | schema layer done | 1 | M |
-| TS compatibility matrix | Every transfer syntax × read/write/roundtrip cell backed by a test | mostly exists, unassembled | 1 | S |
+| Part 3 metadata pipeline (keystone) | Generated, gated IOD/module/Type catalog powering three other gaps | **DONE (PR #61)** — 175 SOP classes / 171 IODs / 98,469 rules, 99.44% condition coverage | 1 | L |
+| Validation engine | `dcmjs.validate()` reports Type-1 violations on a CT with tag-level findings; streamable over 20 GB files | **DONE (PRs #63/#64)** — 3 layers, streaming listener, streamed≡eager gated | 1 | L |
+| Charset completion | Every PS3.3 defined term decodes; write-side policy documented + opt-in preserve | **DONE (PRs #60/#62)** — incl. the write-coherence fix the new fixtures exposed | 1 | S+M |
+| Typed IOD datasets | `DicomDataset<"1.2.840.10008.5.1.4.1.1.2">` compiles with Rows required; `asIod()` narrows at runtime | **DONE (PR #64)** — all 171 IODs typed, tsc-strict gated | 1 | M |
+| TS compatibility matrix | Every transfer syntax × read/write/roundtrip cell backed by a test | **DONE (PR #66)** — COMPATIBILITY.md with the parse/carry/decode distinction | 1 | S |
 | Codec registry | `dcmjs.codecs.register({transferSyntaxUID, decode, encode})` + one reference WASM codec package | not started | 2 | L |
 | Pixel/Cornerstone contract | Written interop contract + `getFrame()` | not started | 2 | M |
 | DICOMweb client | QIDO/WADO/STOW client, streaming retrieval, AbortSignal, browser CORS | not started | 2 | L |
@@ -281,6 +281,27 @@ pydicom/highdicom are MIT and GDCM is BSD, but dcm4che has
 GPL-adjacent parts, and one clean rule beats per-file license
 analysis: knowledge in, code never. Same spirit as the tiered
 attachment policy.
+
+## Ralph loop state (tranche 1 close, 2026-08-30)
+
+Four waves run against pydicom-data (MIT) + gdcmData (local-testing
+only, never committed): baseline sweep, isolated re-sweep (after one
+hostile file taught the harness per-file process isolation), the fix
+wave (PR #65), and the post-fix verification sweep. Score: 329 files;
+fails 38 → 28, divergences 4 → 1, nine hostile files cleared including
+three bonus Philips private-sequence variants. The one remaining
+divergence is deliberate: dcmjs decodes ISO 2022 Japanese person names
+correctly where dicom-parser returns raw escape bytes.
+
+The 28 remaining "fails" are dominated by corrective-error rejections
+of deliberately hostile specimens (truncated files, bogus lengths,
+mixed explicit/implicit VR) — correct behavior, cataloged in
+corpus-cache/wave4.ndjson for the next mining session's triage. The
+issue vein banked 1,097 pydicom issues (75 portable edge cases, 40
+design lessons — several already folded into the fixes). **Status:
+paused, not dry.** Unmined veins: the Clunie compression corpora,
+dciodvfy's check catalog (layer-3 severity calibration), highdicom's
+API designs (tranche 3), and re-triage of the remaining wave-4 ore.
 
 ## Tranches 2–4 (sketched; each gets its own design pass)
 

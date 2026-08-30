@@ -6,4 +6,11 @@ describe("dcmjs/schema subpath", () => {
             import: "./src/schema/naturalizedRules.js"
         });
     });
+
+    test("package.json maps ./schema/iods to the IOD index runtime", () => {
+        const pkg = require("../../package.json");
+        expect(pkg.exports["./schema/iods"]).toEqual({
+            import: "./src/schema/iodIndex.js"
+        });
+    });
 });

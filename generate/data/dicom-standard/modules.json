@@ -1,0 +1,1742 @@
+[
+ {
+  "id": "acquisition-context",
+  "name": "Acquisition Context"
+ },
+ {
+  "id": "advanced-blending-presentation-state",
+  "name": "Advanced Blending Presentation State"
+ },
+ {
+  "id": "advanced-blending-presentation-state-display",
+  "name": "Advanced Blending Presentation State Display"
+ },
+ {
+  "id": "approval",
+  "name": "Approval"
+ },
+ {
+  "id": "autorefraction-measurements",
+  "name": "Autorefraction Measurements"
+ },
+ {
+  "id": "autorefraction-measurements-series",
+  "name": "Autorefraction Measurements Series"
+ },
+ {
+  "id": "basic-annotation-presentation",
+  "name": "Basic Annotation Presentation"
+ },
+ {
+  "id": "basic-film-box-presentation",
+  "name": "Basic Film Box Presentation"
+ },
+ {
+  "id": "basic-film-box-relationship",
+  "name": "Basic Film Box Relationship"
+ },
+ {
+  "id": "basic-film-session-presentation",
+  "name": "Basic Film Session Presentation"
+ },
+ {
+  "id": "basic-film-session-relationship",
+  "name": "Basic Film Session Relationship"
+ },
+ {
+  "id": "billing-and-material-management-code",
+  "name": "Billing and Material Management Code"
+ },
+ {
+  "id": "bitmap-display-shutter",
+  "name": "Bitmap Display Shutter"
+ },
+ {
+  "id": "breast-projection-x-ray-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "breast-tomosynthesis-acquisition",
+  "name": "Breast Tomosynthesis Acquisition"
+ },
+ {
+  "id": "breast-tomosynthesis-contributing-sources",
+  "name": "Breast Tomosynthesis Contributing Sources"
+ },
+ {
+  "id": "breast-tomosynthesis-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "breast-view",
+  "name": "Breast View"
+ },
+ {
+  "id": "bulk-motion-synchronization",
+  "name": "Bulk Motion Synchronization"
+ },
+ {
+  "id": "c-arm-photon-electron-beam",
+  "name": "C-Arm Photon-Electron Beam"
+ },
+ {
+  "id": "c-arm-photon-electron-delivery-device",
+  "name": "C-Arm Photon-Electron Delivery Device"
+ },
+ {
+  "id": "calculated-dose-reference-record",
+  "name": "Calculated Dose Reference Record"
+ },
+ {
+  "id": "cardiac-synchronization",
+  "name": "Cardiac Synchronization"
+ },
+ {
+  "id": "cine",
+  "name": "Cine"
+ },
+ {
+  "id": "clinical-trial-context",
+  "name": "Clinical Trial Context"
+ },
+ {
+  "id": "clinical-trial-series",
+  "name": "Clinical Trial Series"
+ },
+ {
+  "id": "clinical-trial-study",
+  "name": "Clinical Trial Study"
+ },
+ {
+  "id": "clinical-trial-subject",
+  "name": "Clinical Trial Subject"
+ },
+ {
+  "id": "color-palette-definition",
+  "name": "Color Palette Definition"
+ },
+ {
+  "id": "common-instance-reference",
+  "name": "Common Instance Reference"
+ },
+ {
+  "id": "confocal-microscopy-image",
+  "name": "Confocal Microscopy Image"
+ },
+ {
+  "id": "confocal-microscopy-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "confocal-microscopy-tiled-pyramidal-image",
+  "name": "Confocal Microscopy Tiled Pyramidal Image"
+ },
+ {
+  "id": "confocal-microscopy-tiled-pyramidal-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "content-assessment-results",
+  "name": "Content Assessment Results"
+ },
+ {
+  "id": "contrast-bolus",
+  "name": "Contrast/Bolus"
+ },
+ {
+  "id": "corneal-topography-map-analysis",
+  "name": "Corneal Topography Map Analysis"
+ },
+ {
+  "id": "corneal-topography-map-image",
+  "name": "Corneal Topography Map Image"
+ },
+ {
+  "id": "corneal-topography-map-series",
+  "name": "Corneal Topography Map Series"
+ },
+ {
+  "id": "cr-image",
+  "name": "CR Image"
+ },
+ {
+  "id": "cr-series",
+  "name": "CR Series"
+ },
+ {
+  "id": "ct-image",
+  "name": "CT Image"
+ },
+ {
+  "id": "ct-protocol-series",
+  "name": "CT Protocol Series"
+ },
+ {
+  "id": "ct-series",
+  "name": "CT Series"
+ },
+ {
+  "id": "current-frame-functional-groups",
+  "name": "Current Frame Functional Groups"
+ },
+ {
+  "id": "cutaneous-confocal-microscopy-image-acquisition-parameters",
+  "name": "Cutaneous Confocal Microscopy Image Acquisition Parameters"
+ },
+ {
+  "id": "defined-storage",
+  "name": "Defined Storage"
+ },
+ {
+  "id": "deformable-spatial-registration",
+  "name": "Deformable Spatial Registration"
+ },
+ {
+  "id": "dermoscopic-image",
+  "name": "Dermoscopic Image"
+ },
+ {
+  "id": "device",
+  "name": "Device"
+ },
+ {
+  "id": "directory-information",
+  "name": "Directory Information"
+ },
+ {
+  "id": "display-shutter",
+  "name": "Display Shutter"
+ },
+ {
+  "id": "display-system",
+  "name": "Display System"
+ },
+ {
+  "id": "displayed-area",
+  "name": "Displayed Area"
+ },
+ {
+  "id": "double-floating-point-image-pixel",
+  "name": "Double Floating Point Image Pixel"
+ },
+ {
+  "id": "dx-anatomy-imaged",
+  "name": "DX Anatomy Imaged"
+ },
+ {
+  "id": "dx-detector",
+  "name": "DX Detector"
+ },
+ {
+  "id": "dx-image",
+  "name": "DX Image"
+ },
+ {
+  "id": "dx-positioning",
+  "name": "DX Positioning"
+ },
+ {
+  "id": "dx-series",
+  "name": "DX Series"
+ },
+ {
+  "id": "encapsulated-document",
+  "name": "Encapsulated Document"
+ },
+ {
+  "id": "encapsulated-document-series",
+  "name": "Encapsulated Document Series"
+ },
+ {
+  "id": "enhanced-continuous-rt-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "enhanced-contrast-bolus",
+  "name": "Enhanced Contrast/Bolus"
+ },
+ {
+  "id": "enhanced-ct-image",
+  "name": "Enhanced CT Image"
+ },
+ {
+  "id": "enhanced-ct-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "enhanced-general-equipment",
+  "name": "Enhanced General Equipment"
+ },
+ {
+  "id": "enhanced-mammography-image",
+  "name": "Enhanced Mammography Image"
+ },
+ {
+  "id": "enhanced-mammography-series",
+  "name": "Enhanced Mammography Series"
+ },
+ {
+  "id": "enhanced-mr-color-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "enhanced-mr-image",
+  "name": "Enhanced MR Image"
+ },
+ {
+  "id": "enhanced-mr-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "enhanced-multi-energy-ct-acquisition",
+  "name": "Enhanced Multi-energy CT Acquisition"
+ },
+ {
+  "id": "enhanced-palette-color-lookup-table",
+  "name": "Enhanced Palette Color Lookup Table"
+ },
+ {
+  "id": "enhanced-pet-acquisition",
+  "name": "Enhanced PET Acquisition"
+ },
+ {
+  "id": "enhanced-pet-corrections",
+  "name": "Enhanced PET Corrections"
+ },
+ {
+  "id": "enhanced-pet-image",
+  "name": "Enhanced PET Image"
+ },
+ {
+  "id": "enhanced-pet-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "enhanced-pet-isotope",
+  "name": "Enhanced PET Isotope"
+ },
+ {
+  "id": "enhanced-pet-series",
+  "name": "Enhanced PET Series"
+ },
+ {
+  "id": "enhanced-rt-image",
+  "name": "Enhanced RT Image"
+ },
+ {
+  "id": "enhanced-rt-image-device",
+  "name": "Enhanced RT Image Device"
+ },
+ {
+  "id": "enhanced-rt-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "enhanced-rt-series",
+  "name": "Enhanced RT Series"
+ },
+ {
+  "id": "enhanced-series",
+  "name": "Enhanced Series"
+ },
+ {
+  "id": "enhanced-us-image",
+  "name": "Enhanced US Image"
+ },
+ {
+  "id": "enhanced-us-series",
+  "name": "Enhanced US Series"
+ },
+ {
+  "id": "enhanced-us-volume-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "enhanced-xa-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "enhanced-xa-xrf-image",
+  "name": "Enhanced XA/XRF Image"
+ },
+ {
+  "id": "enhanced-xrf-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "equipment-specification",
+  "name": "Equipment Specification"
+ },
+ {
+  "id": "excluded-intervals",
+  "name": "Excluded Intervals"
+ },
+ {
+  "id": "file-set-identification",
+  "name": "File-Set Identification"
+ },
+ {
+  "id": "floating-point-image-pixel",
+  "name": "Floating Point Image Pixel"
+ },
+ {
+  "id": "frame-extraction",
+  "name": "Frame Extraction"
+ },
+ {
+  "id": "frame-of-reference",
+  "name": "Frame of Reference"
+ },
+ {
+  "id": "frame-pointers",
+  "name": "Frame Pointers"
+ },
+ {
+  "id": "general-acquisition",
+  "name": "General Acquisition"
+ },
+ {
+  "id": "general-defined-acquisition",
+  "name": "General Defined Acquisition"
+ },
+ {
+  "id": "general-defined-reconstruction",
+  "name": "General Defined Reconstruction"
+ },
+ {
+  "id": "general-equipment",
+  "name": "General Equipment"
+ },
+ {
+  "id": "general-image",
+  "name": "General Image"
+ },
+ {
+  "id": "general-ophthalmic-refractive-measurements",
+  "name": "General Ophthalmic Refractive Measurements"
+ },
+ {
+  "id": "general-reference",
+  "name": "General Reference"
+ },
+ {
+  "id": "general-series",
+  "name": "General Series"
+ },
+ {
+  "id": "general-study",
+  "name": "General Study"
+ },
+ {
+  "id": "generic-implant-template-2d-drawings",
+  "name": "Generic Implant Template 2D Drawings"
+ },
+ {
+  "id": "generic-implant-template-3d-models",
+  "name": "Generic Implant Template 3D Models"
+ },
+ {
+  "id": "generic-implant-template-description",
+  "name": "Generic Implant Template Description"
+ },
+ {
+  "id": "generic-implant-template-mating-features",
+  "name": "Generic Implant Template Mating Features"
+ },
+ {
+  "id": "generic-implant-template-planning-landmarks",
+  "name": "Generic Implant Template Planning Landmarks"
+ },
+ {
+  "id": "graphic-annotation",
+  "name": "Graphic Annotation"
+ },
+ {
+  "id": "graphic-group",
+  "name": "Graphic Group"
+ },
+ {
+  "id": "graphic-layer",
+  "name": "Graphic Layer"
+ },
+ {
+  "id": "hanging-protocol-definition",
+  "name": "Hanging Protocol Definition"
+ },
+ {
+  "id": "hanging-protocol-display",
+  "name": "Hanging Protocol Display"
+ },
+ {
+  "id": "hanging-protocol-environment",
+  "name": "Hanging Protocol Environment"
+ },
+ {
+  "id": "icc-profile",
+  "name": "ICC Profile"
+ },
+ {
+  "id": "image---equipment-coordinate-relationship",
+  "name": "Image - Equipment Coordinate Relationship"
+ },
+ {
+  "id": "image-acquisition-results",
+  "name": "Image Acquisition Results"
+ },
+ {
+  "id": "image-box-pixel-presentation",
+  "name": "Image Box Pixel Presentation"
+ },
+ {
+  "id": "image-histogram",
+  "name": "Image Histogram"
+ },
+ {
+  "id": "image-pixel",
+  "name": "Image Pixel"
+ },
+ {
+  "id": "image-plane",
+  "name": "Image Plane"
+ },
+ {
+  "id": "imaging-service-request",
+  "name": "Imaging Service Request"
+ },
+ {
+  "id": "implant-assembly-template",
+  "name": "Implant Assembly Template"
+ },
+ {
+  "id": "implant-template-group",
+  "name": "Implant Template Group"
+ },
+ {
+  "id": "instance-availability-notification",
+  "name": "Instance Availability Notification"
+ },
+ {
+  "id": "instructions",
+  "name": "Instructions"
+ },
+ {
+  "id": "intervention",
+  "name": "Intervention"
+ },
+ {
+  "id": "intra-oral-image",
+  "name": "Intra-Oral Image"
+ },
+ {
+  "id": "intra-oral-series",
+  "name": "Intra-Oral Series"
+ },
+ {
+  "id": "intraocular-lens-calculations",
+  "name": "Intraocular Lens Calculations"
+ },
+ {
+  "id": "intraocular-lens-calculations-series",
+  "name": "Intraocular Lens Calculations Series"
+ },
+ {
+  "id": "intravascular-image-acquisition-parameters",
+  "name": "Intravascular Image Acquisition Parameters"
+ },
+ {
+  "id": "intravascular-oct-acquisition-parameters",
+  "name": "Intravascular OCT Acquisition Parameters"
+ },
+ {
+  "id": "intravascular-oct-image",
+  "name": "Intravascular OCT Image"
+ },
+ {
+  "id": "intravascular-oct-processing-parameters",
+  "name": "Intravascular OCT Processing Parameters"
+ },
+ {
+  "id": "intravascular-oct-series",
+  "name": "Intravascular OCT Series"
+ },
+ {
+  "id": "intravascular-optical-coherence-tomography-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "inventory",
+  "name": "Inventory"
+ },
+ {
+  "id": "inventory-creation",
+  "name": "Inventory Creation"
+ },
+ {
+  "id": "ivus-image",
+  "name": "IVUS Image"
+ },
+ {
+  "id": "keratometry-measurements",
+  "name": "Keratometry Measurements"
+ },
+ {
+  "id": "keratometry-measurements-series",
+  "name": "Keratometry Measurements Series"
+ },
+ {
+  "id": "key-object-document",
+  "name": "Key Object Document"
+ },
+ {
+  "id": "key-object-document-series",
+  "name": "Key Object Document Series"
+ },
+ {
+  "id": "legacy-converted-enhanced-ct-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "legacy-converted-enhanced-mr-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "legacy-converted-enhanced-pet-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "lensometry-measurements",
+  "name": "Lensometry Measurements"
+ },
+ {
+  "id": "lensometry-measurements-series",
+  "name": "Lensometry Measurements Series"
+ },
+ {
+  "id": "mammography-image",
+  "name": "Mammography Image"
+ },
+ {
+  "id": "mammography-series",
+  "name": "Mammography Series"
+ },
+ {
+  "id": "manufacturing-3d-model",
+  "name": "Manufacturing 3D Model"
+ },
+ {
+  "id": "mask",
+  "name": "Mask"
+ },
+ {
+  "id": "measured-dose-reference-record",
+  "name": "Measured Dose Reference Record"
+ },
+ {
+  "id": "media-creation-management",
+  "name": "Media Creation Management"
+ },
+ {
+  "id": "microscope-slide-layer-tile-organization",
+  "name": "Microscope Slide Layer Tile Organization"
+ },
+ {
+  "id": "microscopy-bulk-simple-annotations",
+  "name": "Microscopy Bulk Simple Annotations"
+ },
+ {
+  "id": "microscopy-bulk-simple-annotations-series",
+  "name": "Microscopy Bulk Simple Annotations Series"
+ },
+ {
+  "id": "modality-lut",
+  "name": "Modality LUT"
+ },
+ {
+  "id": "mpr-volumetric-presentation-state-display",
+  "name": "MPR Volumetric Presentation State Display"
+ },
+ {
+  "id": "mr-image",
+  "name": "MR Image"
+ },
+ {
+  "id": "mr-pulse-sequence",
+  "name": "MR Pulse Sequence"
+ },
+ {
+  "id": "mr-series",
+  "name": "MR Series"
+ },
+ {
+  "id": "mr-spectroscopy",
+  "name": "MR Spectroscopy"
+ },
+ {
+  "id": "mr-spectroscopy-data",
+  "name": "MR Spectroscopy Data"
+ },
+ {
+  "id": "mr-spectroscopy-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "mr-spectroscopy-pulse-sequence",
+  "name": "MR Spectroscopy Pulse Sequence"
+ },
+ {
+  "id": "multi-energy-ct-image",
+  "name": "Multi-energy CT Image"
+ },
+ {
+  "id": "multi-frame",
+  "name": "Multi-frame"
+ },
+ {
+  "id": "multi-frame-dimension",
+  "name": "Multi-frame Dimension"
+ },
+ {
+  "id": "multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "multi-frame-grayscale-byte-secondary-capture-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "multi-frame-grayscale-word-secondary-capture-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "multi-frame-overlay",
+  "name": "Multi-frame Overlay"
+ },
+ {
+  "id": "multi-frame-true-color-secondary-capture-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "multi-planar-reconstruction-geometry",
+  "name": "Multi-Planar Reconstruction Geometry"
+ },
+ {
+  "id": "multi-resolution-pyramid",
+  "name": "Multi-Resolution Pyramid"
+ },
+ {
+  "id": "nm-detector",
+  "name": "NM Detector"
+ },
+ {
+  "id": "nm-image",
+  "name": "NM Image"
+ },
+ {
+  "id": "nm-image-pixel",
+  "name": "NM Image Pixel"
+ },
+ {
+  "id": "nm-isotope",
+  "name": "NM Isotope"
+ },
+ {
+  "id": "nm-multi-frame",
+  "name": "NM Multi-frame"
+ },
+ {
+  "id": "nm-multi-gated-acquisition",
+  "name": "NM Multi-Gated Acquisition"
+ },
+ {
+  "id": "nm-pet-patient-orientation",
+  "name": "NM/PET Patient Orientation"
+ },
+ {
+  "id": "nm-phase",
+  "name": "NM Phase"
+ },
+ {
+  "id": "nm-reconstruction",
+  "name": "NM Reconstruction"
+ },
+ {
+  "id": "nm-tomo-acquisition",
+  "name": "NM Tomo Acquisition"
+ },
+ {
+  "id": "ocular-region-imaged",
+  "name": "Ocular Region Imaged"
+ },
+ {
+  "id": "ophthalmic-axial-measurements",
+  "name": "Ophthalmic Axial Measurements"
+ },
+ {
+  "id": "ophthalmic-axial-measurements-series",
+  "name": "Ophthalmic Axial Measurements Series"
+ },
+ {
+  "id": "ophthalmic-optical-coherence-tomography-b-scan-volume-analysis-image",
+  "name": "Ophthalmic Optical Coherence Tomography B-scan Volume Analysis Image"
+ },
+ {
+  "id": "ophthalmic-optical-coherence-tomography-b-scan-volume-analysis-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "ophthalmic-optical-coherence-tomography-en-face-image",
+  "name": "Ophthalmic Optical Coherence Tomography En Face Image"
+ },
+ {
+  "id": "ophthalmic-optical-coherence-tomography-en-face-image-quality-rating",
+  "name": "Ophthalmic Optical Coherence Tomography En Face Image Quality Rating"
+ },
+ {
+  "id": "ophthalmic-patient-clinical-information-and-test-lens-parameters",
+  "name": "Ophthalmic Patient Clinical Information and Test Lens Parameters"
+ },
+ {
+  "id": "ophthalmic-photographic-parameters",
+  "name": "Ophthalmic Photographic Parameters"
+ },
+ {
+  "id": "ophthalmic-photography-acquisition-parameters",
+  "name": "Ophthalmic Photography Acquisition Parameters"
+ },
+ {
+  "id": "ophthalmic-photography-image",
+  "name": "Ophthalmic Photography Image"
+ },
+ {
+  "id": "ophthalmic-photography-series",
+  "name": "Ophthalmic Photography Series"
+ },
+ {
+  "id": "ophthalmic-thickness-map",
+  "name": "Ophthalmic Thickness Map"
+ },
+ {
+  "id": "ophthalmic-thickness-map-quality-rating",
+  "name": "Ophthalmic Thickness Map Quality Rating"
+ },
+ {
+  "id": "ophthalmic-thickness-map-series",
+  "name": "Ophthalmic Thickness Map Series"
+ },
+ {
+  "id": "ophthalmic-tomography-acquisition-parameters",
+  "name": "Ophthalmic Tomography Acquisition Parameters"
+ },
+ {
+  "id": "ophthalmic-tomography-b-scan-volume-analysis-series",
+  "name": "Ophthalmic Tomography B-scan Volume Analysis Series"
+ },
+ {
+  "id": "ophthalmic-tomography-en-face-series",
+  "name": "Ophthalmic Tomography En Face Series"
+ },
+ {
+  "id": "ophthalmic-tomography-image",
+  "name": "Ophthalmic Tomography Image"
+ },
+ {
+  "id": "ophthalmic-tomography-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "ophthalmic-tomography-parameters",
+  "name": "Ophthalmic Tomography Parameters"
+ },
+ {
+  "id": "ophthalmic-tomography-series",
+  "name": "Ophthalmic Tomography Series"
+ },
+ {
+  "id": "optical-path",
+  "name": "Optical Path"
+ },
+ {
+  "id": "optical-surface-scanner-series",
+  "name": "Optical Surface Scanner Series"
+ },
+ {
+  "id": "overlay-activation",
+  "name": "Overlay Activation"
+ },
+ {
+  "id": "overlay-plane",
+  "name": "Overlay Plane"
+ },
+ {
+  "id": "palette-color-lookup-table",
+  "name": "Palette Color Lookup Table"
+ },
+ {
+  "id": "parametric-map-image",
+  "name": "Parametric Map Image"
+ },
+ {
+  "id": "parametric-map-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "parametric-map-series",
+  "name": "Parametric Map Series"
+ },
+ {
+  "id": "patient",
+  "name": "Patient"
+ },
+ {
+  "id": "patient-demographic",
+  "name": "Patient Demographic"
+ },
+ {
+  "id": "patient-identification",
+  "name": "Patient Identification"
+ },
+ {
+  "id": "patient-medical",
+  "name": "Patient Medical"
+ },
+ {
+  "id": "patient-orientation",
+  "name": "Patient Orientation"
+ },
+ {
+  "id": "patient-positioning",
+  "name": "Patient Positioning"
+ },
+ {
+  "id": "patient-protocol-context",
+  "name": "Patient Protocol Context"
+ },
+ {
+  "id": "patient-relationship",
+  "name": "Patient Relationship"
+ },
+ {
+  "id": "patient-specification",
+  "name": "Patient Specification"
+ },
+ {
+  "id": "patient-study",
+  "name": "Patient Study"
+ },
+ {
+  "id": "performed-ct-acquisition",
+  "name": "Performed CT Acquisition"
+ },
+ {
+  "id": "performed-ct-reconstruction",
+  "name": "Performed CT Reconstruction"
+ },
+ {
+  "id": "performed-procedure-step-information",
+  "name": "Performed Procedure Step Information"
+ },
+ {
+  "id": "performed-procedure-step-relationship",
+  "name": "Performed Procedure Step Relationship"
+ },
+ {
+  "id": "performed-storage",
+  "name": "Performed Storage"
+ },
+ {
+  "id": "performed-xa-acquisition",
+  "name": "Performed XA Acquisition"
+ },
+ {
+  "id": "performed-xa-reconstruction",
+  "name": "Performed XA Reconstruction"
+ },
+ {
+  "id": "pet-image",
+  "name": "PET Image"
+ },
+ {
+  "id": "pet-isotope",
+  "name": "PET Isotope"
+ },
+ {
+  "id": "pet-multi-gated-acquisition",
+  "name": "PET Multi-Gated Acquisition"
+ },
+ {
+  "id": "pet-series",
+  "name": "PET Series"
+ },
+ {
+  "id": "photoacoustic-acquisition-parameters",
+  "name": "Photoacoustic Acquisition Parameters"
+ },
+ {
+  "id": "photoacoustic-image",
+  "name": "Photoacoustic Image"
+ },
+ {
+  "id": "photoacoustic-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "photoacoustic-reconstruction",
+  "name": "Photoacoustic Reconstruction"
+ },
+ {
+  "id": "photoacoustic-transducer",
+  "name": "Photoacoustic Transducer"
+ },
+ {
+  "id": "point-cloud",
+  "name": "Point Cloud"
+ },
+ {
+  "id": "presentation-animation",
+  "name": "Presentation Animation"
+ },
+ {
+  "id": "presentation-lut",
+  "name": "Presentation LUT"
+ },
+ {
+  "id": "presentation-series",
+  "name": "Presentation Series"
+ },
+ {
+  "id": "presentation-state-blending",
+  "name": "Presentation State Blending"
+ },
+ {
+  "id": "presentation-state-identification",
+  "name": "Presentation State Identification"
+ },
+ {
+  "id": "presentation-state-mask",
+  "name": "Presentation State Mask"
+ },
+ {
+  "id": "presentation-state-relationship",
+  "name": "Presentation State Relationship"
+ },
+ {
+  "id": "presentation-state-shutter",
+  "name": "Presentation State Shutter"
+ },
+ {
+  "id": "presentation-view-description",
+  "name": "Presentation View Description"
+ },
+ {
+  "id": "print-job",
+  "name": "Print Job"
+ },
+ {
+  "id": "printer",
+  "name": "Printer"
+ },
+ {
+  "id": "printer-configuration",
+  "name": "Printer Configuration"
+ },
+ {
+  "id": "product-characteristics",
+  "name": "Product Characteristics"
+ },
+ {
+  "id": "protocol-approval",
+  "name": "Protocol Approval"
+ },
+ {
+  "id": "protocol-context",
+  "name": "Protocol Context"
+ },
+ {
+  "id": "qa-results",
+  "name": "QA Results"
+ },
+ {
+  "id": "radiotherapy-common-instance",
+  "name": "Radiotherapy Common Instance"
+ },
+ {
+  "id": "raw-data",
+  "name": "Raw Data"
+ },
+ {
+  "id": "real-time-acquisition",
+  "name": "Real-Time Acquisition"
+ },
+ {
+  "id": "real-time-audio-waveform-current-frame-functional-groups",
+  "name": "Current Frame Functional Groups"
+ },
+ {
+  "id": "real-time-bulk-data-flow",
+  "name": "Real-Time Bulk Data Flow"
+ },
+ {
+  "id": "real-time-video-endoscopic-image-current-frame-functional-groups",
+  "name": "Current Frame Functional Groups"
+ },
+ {
+  "id": "real-time-video-photographic-image-current-frame-functional-groups",
+  "name": "Current Frame Functional Groups"
+ },
+ {
+  "id": "real-world-value-mapping",
+  "name": "Real World Value Mapping"
+ },
+ {
+  "id": "real-world-value-mapping-series",
+  "name": "Real World Value Mapping Series"
+ },
+ {
+  "id": "render-display",
+  "name": "Render Display"
+ },
+ {
+  "id": "render-shading",
+  "name": "Render Shading"
+ },
+ {
+  "id": "requested-procedure",
+  "name": "Requested Procedure"
+ },
+ {
+  "id": "respiratory-synchronization",
+  "name": "Respiratory Synchronization"
+ },
+ {
+  "id": "robotic-arm-delivery-device",
+  "name": "Robotic-Arm Delivery Device"
+ },
+ {
+  "id": "robotic-arm-path",
+  "name": "Robotic-Arm Path"
+ },
+ {
+  "id": "roi-contour",
+  "name": "ROI Contour"
+ },
+ {
+  "id": "rt-beams",
+  "name": "RT Beams"
+ },
+ {
+  "id": "rt-beams-delivery-instruction",
+  "name": "RT Beams Delivery Instruction"
+ },
+ {
+  "id": "rt-beams-session-record",
+  "name": "RT Beams Session Record"
+ },
+ {
+  "id": "rt-brachy-application-setup-delivery-instruction",
+  "name": "RT Brachy Application Setup Delivery Instruction"
+ },
+ {
+  "id": "rt-brachy-application-setups",
+  "name": "RT Brachy Application Setups"
+ },
+ {
+  "id": "rt-brachy-session-record",
+  "name": "RT Brachy Session Record"
+ },
+ {
+  "id": "rt-conventional-machine-verification",
+  "name": "RT Conventional Machine Verification"
+ },
+ {
+  "id": "rt-delivery-device-common",
+  "name": "RT Delivery Device Common"
+ },
+ {
+  "id": "rt-dose",
+  "name": "RT Dose"
+ },
+ {
+  "id": "rt-dose-contribution",
+  "name": "RT Dose Contribution"
+ },
+ {
+  "id": "rt-dose-contribution-record",
+  "name": "RT Dose Contribution Record"
+ },
+ {
+  "id": "rt-dvh",
+  "name": "RT DVH"
+ },
+ {
+  "id": "rt-enhanced-prescription",
+  "name": "RT Enhanced Prescription"
+ },
+ {
+  "id": "rt-fraction-scheme",
+  "name": "RT Fraction Scheme"
+ },
+ {
+  "id": "rt-general-machine-verification",
+  "name": "RT General Machine Verification"
+ },
+ {
+  "id": "rt-general-plan",
+  "name": "RT General Plan"
+ },
+ {
+  "id": "rt-general-treatment-record",
+  "name": "RT General Treatment Record"
+ },
+ {
+  "id": "rt-image",
+  "name": "RT Image"
+ },
+ {
+  "id": "rt-ion-beams",
+  "name": "RT Ion Beams"
+ },
+ {
+  "id": "rt-ion-beams-session-record",
+  "name": "RT Ion Beams Session Record"
+ },
+ {
+  "id": "rt-ion-machine-verification",
+  "name": "RT Ion Machine Verification"
+ },
+ {
+  "id": "rt-ion-tolerance-tables",
+  "name": "RT Ion Tolerance Tables"
+ },
+ {
+  "id": "rt-patient-position-acquisition-device",
+  "name": "RT Patient Position Acquisition Device"
+ },
+ {
+  "id": "rt-patient-position-acquisition-instruction",
+  "name": "RT Patient Position Acquisition Instruction"
+ },
+ {
+  "id": "rt-patient-setup",
+  "name": "RT Patient Setup"
+ },
+ {
+  "id": "rt-physician-intent",
+  "name": "RT Physician Intent"
+ },
+ {
+  "id": "rt-prescription",
+  "name": "RT Prescription"
+ },
+ {
+  "id": "rt-radiation-common",
+  "name": "RT Radiation Common"
+ },
+ {
+  "id": "rt-radiation-record-common",
+  "name": "RT Radiation Record Common"
+ },
+ {
+  "id": "rt-radiation-record-set",
+  "name": "RT Radiation Record Set"
+ },
+ {
+  "id": "rt-radiation-salvage-record",
+  "name": "RT Radiation Salvage Record"
+ },
+ {
+  "id": "rt-radiation-set",
+  "name": "RT Radiation Set"
+ },
+ {
+  "id": "rt-radiation-set-delivery-instruction",
+  "name": "RT Radiation Set Delivery Instruction"
+ },
+ {
+  "id": "rt-roi-observations",
+  "name": "RT ROI Observations"
+ },
+ {
+  "id": "rt-segment-annotation",
+  "name": "RT Segment Annotation"
+ },
+ {
+  "id": "rt-series",
+  "name": "RT Series"
+ },
+ {
+  "id": "rt-tolerance-tables",
+  "name": "RT Tolerance Tables"
+ },
+ {
+  "id": "rt-treatment-machine-record",
+  "name": "RT Treatment Machine Record"
+ },
+ {
+  "id": "rt-treatment-phase-intent",
+  "name": "RT Treatment Phase Intent"
+ },
+ {
+  "id": "rt-treatment-preparation",
+  "name": "RT Treatment Preparation"
+ },
+ {
+  "id": "rt-treatment-summary-record",
+  "name": "RT Treatment Summary Record"
+ },
+ {
+  "id": "sc-equipment",
+  "name": "SC Equipment"
+ },
+ {
+  "id": "sc-image",
+  "name": "SC Image"
+ },
+ {
+  "id": "sc-multi-frame-image",
+  "name": "SC Multi-frame Image"
+ },
+ {
+  "id": "sc-multi-frame-vector",
+  "name": "SC Multi-frame Vector"
+ },
+ {
+  "id": "scan-procedure",
+  "name": "Scan Procedure"
+ },
+ {
+  "id": "scheduled-procedure-step",
+  "name": "Scheduled Procedure Step"
+ },
+ {
+  "id": "segment-reference",
+  "name": "Segment Reference"
+ },
+ {
+  "id": "segmentation-image",
+  "name": "Segmentation Image"
+ },
+ {
+  "id": "segmentation-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "segmentation-series",
+  "name": "Segmentation Series"
+ },
+ {
+  "id": "slide-coordinates",
+  "name": "Slide Coordinates"
+ },
+ {
+  "id": "slide-label",
+  "name": "Slide Label"
+ },
+ {
+  "id": "softcopy-presentation-lut",
+  "name": "Softcopy Presentation LUT"
+ },
+ {
+  "id": "softcopy-voi-lut",
+  "name": "Softcopy VOI LUT"
+ },
+ {
+  "id": "sop-common",
+  "name": "SOP Common"
+ },
+ {
+  "id": "sparse-multi-frame-functional-groups",
+  "name": "Sparse Multi-frame Functional Groups"
+ },
+ {
+  "id": "spatial-fiducials",
+  "name": "Spatial Fiducials"
+ },
+ {
+  "id": "spatial-fiducials-series",
+  "name": "Spatial Fiducials Series"
+ },
+ {
+  "id": "spatial-registration",
+  "name": "Spatial Registration"
+ },
+ {
+  "id": "spatial-registration-series",
+  "name": "Spatial Registration Series"
+ },
+ {
+  "id": "spatial-transformation",
+  "name": "Spatial Transformation"
+ },
+ {
+  "id": "specimen",
+  "name": "Specimen"
+ },
+ {
+  "id": "sr-document-content",
+  "name": "SR Document Content"
+ },
+ {
+  "id": "sr-document-general",
+  "name": "SR Document General"
+ },
+ {
+  "id": "sr-document-series",
+  "name": "SR Document Series"
+ },
+ {
+  "id": "stereometric-relationship",
+  "name": "Stereometric Relationship"
+ },
+ {
+  "id": "stereometric-series",
+  "name": "Stereometric Series"
+ },
+ {
+  "id": "storage-commitment",
+  "name": "Storage Commitment"
+ },
+ {
+  "id": "structure-set",
+  "name": "Structure Set"
+ },
+ {
+  "id": "structured-display",
+  "name": "Structured Display"
+ },
+ {
+  "id": "structured-display-annotation",
+  "name": "Structured Display Annotation"
+ },
+ {
+  "id": "structured-display-image-box",
+  "name": "Structured Display Image Box"
+ },
+ {
+  "id": "subjective-refraction-measurements",
+  "name": "Subjective Refraction Measurements"
+ },
+ {
+  "id": "subjective-refraction-measurements-series",
+  "name": "Subjective Refraction Measurements Series"
+ },
+ {
+  "id": "substance-administration",
+  "name": "Substance Administration"
+ },
+ {
+  "id": "substance-administration-log",
+  "name": "Substance Administration Log"
+ },
+ {
+  "id": "substance-approval",
+  "name": "Substance Approval"
+ },
+ {
+  "id": "supplemental-palette-color-lookup-table",
+  "name": "Supplemental Palette Color Lookup Table"
+ },
+ {
+  "id": "surface-mesh",
+  "name": "Surface Mesh"
+ },
+ {
+  "id": "surface-segmentation",
+  "name": "Surface Segmentation"
+ },
+ {
+  "id": "synchronization",
+  "name": "Synchronization"
+ },
+ {
+  "id": "target-luminance-characteristics",
+  "name": "Target Luminance Characteristics"
+ },
+ {
+  "id": "timezone",
+  "name": "Timezone"
+ },
+ {
+  "id": "tomotherapeutic-beam",
+  "name": "Tomotherapeutic Beam"
+ },
+ {
+  "id": "tomotherapeutic-delivery-device",
+  "name": "Tomotherapeutic Delivery Device"
+ },
+ {
+  "id": "tractography-results",
+  "name": "Tractography Results"
+ },
+ {
+  "id": "tractography-results-series",
+  "name": "Tractography Results Series"
+ },
+ {
+  "id": "ultrasound-frame-of-reference",
+  "name": "Ultrasound Frame of Reference"
+ },
+ {
+  "id": "unified-procedure-step-performed-procedure-information",
+  "name": "Unified Procedure Step Performed Procedure Information"
+ },
+ {
+  "id": "unified-procedure-step-progress-information",
+  "name": "Unified Procedure Step Progress Information"
+ },
+ {
+  "id": "unified-procedure-step-relationship",
+  "name": "Unified Procedure Step Relationship"
+ },
+ {
+  "id": "unified-procedure-step-scheduled-procedure-information",
+  "name": "Unified Procedure Step Scheduled Procedure Information"
+ },
+ {
+  "id": "us-image",
+  "name": "US Image"
+ },
+ {
+  "id": "us-region-calibration",
+  "name": "US Region Calibration"
+ },
+ {
+  "id": "uv-mapping",
+  "name": "UV Mapping"
+ },
+ {
+  "id": "variable-modality-lut",
+  "name": "Variable Modality LUT"
+ },
+ {
+  "id": "visit-admission",
+  "name": "Visit Admission"
+ },
+ {
+  "id": "visit-identification",
+  "name": "Visit Identification"
+ },
+ {
+  "id": "visit-relationship",
+  "name": "Visit Relationship"
+ },
+ {
+  "id": "visit-status",
+  "name": "Visit Status"
+ },
+ {
+  "id": "visual-acuity-measurements",
+  "name": "Visual Acuity Measurements"
+ },
+ {
+  "id": "visual-acuity-measurements-series",
+  "name": "Visual Acuity Measurements Series"
+ },
+ {
+  "id": "visual-field-static-perimetry-measurements-series",
+  "name": "Visual Field Static Perimetry Measurements Series"
+ },
+ {
+  "id": "visual-field-static-perimetry-test-measurements",
+  "name": "Visual Field Static Perimetry Test Measurements"
+ },
+ {
+  "id": "visual-field-static-perimetry-test-parameters",
+  "name": "Visual Field Static Perimetry Test Parameters"
+ },
+ {
+  "id": "visual-field-static-perimetry-test-reliability",
+  "name": "Visual Field Static Perimetry Test Reliability"
+ },
+ {
+  "id": "visual-field-static-perimetry-test-results",
+  "name": "Visual Field Static Perimetry Test Results"
+ },
+ {
+  "id": "vl-image",
+  "name": "VL Image"
+ },
+ {
+  "id": "vl-photographic-acquisition",
+  "name": "VL Photographic Acquisition"
+ },
+ {
+  "id": "vl-photographic-equipment",
+  "name": "VL Photographic Equipment"
+ },
+ {
+  "id": "vl-photographic-geolocation",
+  "name": "VL Photographic Geolocation"
+ },
+ {
+  "id": "vl-whole-slide-microscopy-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "voi-lut",
+  "name": "VOI LUT"
+ },
+ {
+  "id": "volume-cropping",
+  "name": "Volume Cropping"
+ },
+ {
+  "id": "volume-render-geometry",
+  "name": "Volume Render Geometry"
+ },
+ {
+  "id": "volumetric-graphic-annotation",
+  "name": "Volumetric Graphic Annotation"
+ },
+ {
+  "id": "volumetric-presentation-state-identification",
+  "name": "Volumetric Presentation State Identification"
+ },
+ {
+  "id": "volumetric-presentation-state-relationship",
+  "name": "Volumetric Presentation State Relationship"
+ },
+ {
+  "id": "waveform",
+  "name": "Waveform"
+ },
+ {
+  "id": "waveform-annotation",
+  "name": "Waveform Annotation"
+ },
+ {
+  "id": "waveform-identification",
+  "name": "Waveform Identification"
+ },
+ {
+  "id": "whole-slide-microscopy-image",
+  "name": "Whole Slide Microscopy Image"
+ },
+ {
+  "id": "whole-slide-microscopy-series",
+  "name": "Whole Slide Microscopy Series"
+ },
+ {
+  "id": "wide-field-ophthalmic-photography-3d-coordinates",
+  "name": "Wide Field Ophthalmic Photography 3D Coordinates"
+ },
+ {
+  "id": "wide-field-ophthalmic-photography-quality-rating",
+  "name": "Wide Field Ophthalmic Photography Quality Rating"
+ },
+ {
+  "id": "wide-field-ophthalmic-photography-stereographic-projection",
+  "name": "Wide Field Ophthalmic Photography Stereographic Projection"
+ },
+ {
+  "id": "x-ray-3d-angiographic-acquisition",
+  "name": "X-Ray 3D Angiographic Acquisition"
+ },
+ {
+  "id": "x-ray-3d-angiographic-image-contributing-sources",
+  "name": "X-Ray 3D Angiographic Image Contributing Sources"
+ },
+ {
+  "id": "x-ray-3d-angiographic-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "x-ray-3d-craniofacial-acquisition",
+  "name": "X-Ray 3D Craniofacial Acquisition"
+ },
+ {
+  "id": "x-ray-3d-craniofacial-image-contributing-sources",
+  "name": "X-Ray 3D Craniofacial Image Contributing Sources"
+ },
+ {
+  "id": "x-ray-3d-craniofacial-image-multi-frame-functional-groups",
+  "name": "Multi-frame Functional Groups"
+ },
+ {
+  "id": "x-ray-3d-image",
+  "name": "X-Ray 3D Image"
+ },
+ {
+  "id": "x-ray-3d-reconstruction",
+  "name": "X-Ray 3D Reconstruction"
+ },
+ {
+  "id": "x-ray-acquisition",
+  "name": "X-Ray Acquisition"
+ },
+ {
+  "id": "x-ray-acquisition-dose",
+  "name": "X-Ray Acquisition Dose"
+ },
+ {
+  "id": "x-ray-collimator",
+  "name": "X-Ray Collimator"
+ },
+ {
+  "id": "x-ray-detector",
+  "name": "X-Ray Detector"
+ },
+ {
+  "id": "x-ray-filtration",
+  "name": "X-Ray Filtration"
+ },
+ {
+  "id": "x-ray-generation",
+  "name": "X-Ray Generation"
+ },
+ {
+  "id": "x-ray-grid",
+  "name": "X-Ray Grid"
+ },
+ {
+  "id": "x-ray-image",
+  "name": "X-Ray Image"
+ },
+ {
+  "id": "x-ray-image-intensifier",
+  "name": "X-Ray Image Intensifier"
+ },
+ {
+  "id": "x-ray-table",
+  "name": "X-Ray Table"
+ },
+ {
+  "id": "x-ray-tomography-acquisition",
+  "name": "X-Ray Tomography Acquisition"
+ },
+ {
+  "id": "xa-positioner",
+  "name": "XA Positioner"
+ },
+ {
+  "id": "xa-protocol-series",
+  "name": "XA Protocol Series"
+ },
+ {
+  "id": "xa-xrf-acquisition",
+  "name": "XA/XRF Acquisition"
+ },
+ {
+  "id": "xa-xrf-multi-frame-presentation",
+  "name": "XA/XRF Multi-frame Presentation"
+ },
+ {
+  "id": "xa-xrf-presentation-state-mask",
+  "name": "XA/XRF Presentation State Mask"
+ },
+ {
+  "id": "xa-xrf-presentation-state-presentation",
+  "name": "XA/XRF Presentation State Presentation"
+ },
+ {
+  "id": "xa-xrf-presentation-state-shutter",
+  "name": "XA/XRF Presentation State Shutter"
+ },
+ {
+  "id": "xa-xrf-series",
+  "name": "XA/XRF Series"
+ },
+ {
+  "id": "xrf-positioner",
+  "name": "XRF Positioner"
+ }
+]

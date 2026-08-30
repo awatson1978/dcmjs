@@ -23,7 +23,7 @@
  *       ESC ( J          -> G0 JIS X 0201 romaji
  *       ESC ( I / ) I    -> G0 / G1 JIS X 0201 katakana (shift_jis bytes)
  *       ESC $ @ / $ B    -> G0 JIS X 0208 kanji (decoded via iso-2022-jp)
- *       ESC $ ( D        -> G0 JIS X 0212 (best effort via iso-2022-jp)
+ *       ESC $ ( D        -> G0 JIS X 0212 (decoded via euc-jp SS3 sequences)
  *       ESC $ ) C        -> G1 KS X 1001 (decoded via euc-kr)
  *       ESC $ ) A        -> G1 GB 2312 (decoded via gb18030)
  *       ESC - <F>        -> G1 ISO 8859 right-hand halves (latin1, greek, ...)
@@ -93,7 +93,8 @@ const ESCAPE_HANDLERS = {
     "-H": state => (state.g1 = "iso-8859-8"),
     "-L": state => (state.g1 = "iso-8859-5"),
     "-M": state => (state.g1 = "iso-8859-9"),
-    "-T": state => (state.g1 = "tis-620")
+    "-T": state => (state.g1 = "tis-620"),
+    "-b": state => (state.g1 = "iso-8859-15") // ISO-IR 203, Latin-9
 };
 
 /** Initial G0/G1 designations implied by the FIRST (0008,0005) value. */
@@ -251,12 +252,22 @@ function decodeRun(runBytes, state) {
         );
     }
     if (state.g0 === G0_JISX0212) {
-        // Best effort: WHATWG iso-2022-jp has no JIS X 0212 support, so this
-        // may yield replacement characters rather than raw escape bytes.
-        return decodeWith(
-            "iso-2022-jp",
-            withPrefix([0x1b, 0x24, 0x28, 0x44], runBytes)
-        );
+        // WHATWG iso-2022-jp has no ESC $ ( D (JIS X 0212) support, but
+        // euc-jp reaches the same repertoire through SS3 sequences:
+        // re-encode each 2-byte GL pair as 0x8F, b1|0x80, b2|0x80.
+        const euc = new Uint8Array(Math.ceil(runBytes.length / 2) * 3);
+        let n = 0;
+        let k = 0;
+        for (; k + 1 < runBytes.length; k += 2) {
+            euc[n++] = 0x8f;
+            euc[n++] = runBytes[k] | 0x80;
+            euc[n++] = runBytes[k + 1] | 0x80;
+        }
+        if (k < runBytes.length) {
+            // Trailing unpaired byte (malformed run): decodes to U+FFFD.
+            euc[n++] = runBytes[k] | 0x80;
+        }
+        return decodeWith("euc-jp", euc.subarray(0, n));
     }
     if (state.g0 === G0_KATAKANA) {
         // 7-bit katakana in G0: shift GL bytes to the shift_jis single-byte

@@ -1,0 +1,686 @@
+[
+ {
+  "id": "12-lead-ecg",
+  "name": "12-Lead ECG"
+ },
+ {
+  "id": "acquisition-context-sr",
+  "name": "Acquisition Context SR"
+ },
+ {
+  "id": "advanced-blending-presentation-state",
+  "name": "Advanced Blending Presentation State"
+ },
+ {
+  "id": "ambulatory-ecg",
+  "name": "Ambulatory ECG"
+ },
+ {
+  "id": "arterial-pulse-waveform",
+  "name": "Arterial Pulse Waveform"
+ },
+ {
+  "id": "autorefraction-measurements",
+  "name": "Autorefraction Measurements"
+ },
+ {
+  "id": "basic-cardiac-electrophysiology-waveform",
+  "name": "Basic Cardiac Electrophysiology Waveform"
+ },
+ {
+  "id": "basic-directory",
+  "name": "Basic Directory"
+ },
+ {
+  "id": "basic-structured-display",
+  "name": "Basic Structured Display"
+ },
+ {
+  "id": "basic-text-sr",
+  "name": "Basic Text SR"
+ },
+ {
+  "id": "basic-voice-audio-waveform",
+  "name": "Basic Voice Audio Waveform"
+ },
+ {
+  "id": "blending-softcopy-presentation-state",
+  "name": "Blending Softcopy Presentation State"
+ },
+ {
+  "id": "body-position-waveform",
+  "name": "Body Position Waveform"
+ },
+ {
+  "id": "breast-projection-x-ray-image",
+  "name": "Breast Projection X-Ray Image"
+ },
+ {
+  "id": "breast-tomosynthesis-image",
+  "name": "Breast Tomosynthesis Image"
+ },
+ {
+  "id": "c-arm-photon-electron-radiation",
+  "name": "C-Arm Photon-Electron Radiation"
+ },
+ {
+  "id": "c-arm-photon-electron-radiation-record",
+  "name": "C-Arm Photon-Electron Radiation Record"
+ },
+ {
+  "id": "chest-cad-sr",
+  "name": "Chest CAD SR"
+ },
+ {
+  "id": "colon-cad-sr",
+  "name": "Colon CAD SR"
+ },
+ {
+  "id": "color-palette",
+  "name": "Color Palette"
+ },
+ {
+  "id": "color-softcopy-presentation-state",
+  "name": "Color Softcopy Presentation State"
+ },
+ {
+  "id": "comprehensive-3d-sr",
+  "name": "Comprehensive 3D SR"
+ },
+ {
+  "id": "comprehensive-sr",
+  "name": "Comprehensive SR"
+ },
+ {
+  "id": "computed-radiography-image",
+  "name": "Computed Radiography Image"
+ },
+ {
+  "id": "confocal-microscopy-image",
+  "name": "Confocal Microscopy Image"
+ },
+ {
+  "id": "confocal-microscopy-tiled-pyramidal-image",
+  "name": "Confocal Microscopy Tiled Pyramidal Image"
+ },
+ {
+  "id": "content-assessment-results",
+  "name": "Content Assessment Results"
+ },
+ {
+  "id": "corneal-topography-map",
+  "name": "Corneal Topography Map"
+ },
+ {
+  "id": "ct-defined-procedure-protocol",
+  "name": "CT Defined Procedure Protocol"
+ },
+ {
+  "id": "ct-image",
+  "name": "CT Image"
+ },
+ {
+  "id": "ct-performed-procedure-protocol",
+  "name": "CT Performed Procedure Protocol"
+ },
+ {
+  "id": "deformable-spatial-registration",
+  "name": "Deformable Spatial Registration"
+ },
+ {
+  "id": "dermoscopic-photography-image",
+  "name": "Dermoscopic Photography Image"
+ },
+ {
+  "id": "digital-intra-oral-x-ray-image",
+  "name": "Digital Intra-Oral X-Ray Image"
+ },
+ {
+  "id": "digital-mammography-x-ray-image",
+  "name": "Digital Mammography X-Ray Image"
+ },
+ {
+  "id": "digital-x-ray-image",
+  "name": "Digital X-Ray Image"
+ },
+ {
+  "id": "electromyogram",
+  "name": "Electromyogram"
+ },
+ {
+  "id": "electrooculogram",
+  "name": "Electrooculogram"
+ },
+ {
+  "id": "encapsulated-cda",
+  "name": "Encapsulated CDA"
+ },
+ {
+  "id": "encapsulated-mtl",
+  "name": "Encapsulated MTL"
+ },
+ {
+  "id": "encapsulated-obj",
+  "name": "Encapsulated OBJ"
+ },
+ {
+  "id": "encapsulated-pdf",
+  "name": "Encapsulated PDF"
+ },
+ {
+  "id": "encapsulated-stl",
+  "name": "Encapsulated STL"
+ },
+ {
+  "id": "enhanced-continuous-rt-image",
+  "name": "Enhanced Continuous RT Image"
+ },
+ {
+  "id": "enhanced-ct-image",
+  "name": "Enhanced CT Image"
+ },
+ {
+  "id": "enhanced-mr-color-image",
+  "name": "Enhanced MR Color Image"
+ },
+ {
+  "id": "enhanced-mr-image",
+  "name": "Enhanced MR Image"
+ },
+ {
+  "id": "enhanced-pet-image",
+  "name": "Enhanced PET Image"
+ },
+ {
+  "id": "enhanced-rt-image",
+  "name": "Enhanced RT Image"
+ },
+ {
+  "id": "enhanced-sr",
+  "name": "Enhanced SR"
+ },
+ {
+  "id": "enhanced-us-volume",
+  "name": "Enhanced US Volume"
+ },
+ {
+  "id": "enhanced-x-ray-radiation-dose-sr",
+  "name": "Enhanced X-Ray Radiation Dose SR"
+ },
+ {
+  "id": "enhanced-xa-image",
+  "name": "Enhanced XA Image"
+ },
+ {
+  "id": "enhanced-xrf-image",
+  "name": "Enhanced XRF Image"
+ },
+ {
+  "id": "extensible-sr",
+  "name": "Extensible SR"
+ },
+ {
+  "id": "general-32-bit-ecg",
+  "name": "General 32-bit ECG"
+ },
+ {
+  "id": "general-audio-waveform",
+  "name": "General Audio Waveform"
+ },
+ {
+  "id": "general-ecg",
+  "name": "General ECG"
+ },
+ {
+  "id": "generic-implant-template",
+  "name": "Generic Implant Template"
+ },
+ {
+  "id": "grayscale-softcopy-presentation-state",
+  "name": "Grayscale Softcopy Presentation State"
+ },
+ {
+  "id": "hanging-protocol",
+  "name": "Hanging Protocol"
+ },
+ {
+  "id": "hemodynamic-waveform",
+  "name": "Hemodynamic Waveform"
+ },
+ {
+  "id": "implant-assembly-template",
+  "name": "Implant Assembly Template"
+ },
+ {
+  "id": "implant-template-group",
+  "name": "Implant Template Group"
+ },
+ {
+  "id": "implantation-plan-sr-document",
+  "name": "Implantation Plan SR Document"
+ },
+ {
+  "id": "intraocular-lens-calculations",
+  "name": "Intraocular Lens Calculations"
+ },
+ {
+  "id": "intravascular-optical-coherence-tomography-image",
+  "name": "Intravascular Optical Coherence Tomography Image"
+ },
+ {
+  "id": "inventory",
+  "name": "Inventory"
+ },
+ {
+  "id": "keratometry-measurements",
+  "name": "Keratometry Measurements"
+ },
+ {
+  "id": "key-object-selection-document",
+  "name": "Key Object Selection Document"
+ },
+ {
+  "id": "legacy-converted-enhanced-ct-image",
+  "name": "Legacy Converted Enhanced CT Image"
+ },
+ {
+  "id": "legacy-converted-enhanced-mr-image",
+  "name": "Legacy Converted Enhanced MR Image"
+ },
+ {
+  "id": "legacy-converted-enhanced-pet-image",
+  "name": "Legacy Converted Enhanced PET Image"
+ },
+ {
+  "id": "lensometry-measurements",
+  "name": "Lensometry Measurements"
+ },
+ {
+  "id": "macular-grid-thickness-and-volume-report",
+  "name": "Macular Grid Thickness and Volume Report"
+ },
+ {
+  "id": "mammography-cad-sr",
+  "name": "Mammography CAD SR"
+ },
+ {
+  "id": "microscopy-bulk-simple-annotations",
+  "name": "Microscopy Bulk Simple Annotations"
+ },
+ {
+  "id": "mr-image",
+  "name": "MR Image"
+ },
+ {
+  "id": "mr-spectroscopy",
+  "name": "MR Spectroscopy"
+ },
+ {
+  "id": "multi-channel-respiratory-waveform",
+  "name": "Multi-channel Respiratory Waveform"
+ },
+ {
+  "id": "multi-frame-grayscale-byte-secondary-capture-image",
+  "name": "Multi-frame Grayscale Byte Secondary Capture Image"
+ },
+ {
+  "id": "multi-frame-grayscale-word-secondary-capture-image",
+  "name": "Multi-frame Grayscale Word Secondary Capture Image"
+ },
+ {
+  "id": "multi-frame-single-bit-secondary-capture-image",
+  "name": "Multi-frame Single Bit Secondary Capture Image"
+ },
+ {
+  "id": "multi-frame-true-color-secondary-capture-image",
+  "name": "Multi-frame True Color Secondary Capture Image"
+ },
+ {
+  "id": "nuclear-medicine-image",
+  "name": "Nuclear Medicine Image"
+ },
+ {
+  "id": "ophthalmic-axial-measurements",
+  "name": "Ophthalmic Axial Measurements"
+ },
+ {
+  "id": "ophthalmic-optical-coherence-tomography-b-scan-volume-analysis",
+  "name": "Ophthalmic Optical Coherence Tomography B-scan Volume Analysis"
+ },
+ {
+  "id": "ophthalmic-optical-coherence-tomography-en-face-image",
+  "name": "Ophthalmic Optical Coherence Tomography En Face Image"
+ },
+ {
+  "id": "ophthalmic-photography-16-bit-image",
+  "name": "Ophthalmic Photography 16 Bit Image"
+ },
+ {
+  "id": "ophthalmic-photography-8-bit-image",
+  "name": "Ophthalmic Photography 8 Bit Image"
+ },
+ {
+  "id": "ophthalmic-thickness-map",
+  "name": "Ophthalmic Thickness Map"
+ },
+ {
+  "id": "ophthalmic-tomography-image",
+  "name": "Ophthalmic Tomography Image"
+ },
+ {
+  "id": "ophthalmic-visual-field-static-perimetry-measurements",
+  "name": "Ophthalmic Visual Field Static Perimetry Measurements"
+ },
+ {
+  "id": "parametric-map",
+  "name": "Parametric Map"
+ },
+ {
+  "id": "patient-radiation-dose-sr",
+  "name": "Patient Radiation Dose SR"
+ },
+ {
+  "id": "performed-imaging-agent-administration-sr",
+  "name": "Performed Imaging Agent Administration SR"
+ },
+ {
+  "id": "photoacoustic-image",
+  "name": "Photoacoustic Image"
+ },
+ {
+  "id": "planar-mpr-volumetric-presentation-state",
+  "name": "Planar MPR Volumetric Presentation State"
+ },
+ {
+  "id": "planned-imaging-agent-administration-sr",
+  "name": "Planned Imaging Agent Administration SR"
+ },
+ {
+  "id": "positron-emission-tomography-image",
+  "name": "Positron Emission Tomography Image"
+ },
+ {
+  "id": "procedure-log",
+  "name": "Procedure Log"
+ },
+ {
+  "id": "protocol-approval",
+  "name": "Protocol Approval"
+ },
+ {
+  "id": "pseudo-color-softcopy-presentation-state",
+  "name": "Pseudo-Color Softcopy Presentation State"
+ },
+ {
+  "id": "radiopharmaceutical-radiation-dose-sr",
+  "name": "Radiopharmaceutical Radiation Dose SR"
+ },
+ {
+  "id": "raw-data",
+  "name": "Raw Data"
+ },
+ {
+  "id": "real-time-audio-waveform",
+  "name": "Real-Time Audio Waveform"
+ },
+ {
+  "id": "real-time-video-endoscopic-image",
+  "name": "Real-Time Video Endoscopic Image"
+ },
+ {
+  "id": "real-time-video-photographic-image",
+  "name": "Real-Time Video Photographic Image"
+ },
+ {
+  "id": "real-world-value-mapping",
+  "name": "Real World Value Mapping"
+ },
+ {
+  "id": "rendition-selection-document",
+  "name": "Rendition Selection Document"
+ },
+ {
+  "id": "respiratory-waveform",
+  "name": "Respiratory Waveform"
+ },
+ {
+  "id": "robotic-arm-radiation",
+  "name": "Robotic-Arm Radiation"
+ },
+ {
+  "id": "robotic-arm-radiation-record",
+  "name": "Robotic-Arm Radiation Record"
+ },
+ {
+  "id": "routine-scalp-electroencephalogram",
+  "name": "Routine Scalp Electroencephalogram"
+ },
+ {
+  "id": "rt-beams-delivery-instruction",
+  "name": "RT Beams Delivery Instruction"
+ },
+ {
+  "id": "rt-beams-treatment-record",
+  "name": "RT Beams Treatment Record"
+ },
+ {
+  "id": "rt-brachy-application-setup-delivery-instruction",
+  "name": "RT Brachy Application Setup Delivery Instruction"
+ },
+ {
+  "id": "rt-brachy-treatment-record",
+  "name": "RT Brachy Treatment Record"
+ },
+ {
+  "id": "rt-dose",
+  "name": "RT Dose"
+ },
+ {
+  "id": "rt-image",
+  "name": "RT Image"
+ },
+ {
+  "id": "rt-ion-beams-treatment-record",
+  "name": "RT Ion Beams Treatment Record"
+ },
+ {
+  "id": "rt-ion-plan",
+  "name": "RT Ion Plan"
+ },
+ {
+  "id": "rt-patient-position-acquisition-instruction",
+  "name": "RT Patient Position Acquisition Instruction"
+ },
+ {
+  "id": "rt-physician-intent",
+  "name": "RT Physician Intent"
+ },
+ {
+  "id": "rt-plan",
+  "name": "RT Plan"
+ },
+ {
+  "id": "rt-radiation-record-set",
+  "name": "RT Radiation Record Set"
+ },
+ {
+  "id": "rt-radiation-salvage-record",
+  "name": "RT Radiation Salvage Record"
+ },
+ {
+  "id": "rt-radiation-set",
+  "name": "RT Radiation Set"
+ },
+ {
+  "id": "rt-radiation-set-delivery-instruction",
+  "name": "RT Radiation Set Delivery Instruction"
+ },
+ {
+  "id": "rt-segment-annotation",
+  "name": "RT Segment Annotation"
+ },
+ {
+  "id": "rt-structure-set",
+  "name": "RT Structure Set"
+ },
+ {
+  "id": "rt-treatment-preparation",
+  "name": "RT Treatment Preparation"
+ },
+ {
+  "id": "rt-treatment-summary-record",
+  "name": "RT Treatment Summary Record"
+ },
+ {
+  "id": "secondary-capture-image",
+  "name": "Secondary Capture Image"
+ },
+ {
+  "id": "segmentation",
+  "name": "Segmentation"
+ },
+ {
+  "id": "simplified-adult-echo-sr",
+  "name": "Simplified Adult Echo SR"
+ },
+ {
+  "id": "sleep-electroencephalogram",
+  "name": "Sleep Electroencephalogram"
+ },
+ {
+  "id": "spatial-fiducials",
+  "name": "Spatial Fiducials"
+ },
+ {
+  "id": "spatial-registration",
+  "name": "Spatial Registration"
+ },
+ {
+  "id": "spectacle-prescription-report",
+  "name": "Spectacle Prescription Report"
+ },
+ {
+  "id": "stereometric-relationship",
+  "name": "Stereometric Relationship"
+ },
+ {
+  "id": "subjective-refraction-measurements",
+  "name": "Subjective Refraction Measurements"
+ },
+ {
+  "id": "surface-scan-mesh",
+  "name": "Surface Scan Mesh"
+ },
+ {
+  "id": "surface-scan-point-cloud",
+  "name": "Surface Scan Point Cloud"
+ },
+ {
+  "id": "surface-segmentation",
+  "name": "Surface Segmentation"
+ },
+ {
+  "id": "tomotherapeutic-radiation",
+  "name": "Tomotherapeutic Radiation"
+ },
+ {
+  "id": "tomotherapeutic-radiation-record",
+  "name": "Tomotherapeutic Radiation Record"
+ },
+ {
+  "id": "tractography-results",
+  "name": "Tractography Results"
+ },
+ {
+  "id": "ultrasound-image",
+  "name": "Ultrasound Image"
+ },
+ {
+  "id": "ultrasound-multi-frame-image",
+  "name": "Ultrasound Multi-frame Image"
+ },
+ {
+  "id": "variable-modality-lut-softcopy-presentation-state",
+  "name": "Variable Modality LUT Softcopy Presentation State"
+ },
+ {
+  "id": "video-endoscopic-image",
+  "name": "Video Endoscopic Image"
+ },
+ {
+  "id": "video-microscopic-image",
+  "name": "Video Microscopic Image"
+ },
+ {
+  "id": "video-photographic-image",
+  "name": "Video Photographic Image"
+ },
+ {
+  "id": "visual-acuity-measurements",
+  "name": "Visual Acuity Measurements"
+ },
+ {
+  "id": "vl-endoscopic-image",
+  "name": "VL Endoscopic Image"
+ },
+ {
+  "id": "vl-microscopic-image",
+  "name": "VL Microscopic Image"
+ },
+ {
+  "id": "vl-photographic-image",
+  "name": "VL Photographic Image"
+ },
+ {
+  "id": "vl-slide-coordinates-microscopic-image",
+  "name": "VL Slide-Coordinates Microscopic Image"
+ },
+ {
+  "id": "vl-whole-slide-microscopy-image",
+  "name": "VL Whole Slide Microscopy Image"
+ },
+ {
+  "id": "volume-rendering-volumetric-presentation-state",
+  "name": "Volume Rendering Volumetric Presentation State"
+ },
+ {
+  "id": "wide-field-ophthalmic-photography-3d-coordinates-image",
+  "name": "Wide Field Ophthalmic Photography 3D Coordinates Image"
+ },
+ {
+  "id": "wide-field-ophthalmic-photography-stereographic-projection-image",
+  "name": "Wide Field Ophthalmic Photography Stereographic Projection Image"
+ },
+ {
+  "id": "x-ray-3d-angiographic-image",
+  "name": "X-Ray 3D Angiographic Image"
+ },
+ {
+  "id": "x-ray-3d-craniofacial-image",
+  "name": "X-Ray 3D Craniofacial Image"
+ },
+ {
+  "id": "x-ray-angiographic-image",
+  "name": "X-Ray Angiographic Image"
+ },
+ {
+  "id": "x-ray-radiation-dose-sr",
+  "name": "X-Ray Radiation Dose SR"
+ },
+ {
+  "id": "x-ray-radiofluoroscopic-image",
+  "name": "X-Ray Radiofluoroscopic Image"
+ },
+ {
+  "id": "xa-defined-procedure-protocol",
+  "name": "XA Defined Procedure Protocol"
+ },
+ {
+  "id": "xa-performed-procedure-protocol",
+  "name": "XA Performed Procedure Protocol"
+ },
+ {
+  "id": "xa-xrf-grayscale-softcopy-presentation-state",
+  "name": "XA/XRF Grayscale Softcopy Presentation State"
+ }
+]

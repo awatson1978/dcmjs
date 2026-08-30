@@ -1,0 +1,40 @@
+dcmjs — third-party notices
+===========================
+
+innolitics/dicom-standard
+-------------------------
+
+The Part 3 IOD catalog artifacts (src/schema/iodIndex.js,
+src/schema/iodModules.packed.js, schema/iod.schema.json) and the stripped
+data snapshots under generate/data/dicom-standard/ are derived from the
+machine-readable DICOM Standard JSON published by Innolitics:
+
+    https://github.com/innolitics/dicom-standard
+    pinned commit 90571bcc4e46b08bc815bd683e6c466308bcff9a (DICOM PS3.3 2024e)
+
+That project is licensed under the MIT License:
+
+    Copyright (c) 2017 Innolitics, LLC.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the
+    "Software"), to deal in the Software without restriction, including
+    without limitation the rights to use, copy, modify, merge, publish,
+    distribute, sublicense, and/or sell copies of the Software, and to
+    permit persons to whom the Software is furnished to do so, subject to
+    the following conditions:
+
+    The above copyright notice and this permission notice shall be included
+    in all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+    OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+The DICOM Standard itself is published by NEMA (https://www.dicomstandard.org/).
+See generate/data/dicom-standard/VERSION.md for the snapshot details and
+refresh instructions.

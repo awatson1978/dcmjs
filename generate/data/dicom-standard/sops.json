@@ -1,0 +1,877 @@
+[
+ {
+  "id": "1.2.840.10008.1.3.10",
+  "name": "Media Storage Directory Storage",
+  "ciod": "Basic Directory"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.1",
+  "name": "Computed Radiography Image Storage",
+  "ciod": "Computed Radiography Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.1.1",
+  "name": "Digital X-Ray Image Storage - For Presentation",
+  "ciod": "Digital X-Ray Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.1.1.1",
+  "name": "Digital X-Ray Image Storage - For Processing",
+  "ciod": "Digital X-Ray Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.1.2",
+  "name": "Digital Mammography X-Ray Image Storage - For Presentation",
+  "ciod": "Digital Mammography X-Ray Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.1.2.1",
+  "name": "Digital Mammography X-Ray Image Storage - For Processing",
+  "ciod": "Digital Mammography X-Ray Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.1.3",
+  "name": "Digital Intra-Oral X-Ray Image Storage - For Presentation",
+  "ciod": "Digital Intra-Oral X-Ray Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.1.3.1",
+  "name": "Digital Intra-Oral X-Ray Image Storage - For Processing",
+  "ciod": "Digital Intra-Oral X-Ray Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.104.1",
+  "name": "Encapsulated PDF Storage",
+  "ciod": "Encapsulated PDF"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.104.2",
+  "name": "Encapsulated CDA Storage",
+  "ciod": "Encapsulated CDA"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.104.3",
+  "name": "Encapsulated STL Storage",
+  "ciod": "Encapsulated STL"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.104.4",
+  "name": "Encapsulated OBJ Storage",
+  "ciod": "Encapsulated OBJ"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.104.5",
+  "name": "Encapsulated MTL Storage",
+  "ciod": "Encapsulated MTL"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.11.1",
+  "name": "Grayscale Softcopy Presentation State Storage",
+  "ciod": "Grayscale Softcopy Presentation State"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.11.10",
+  "name": "Segmented Volume Rendering Volumetric Presentation State Storage",
+  "ciod": "Volume Rendering Volumetric Presentation State"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.11.11",
+  "name": "Multiple Volume Rendering Volumetric Presentation State Storage",
+  "ciod": "Volume Rendering Volumetric Presentation State"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.11.12",
+  "name": "Variable Modality LUT Softcopy Presentation State Storage",
+  "ciod": "Variable Modality LUT Softcopy Presentation State"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.11.2",
+  "name": "Color Softcopy Presentation State Storage",
+  "ciod": "Color Softcopy Presentation State"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.11.3",
+  "name": "Pseudo-Color Softcopy Presentation State Storage",
+  "ciod": "Pseudo-Color Softcopy Presentation State"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.11.4",
+  "name": "Blending Softcopy Presentation State Storage",
+  "ciod": "Blending Softcopy Presentation State"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.11.5",
+  "name": "XA/XRF Grayscale Softcopy Presentation State Storage",
+  "ciod": "XA/XRF Grayscale Softcopy Presentation State"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.11.6",
+  "name": "Grayscale Planar MPR Volumetric Presentation State Storage",
+  "ciod": "Planar MPR Volumetric Presentation State"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.11.7",
+  "name": "Compositing Planar MPR Volumetric Presentation State Storage",
+  "ciod": "Planar MPR Volumetric Presentation State"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.11.8",
+  "name": "Advanced Blending Presentation State Storage",
+  "ciod": "Advanced Blending Presentation State"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.11.9",
+  "name": "Volume Rendering Volumetric Presentation State Storage",
+  "ciod": "Volume Rendering Volumetric Presentation State"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.12.1",
+  "name": "X-Ray Angiographic Image Storage",
+  "ciod": "X-Ray Angiographic Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.12.1.1",
+  "name": "Enhanced XA Image Storage",
+  "ciod": "Enhanced XA Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.12.2",
+  "name": "X-Ray Radiofluoroscopic Image Storage",
+  "ciod": "X-Ray Radiofluoroscopic Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.12.2.1",
+  "name": "Enhanced XRF Image Storage",
+  "ciod": "Enhanced XRF Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.128",
+  "name": "Positron Emission Tomography Image Storage",
+  "ciod": "Positron Emission Tomography Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.128.1",
+  "name": "Legacy Converted Enhanced PET Image Storage",
+  "ciod": "Legacy Converted Enhanced PET Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.13.1.1",
+  "name": "X-Ray 3D Angiographic Image Storage",
+  "ciod": "X-Ray 3D Angiographic Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.13.1.2",
+  "name": "X-Ray 3D Craniofacial Image Storage",
+  "ciod": "X-Ray 3D Craniofacial Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.13.1.3",
+  "name": "Breast Tomosynthesis Image Storage",
+  "ciod": "Breast Tomosynthesis Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.13.1.4",
+  "name": "Breast Projection X-Ray Image Storage - For Presentation",
+  "ciod": "Breast Projection X-Ray Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.13.1.5",
+  "name": "Breast Projection X-Ray Image Storage - For Processing",
+  "ciod": "Breast Projection X-Ray Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.130",
+  "name": "Enhanced PET Image Storage",
+  "ciod": "Enhanced PET Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.131",
+  "name": "Basic Structured Display Storage",
+  "ciod": "Basic Structured Display"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.14.1",
+  "name": "Intravascular Optical Coherence Tomography Image Storage - For Presentation",
+  "ciod": "Intravascular Optical Coherence Tomography Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.14.2",
+  "name": "Intravascular Optical Coherence Tomography Image Storage - For Processing",
+  "ciod": "Intravascular Optical Coherence Tomography Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.2",
+  "name": "CT Image Storage",
+  "ciod": "CT Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.2.1",
+  "name": "Enhanced CT Image Storage",
+  "ciod": "Enhanced CT Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.2.2",
+  "name": "Legacy Converted Enhanced CT Image Storage",
+  "ciod": "Legacy Converted Enhanced CT Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.20",
+  "name": "Nuclear Medicine Image Storage",
+  "ciod": "Nuclear Medicine Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.200.1",
+  "name": "CT Defined Procedure Protocol Storage",
+  "ciod": "CT Defined Procedure Protocol"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.200.2",
+  "name": "CT Performed Procedure Protocol Storage",
+  "ciod": "CT Performed Procedure Protocol"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.200.3",
+  "name": "Protocol Approval Storage",
+  "ciod": "Protocol Approval"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.200.7",
+  "name": "XA Defined Procedure Protocol Storage",
+  "ciod": "XA Defined Procedure Protocol"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.200.8",
+  "name": "XA Performed Procedure Protocol Storage",
+  "ciod": "XA Performed Procedure Protocol"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.201.1",
+  "name": "Inventory Storage",
+  "ciod": "Inventory"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.3.1",
+  "name": "Ultrasound Multi-frame Image Storage",
+  "ciod": "Ultrasound Multi-frame Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.30",
+  "name": "Parametric Map Storage",
+  "ciod": "Parametric Map"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.4",
+  "name": "MR Image Storage",
+  "ciod": "MR Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.4.1",
+  "name": "Enhanced MR Image Storage",
+  "ciod": "Enhanced MR Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.4.2",
+  "name": "MR Spectroscopy Storage",
+  "ciod": "MR Spectroscopy"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.4.3",
+  "name": "Enhanced MR Color Image Storage",
+  "ciod": "Enhanced MR Color Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.4.4",
+  "name": "Legacy Converted Enhanced MR Image Storage",
+  "ciod": "Legacy Converted Enhanced MR Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.1",
+  "name": "RT Image Storage",
+  "ciod": "RT Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.10",
+  "name": "RT Physician Intent Storage",
+  "ciod": "RT Physician Intent"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.11",
+  "name": "RT Segment Annotation Storage",
+  "ciod": "RT Segment Annotation"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.12",
+  "name": "RT Radiation Set Storage",
+  "ciod": "RT Radiation Set"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.13",
+  "name": "C-Arm Photon-Electron Radiation Storage",
+  "ciod": "C-Arm Photon-Electron Radiation"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.14",
+  "name": "Tomotherapeutic Radiation Storage",
+  "ciod": "Tomotherapeutic Radiation"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.15",
+  "name": "Robotic-Arm Radiation Storage",
+  "ciod": "Robotic-Arm Radiation"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.16",
+  "name": "RT Radiation Record Set Storage",
+  "ciod": "RT Radiation Record Set"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.17",
+  "name": "RT Radiation Salvage Record Storage",
+  "ciod": "RT Radiation Salvage Record"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.18",
+  "name": "Tomotherapeutic Radiation Record Storage",
+  "ciod": "Tomotherapeutic Radiation Record"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.19",
+  "name": "C-Arm Photon-Electron Radiation Record Storage",
+  "ciod": "C-Arm Photon-Electron Radiation Record"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.2",
+  "name": "RT Dose Storage",
+  "ciod": "RT Dose"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.20",
+  "name": "Robotic Radiation Record Storage",
+  "ciod": "Robotic-Arm Radiation Record"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.21",
+  "name": "RT Radiation Set Delivery Instruction Storage",
+  "ciod": "RT Radiation Set Delivery Instruction"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.22",
+  "name": "RT Treatment Preparation Storage",
+  "ciod": "RT Treatment Preparation"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.23",
+  "name": "Enhanced RT Image Storage",
+  "ciod": "Enhanced RT Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.24",
+  "name": "Enhanced Continuous RT Image Storage",
+  "ciod": "Enhanced Continuous RT Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.25",
+  "name": "RT Patient Position Acquisition Instruction Storage",
+  "ciod": "RT Patient Position Acquisition Instruction"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.3",
+  "name": "RT Structure Set Storage",
+  "ciod": "RT Structure Set"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.4",
+  "name": "RT Beams Treatment Record Storage",
+  "ciod": "RT Beams Treatment Record"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.5",
+  "name": "RT Plan Storage",
+  "ciod": "RT Plan"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.6",
+  "name": "RT Brachy Treatment Record Storage",
+  "ciod": "RT Brachy Treatment Record"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.7",
+  "name": "RT Treatment Summary Record Storage",
+  "ciod": "RT Treatment Summary Record"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.8",
+  "name": "RT Ion Plan Storage",
+  "ciod": "RT Ion Plan"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.481.9",
+  "name": "RT Ion Beams Treatment Record Storage",
+  "ciod": "RT Ion Beams Treatment Record"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.6.1",
+  "name": "Ultrasound Image Storage",
+  "ciod": "Ultrasound Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.6.2",
+  "name": "Enhanced US Volume Storage",
+  "ciod": "Enhanced US Volume"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.6.3",
+  "name": "Photoacoustic Image Storage",
+  "ciod": "Photoacoustic Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.66",
+  "name": "Raw Data Storage",
+  "ciod": "Raw Data"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.66.1",
+  "name": "Spatial Registration Storage",
+  "ciod": "Spatial Registration"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.66.2",
+  "name": "Spatial Fiducials Storage",
+  "ciod": "Spatial Fiducials"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.66.3",
+  "name": "Deformable Spatial Registration Storage",
+  "ciod": "Deformable Spatial Registration"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.66.4",
+  "name": "Segmentation Storage",
+  "ciod": "Segmentation"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.66.5",
+  "name": "Surface Segmentation Storage",
+  "ciod": "Surface Segmentation"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.66.6",
+  "name": "Tractography Results Storage",
+  "ciod": "Tractography Results"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.67",
+  "name": "Real World Value Mapping Storage",
+  "ciod": "Real World Value Mapping"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.68.1",
+  "name": "Surface Scan Mesh Storage",
+  "ciod": "Surface Scan Mesh"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.68.2",
+  "name": "Surface Scan Point Cloud Storage",
+  "ciod": "Surface Scan Point Cloud"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.7",
+  "name": "Secondary Capture Image Storage",
+  "ciod": "Secondary Capture Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.7.1",
+  "name": "Multi-frame Single Bit Secondary Capture Image Storage",
+  "ciod": "Multi-frame Single Bit Secondary Capture Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.7.2",
+  "name": "Multi-frame Grayscale Byte Secondary Capture Image Storage",
+  "ciod": "Multi-frame Grayscale Byte Secondary Capture Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.7.3",
+  "name": "Multi-frame Grayscale Word Secondary Capture Image Storage",
+  "ciod": "Multi-frame Grayscale Word Secondary Capture Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.7.4",
+  "name": "Multi-frame True Color Secondary Capture Image Storage",
+  "ciod": "Multi-frame True Color Secondary Capture Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.77.1.1",
+  "name": "VL Endoscopic Image Storage",
+  "ciod": "VL Endoscopic Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.77.1.1.1",
+  "name": "Video Endoscopic Image Storage",
+  "ciod": "Video Endoscopic Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.77.1.2",
+  "name": "VL Microscopic Image Storage",
+  "ciod": "VL Microscopic Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.77.1.2.1",
+  "name": "Video Microscopic Image Storage",
+  "ciod": "Video Microscopic Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.77.1.3",
+  "name": "VL Slide-Coordinates Microscopic Image Storage",
+  "ciod": "VL Slide-Coordinates Microscopic Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.77.1.4",
+  "name": "VL Photographic Image Storage",
+  "ciod": "VL Photographic Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.77.1.4.1",
+  "name": "Video Photographic Image Storage",
+  "ciod": "Video Photographic Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.77.1.5.1",
+  "name": "Ophthalmic Photography 8 Bit Image Storage",
+  "ciod": "Ophthalmic Photography 8 Bit Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.77.1.5.2",
+  "name": "Ophthalmic Photography 16 Bit Image Storage",
+  "ciod": "Ophthalmic Photography 16 Bit Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.77.1.5.3",
+  "name": "Stereometric Relationship Storage",
+  "ciod": "Stereometric Relationship"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.77.1.5.4",
+  "name": "Ophthalmic Tomography Image Storage",
+  "ciod": "Ophthalmic Tomography Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.77.1.5.5",
+  "name": "Wide Field Ophthalmic Photography Stereographic Projection Image Storage",
+  "ciod": "Wide Field Ophthalmic Photography Stereographic Projection Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.77.1.5.6",
+  "name": "Wide Field Ophthalmic Photography 3D Coordinates Image Storage",
+  "ciod": "Wide Field Ophthalmic Photography 3D Coordinates Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.77.1.5.7",
+  "name": "Ophthalmic Optical Coherence Tomography En Face Image Storage",
+  "ciod": "Ophthalmic Optical Coherence Tomography En Face Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.77.1.5.8",
+  "name": "Ophthalmic Optical Coherence Tomography B-scan Volume Analysis Storage",
+  "ciod": "Ophthalmic Optical Coherence Tomography B-scan Volume Analysis"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.77.1.6",
+  "name": "VL Whole Slide Microscopy Image Storage",
+  "ciod": "VL Whole Slide Microscopy Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.77.1.7",
+  "name": "Dermoscopic Photography Image Storage",
+  "ciod": "Dermoscopic Photography Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.77.1.8",
+  "name": "Confocal Microscopy Image Storage",
+  "ciod": "Confocal Microscopy Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.77.1.9",
+  "name": "Confocal Microscopy Tiled Pyramidal Image Storage",
+  "ciod": "Confocal Microscopy Tiled Pyramidal Image"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.78.1",
+  "name": "Lensometry Measurements Storage",
+  "ciod": "Lensometry Measurements"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.78.2",
+  "name": "Autorefraction Measurements Storage",
+  "ciod": "Autorefraction Measurements"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.78.3",
+  "name": "Keratometry Measurements Storage",
+  "ciod": "Keratometry Measurements"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.78.4",
+  "name": "Subjective Refraction Measurements Storage",
+  "ciod": "Subjective Refraction Measurements"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.78.5",
+  "name": "Visual Acuity Measurements Storage",
+  "ciod": "Visual Acuity Measurements"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.78.6",
+  "name": "Spectacle Prescription Report Storage",
+  "ciod": "Spectacle Prescription Report"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.78.7",
+  "name": "Ophthalmic Axial Measurements Storage",
+  "ciod": "Ophthalmic Axial Measurements"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.78.8",
+  "name": "Intraocular Lens Calculations Storage",
+  "ciod": "Intraocular Lens Calculations"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.79.1",
+  "name": "Macular Grid Thickness and Volume Report",
+  "ciod": "Macular Grid Thickness and Volume Report"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.80.1",
+  "name": "Ophthalmic Visual Field Static Perimetry Measurements Storage",
+  "ciod": "Ophthalmic Visual Field Static Perimetry Measurements"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.81.1",
+  "name": "Ophthalmic Thickness Map Storage",
+  "ciod": "Ophthalmic Thickness Map"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.82.1",
+  "name": "Corneal Topography Map Storage",
+  "ciod": "Corneal Topography Map"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.88.11",
+  "name": "Basic Text SR Storage",
+  "ciod": "Basic Text SR"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.88.22",
+  "name": "Enhanced SR Storage",
+  "ciod": "Enhanced SR"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.88.33",
+  "name": "Comprehensive SR Storage",
+  "ciod": "Comprehensive SR"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.88.34",
+  "name": "Comprehensive 3D SR Storage",
+  "ciod": "Comprehensive 3D SR"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.88.35",
+  "name": "Extensible SR Storage",
+  "ciod": "Extensible SR"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.88.40",
+  "name": "Procedure Log Storage",
+  "ciod": "Procedure Log"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.88.50",
+  "name": "Mammography CAD SR Storage",
+  "ciod": "Mammography CAD SR"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.88.59",
+  "name": "Key Object Selection Document Storage",
+  "ciod": "Key Object Selection Document"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.88.65",
+  "name": "Chest CAD SR Storage",
+  "ciod": "Chest CAD SR"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.88.67",
+  "name": "X-Ray Radiation Dose SR Storage",
+  "ciod": "X-Ray Radiation Dose SR"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.88.68",
+  "name": "Radiopharmaceutical Radiation Dose SR Storage",
+  "ciod": "Radiopharmaceutical Radiation Dose SR"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.88.69",
+  "name": "Colon CAD SR Storage",
+  "ciod": "Colon CAD SR"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.88.70",
+  "name": "Implantation Plan SR Storage",
+  "ciod": "Implantation Plan SR Document"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.88.71",
+  "name": "Acquisition Context SR Storage",
+  "ciod": "Acquisition Context SR"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.88.72",
+  "name": "Simplified Adult Echo SR Storage",
+  "ciod": "Simplified Adult Echo SR"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.88.73",
+  "name": "Patient Radiation Dose SR Storage",
+  "ciod": "Patient Radiation Dose SR"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.88.74",
+  "name": "Planned Imaging Agent Administration SR Storage",
+  "ciod": "Planned Imaging Agent Administration SR"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.88.75",
+  "name": "Performed Imaging Agent Administration SR Storage",
+  "ciod": "Performed Imaging Agent Administration SR"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.88.76",
+  "name": "Enhanced X-Ray Radiation Dose SR Storage",
+  "ciod": "Enhanced X-Ray Radiation Dose SR"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.9.1.1",
+  "name": "12-lead ECG Waveform Storage",
+  "ciod": "12-Lead ECG"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.9.1.2",
+  "name": "General ECG Waveform Storage",
+  "ciod": "General ECG"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.9.1.3",
+  "name": "Ambulatory ECG Waveform Storage",
+  "ciod": "Ambulatory ECG"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.9.1.4",
+  "name": "General 32-bit ECG Waveform Storage",
+  "ciod": "General 32-bit ECG"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.9.2.1",
+  "name": "Hemodynamic Waveform Storage",
+  "ciod": "Hemodynamic Waveform"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.9.3.1",
+  "name": "Cardiac Electrophysiology Waveform Storage",
+  "ciod": "Basic Cardiac Electrophysiology Waveform"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.9.4.1",
+  "name": "Basic Voice Audio Waveform Storage",
+  "ciod": "Basic Voice Audio Waveform"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.9.4.2",
+  "name": "General Audio Waveform Storage",
+  "ciod": "General Audio Waveform"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.9.5.1",
+  "name": "Arterial Pulse Waveform Storage",
+  "ciod": "Arterial Pulse Waveform"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.9.6.1",
+  "name": "Respiratory Waveform Storage",
+  "ciod": "Respiratory Waveform"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.9.6.2",
+  "name": "Multi-channel Respiratory Waveform Storage",
+  "ciod": "Multi-channel Respiratory Waveform"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.9.7.1",
+  "name": "Routine Scalp Electroencephalogram Waveform Storage",
+  "ciod": "Routine Scalp Electroencephalogram"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.9.7.2",
+  "name": "Electromyogram Waveform Storage",
+  "ciod": "Electromyogram"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.9.7.3",
+  "name": "Electrooculogram Waveform Storage",
+  "ciod": "Electrooculogram"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.9.7.4",
+  "name": "Sleep Electroencephalogram Waveform Storage",
+  "ciod": "Sleep Electroencephalogram"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.9.8.1",
+  "name": "Body Position Waveform Storage",
+  "ciod": "Body Position Waveform"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.90.1",
+  "name": "Content Assessment Results Storage",
+  "ciod": "Content Assessment Results"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.1.1.91.1",
+  "name": "Microscopy Bulk Simple Annotations Storage",
+  "ciod": "Microscopy Bulk Simple Annotations"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.34.10",
+  "name": "RT Brachy Application Setup Delivery Instruction Storage",
+  "ciod": "RT Brachy Application Setup Delivery Instruction"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.34.7",
+  "name": "RT Beams Delivery Instruction Storage",
+  "ciod": "RT Beams Delivery Instruction"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.38.1",
+  "name": "Hanging Protocol Storage",
+  "ciod": "Hanging Protocol"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.39.1",
+  "name": "Color Palette Storage",
+  "ciod": "Color Palette"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.43.1",
+  "name": "Generic Implant Template Storage",
+  "ciod": "Generic Implant Template"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.44.1",
+  "name": "Implant Assembly Template Storage",
+  "ciod": "Implant Assembly Template"
+ },
+ {
+  "id": "1.2.840.10008.5.1.4.45.1",
+  "name": "Implant Template Group Storage",
+  "ciod": "Implant Template Group"
+ }
+]

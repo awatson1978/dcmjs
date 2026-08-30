@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dcmjs.org/schema/iod.schema.json",
+  "title": "dcmjs IOD index",
+  "description": "Projection of the Part 3 IOD index (src/schema/iodIndex.js): SOP Class UID -> CIOD -> modules with usage and condition text. Conditions are reporting-only text; 1C/2C never error.",
+  "x-dicom-iod-catalog-version": "1.0.0",
+  "x-dicom-source-edition": "2024e",
+  "x-dicom-source-hash": "6caa63c6df7b37a4",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "sourceEdition": {
+      "type": "string"
+    },
+    "sourceHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}$"
+    },
+    "sops": {
+      "type": "object",
+      "description": "SOP Class UID -> CIOD id",
+      "patternProperties": {
+        "^[0-9.]+$": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ciods": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/ciod"
+      }
+    }
+  },
+  "required": [
+    "version",
+    "sourceEdition",
+    "sourceHash",
+    "sops",
+    "ciods"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "ciod": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "modules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/moduleRef"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "modules"
+      ],
+      "additionalProperties": false
+    },
+    "moduleRef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "ie": {
+          "type": "string"
+        },
+        "usage": {
+          "enum": [
+            "M",
+            "C",
+            "U"
+          ]
+        },
+        "condition": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "ie",
+        "usage"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

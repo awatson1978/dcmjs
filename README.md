@@ -318,7 +318,10 @@ exported for direct use with `process()`.
 Now the library can tell you whether a file is actually *conformant*:
 which required fields are missing, which numbers disagree with each
 other, and which conditional fields the standard says you should think
-about — with the standard's own wording quoted back at you.
+about — with the standard's own wording quoted back at you. (From the
+command line, this is `dcmjs validate --conformance` in the
+[dcmjs-commands](https://github.com/awatson1978/dcmjs-commands) CLI,
+on its own `v2.0-development` branch.)
 
 ```javascript
 const dicomDict = dcmjs.data.DicomMessage.readFile(arrayBuffer);

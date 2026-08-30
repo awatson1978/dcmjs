@@ -315,6 +315,13 @@ projects); a first-class DICOMweb client (QIDO/WADO/STOW, streaming
 retrieval, AbortSignal, auth hooks, browser CORS) presented through the
 DicomAccess model so DICOMweb is "just another source". Acceptance: an
 OHIF-class app can fetch, decode, and display through dcmjs-only code.
+Added at tranche 1 close (benchmark rerun, 2026-08-30): **make the IOD
+catalog lazy at bundle load** — the generated catalog currently
+materializes at `require` time and costs ~58 MB of RSS before any file
+is touched (fine for a server, wrong for a browser tab); the fix is to
+defer catalog construction until the first `validate` layer-3 or
+`asIod` call, with a determinism gate proving the deferred and eager
+answers identical. See BENCHMARKS.md, "Rerun on v2.0-development".
 
 **Tranche 3 — semantics and safety (Gaps 11, 12, 6, 3).** PS3.15
 confidentiality profiles on top of the anonymizer (profile + retain

@@ -85,6 +85,47 @@ CT fixture. That console noise is upstream's open issue #368 — fixed in
 this fork — demonstrating itself, unprompted, in the middle of the
 benchmark.
 
+## Rerun on v2.0-development (2026-08-30)
+
+Rerun after the first 2.0 tranche landed (the Part 3 rulebook, the
+validation engine, typed datasets, completed character sets). Same
+machine, same harness, same three libraries.
+
+**Speed: unchanged.** Every timing is within noise of the 2026-08-28
+table — read, write, and roundtrip all land within ±0.2 ms of the 1.x
+numbers, and the write/roundtrip wins over upstream are intact.
+
+**Memory: the bundle got heavier, and we know exactly why.** Every
+"this fork" cell now shows roughly 45 MB more peak memory (e.g.
+sample-dicom read: 77 MB → 125 MB). Measured directly: `require`-ing
+the built bundle now costs 58 MB of RSS before any file is touched,
+because the generated IOD catalog — 175 SOP Classes, 98,469
+field-level requirements — is materialized at load time rather than on
+first use. Per-file cost is unchanged; this is a one-time library-load
+cost. It is fine for a long-running server and wrong for a browser
+tab, so making the catalog lazy-load (pay only when `validate` layer 3
+or `asIod` is first called) is filed as an explicit tranche 2 work
+item in V2_ROADMAP.md.
+
+| Fixture | Workload | v2 fork | upstream (npm) | dicom-parser |
+|---|---|---|---|---|
+| sample-dicom.dcm (528 KB CT image) | read | 0.3 ms · 125 MB | 0.3 ms · 77 MB | 0.1 ms · 52 MB |
+| sample-dicom.dcm | read+naturalize | 0.4 ms · 122 MB | 0.3 ms · 76 MB | — |
+| sample-dicom.dcm | write | **0.3 ms** · 127 MB | 0.9 ms · 97 MB | — |
+| sample-dicom.dcm | roundtrip | **0.6 ms** · 146 MB | 1.3 ms · 100 MB | — |
+| cine-test.dcm (1.0 MB multiframe) | read | 0.6 ms · 142 MB | 0.5 ms · 83 MB | 0.1 ms · 55 MB |
+| cine-test.dcm | read+naturalize | 0.6 ms · 139 MB | 0.7 ms · 83 MB | — |
+| cine-test.dcm | write | **0.6 ms** · 136 MB | 2.1 ms · 121 MB | — |
+| cine-test.dcm | roundtrip | **0.9 ms** · 150 MB | 2.1 ms · 108 MB | — |
+| sample-op.dcm (103 KB encapsulated) | read | 0.2 ms · 118 MB | 0.2 ms · 73 MB | 0.0 ms · 51 MB |
+| sample-op.dcm | read+naturalize | 0.3 ms · 118 MB | 0.2 ms · 72 MB | — |
+| sample-op.dcm | write | 0.8 ms · 131 MB | 0.4 ms · 75 MB | — |
+| sample-op.dcm | roundtrip | 0.4 ms · 123 MB | 0.6 ms · 77 MB | — |
+| sample-sr.dcm (4.5 KB structured report) | read | 0.5 ms · 125 MB | 0.7 ms · 72 MB | — |
+| sample-sr.dcm | read+naturalize | 0.6 ms · 127 MB | 0.5 ms · 70 MB | — |
+| sample-sr.dcm | write | **0.3 ms** · 117 MB | 0.6 ms · 73 MB | — |
+| sample-sr.dcm | roundtrip | **0.6 ms** · 126 MB | 0.9 ms · 82 MB | — |
+
 ## Large files (the 1+ GB video fixtures)
 
 This is where the two libraries stop being comparable, because they use

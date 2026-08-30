@@ -313,8 +313,11 @@ export class DicomMessage {
 
         var metaHeader = {};
         if (el.tag.cleanString !== TagHex.FileMetaInformationGroupLength) {
-            // meta length tag is missing
-            if (!options.ignoreErrors) {
+            // meta length tag is missing. allowMissingHeader (issue #93) is
+            // an explicit opt-in to headerless leniency, which includes FMI
+            // groups that start directly at (0002,0010) without a
+            // (0002,0000) group length (preamble-less JPEG-LS corpus shape).
+            if (!options.ignoreErrors && !options.allowMissingHeader) {
                 throw new Error(
                     "Invalid DICOM file, meta length tag is malformed or not present."
                 );
@@ -345,9 +348,18 @@ export class DicomMessage {
             let metaParsed = false;
             try {
                 const metaStream = stream.more(metaLength);
+                // strictLengths: an element in the declared window whose
+                // length overruns the window boundary means the declared
+                // group length cut an element in half (e.g. a group length
+                // 4 bytes short of the real span, landing inside the last
+                // element's padding) — without the strict probe that parse
+                // "succeeds", the body walk then starts inside value bytes,
+                // and one garbage tag silently swallows the whole body
+                // (PatientName/StudyInstanceUID identity loss).
                 const candidate = DicomMessage._read(metaStream, useSyntax, {
                     ...options,
-                    ignoreErrors: false
+                    ignoreErrors: false,
+                    strictLengths: true
                 });
                 const ts = candidate[TagHex.TransferSyntaxUID];
                 if (ts && ts.Value && ts.Value.length) {
@@ -611,17 +623,29 @@ export class DicomMessage {
             if (
                 writeOptions &&
                 writeOptions.preserveSpecificCharacterSet &&
-                tagString === TagHex.SpecificCharacterSet &&
-                tagObject._rawValue
+                tagString === TagHex.SpecificCharacterSet
             ) {
                 // Opt-in preserve mode: the reader rewrote Value to
                 // ["ISO_IR 192"] at the (0008,0005) rewrite site in _read,
                 // but _rawValue retains the original terms as read (they
                 // are ASCII by definition, so the decode was lossless).
-                // Restore them. DicomDict.write has already vetted (via
-                // _resolveCharsetWritePolicy) that every affected string
-                // value is representable under these terms.
-                values = tagObject._rawValue;
+                // Restore them. Hand-built dicts (upsertTag authoring a
+                // legacy declaration) have no _rawValue — their Value IS
+                // the intended terms. Either way DicomDict.write has
+                // already vetted (via _resolveCharsetWritePolicy) that
+                // every affected string value is representable.
+                values =
+                    tagObject._rawValue ||
+                    DicomMessage._getTagWriteValues(vrType, tagObject);
+            } else if (tagString === TagHex.SpecificCharacterSet) {
+                // Default policy: the writer emits string values as UTF-8,
+                // so the file must DECLARE UTF-8. The eager reader already
+                // rewrites the dict entry, but event-stream-collected and
+                // hand-built dicts carry the source declaration — writing
+                // that with UTF-8 bytes produces an incoherent file
+                // (exposed by the charset fixtures via the Part10Writer
+                // corpus round-trip suite).
+                values = ["ISO_IR 192"];
             } else {
                 values = DicomMessage._getTagWriteValues(vrType, tagObject);
             }
@@ -757,6 +781,32 @@ export class DicomMessage {
             } else {
                 length = stream.readUint16();
             }
+        }
+
+        // Corrective guard: a defined length that overruns the remaining
+        // stream is structurally impossible — a corrupt length or a derailed
+        // walk. Historic (and test-pinned) leniency reads truncated trailing
+        // elements, so the read is CLAMPED to the remaining bytes, but no
+        // longer silently: the corruption is logged, and options.strictLengths
+        // (used by readFile's meta-window probe) upgrades it to a corrective
+        // error. Clamping also prevents phantom multi-GB allocations from
+        // garbage lengths.
+        if (
+            length !== null &&
+            length !== UNDEFINED_LENGTH &&
+            stream.offset + length > stream.endOffset
+        ) {
+            const remaining = stream.endOffset - stream.offset;
+            const overrunMessage =
+                `DicomMessage: tag ${tag.toCleanString()} (VR ${
+                    vr ? vr.type : vrType
+                }) declares ${length} bytes but only ${remaining} remain` +
+                ` in the stream`;
+            if (options.strictLengths) {
+                throw new Error(overrunMessage);
+            }
+            log.warn(overrunMessage + "; clamping to the remaining bytes");
+            length = remaining;
         }
 
         // PS3.5 §6.2.2 (issue #363): a UN element with UNDEFINED length is

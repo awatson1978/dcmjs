@@ -30,7 +30,11 @@ function buildFile({ charset, patientName, institution }) {
     dicomDict.upsertTag("00080018", "UI", ["1.2.826.0.1.3680043.8.498.77.1"]);
     dicomDict.upsertTag("00080080", "LO", [institution]);
     dicomDict.upsertTag("00100010", "PN", [patientName]);
-    return dicomDict.write();
+    // Author the legacy declaration deliberately: the default write policy
+    // (correctly) normalizes (0008,0005) to ISO_IR 192, so fixture files
+    // that must DECLARE a legacy charset are written in preserve mode —
+    // their values are pure ASCII, so the policy vetting passes.
+    return dicomDict.write({ preserveSpecificCharacterSet: true });
 }
 
 // Decoded values of the committed ISO 2022 IR 159 fixture, mirroring

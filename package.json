@@ -15,6 +15,7 @@
             "import": "./src/schema/naturalizedRules.js"
         },
         "./schema/iods": {
+            "types": "./types/dcmjs-iods.d.ts",
             "import": "./src/schema/iodIndex.js"
         },
         "./validation": {
@@ -51,7 +52,7 @@
         "generate-dictionary": "node generate/generate-dictionary.js",
         "generate-schema": "node generate/generate-schema.mjs",
         "generate-iods": "node generate/generate-iods.mjs",
-        "check:types": "tsc --noEmit --strict types/checks/consumer.ts",
+        "check:types": "tsc --noEmit --strict types/checks/consumer.ts types/checks/iod-consumer.ts",
         "pack-dictionary": "node generate/pack_dicom.mjs",
         "bench:dictionary": "bun run generate/bench-dictionary-load.mjs",
         "bench:parser": "node --expose-gc packages/parser/bench/parse-gate.cjs",

@@ -1,16 +1,19 @@
 /**
  * dcmjs.validate — the layered validation engine (v2.0 Workstream B).
  *
- * This PR ships layers 1 (structural) and 2 (cross-field) plus the layer-3
- * (IOD/module) seam; layer 3 itself lands in a later PR and currently
- * reports a single `iod.unavailable` INFO when requested.
+ * Layers 1 (structural) and 2 (cross-field) run by default; layer 3
+ * (IOD/module, against the Part 3 catalog) is opt-in via options.layers:
  *
  *   const result = await validate(datasetOrDict, {
- *       layers: [1, 2],          // default; add 3 for the IOD stub
+ *       layers: [1, 2, 3],       // default [1, 2]; 3 adds IOD validation
  *       ignore: ["vr.pattern"],  // rule ids to suppress
  *       maxIssues: 500           // hard cap
  *   });
  *   result.ok / result.issues / result.summary
+ *
+ * `asIod(dataset, sopClassUid?, options?)` (asIod.js) composes layers 1+3
+ * into a throw-or-return runtime guard matching the generated
+ * types/dcmjs-iods.d.ts dataset types.
  *
  * Accepted inputs:
  *   - a DicomDict-like `{ meta?, dict }` (e.g. DicomMessage.readFile output)
@@ -160,9 +163,14 @@ export async function validate(datasetOrDict, options = {}) {
 export { ValidationListener } from "./ValidationListener.js";
 export { ValidationCollector } from "./collector.js";
 export { Severity, RULES, makeIssue, summarize } from "./result.js";
+export { asIod, IodValidationError } from "./asIod.js";
+
+import { asIod, IodValidationError } from "./asIod.js";
 
 export default {
     validate,
+    asIod,
+    IodValidationError,
     ValidationListener,
     Severity,
     RULES

@@ -10,11 +10,13 @@ import {
     CONDITIONS,
     getModuleAttributes
 } from "../../src/schema/iodModules.packed.js";
+import { naturalizedRules } from "../../src/schema/naturalizedRules.js";
 import {
     buildIodCatalog,
     iodIndexSource,
     iodModulesPackedSource,
-    iodJsonSchemaSource
+    iodJsonSchemaSource,
+    iodTypesSource
 } from "../../generate/buildIodCatalog.mjs";
 import {
     ATTRIBUTE_TYPES,
@@ -86,7 +88,19 @@ describe("IOD catalog determinism gates", () => {
     });
 
     test("committed iod.schema.json matches a fresh rebuild", () => {
-        expectExactArtifact("schema/iod.schema.json", iodJsonSchemaSource(catalog));
+        expectExactArtifact(
+            "schema/iod.schema.json",
+            iodJsonSchemaSource(catalog)
+        );
+    });
+
+    test("committed types/dcmjs-iods.d.ts matches a fresh rebuild", () => {
+        // Raw source, same convention as types/dcmjs-schema.d.ts (the
+        // generator shell writes it unformatted).
+        expectExactArtifact(
+            "types/dcmjs-iods.d.ts",
+            iodTypesSource(catalog, naturalizedRules.attributes)
+        );
     });
 
     test("normalized None-type rows match the audited count", () => {
@@ -175,10 +189,11 @@ describe("packed module invariants", () => {
                 new RegExp(`^(${FG_SHARED}|${FG_PER_FRAME})\\.`)
             );
         }
-        const enhancedMr = iodIndex.ciods[iodIndex.sops["1.2.840.10008.5.1.4.1.1.4.1"]];
-        expect(
-            enhancedMr.modules.some(m => m.id === "fg:pixel-measures")
-        ).toBe(true);
+        const enhancedMr =
+            iodIndex.ciods[iodIndex.sops["1.2.840.10008.5.1.4.1.1.4.1"]];
+        expect(enhancedMr.modules.some(m => m.id === "fg:pixel-measures")).toBe(
+            true
+        );
     });
 });
 

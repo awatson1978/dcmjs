@@ -26,6 +26,15 @@ class DicomDict {
     }
 
     write(writeOptions = { allowInvalidVRLength: false }) {
+        // Opt-in charset write policy (see DicomMessage._resolveCharsetWritePolicy):
+        // `preserveSpecificCharacterSet: true` keeps the original (0008,0005)
+        // terms when every affected string value is representable under them
+        // (throws otherwise); `"lenient"` falls back to the default UTF-8 /
+        // ISO_IR 192 transcode with a warning instead of throwing.
+        writeOptions = DicomMessage._resolveCharsetWritePolicy(
+            this.dict,
+            writeOptions
+        );
         var metaSyntax = EXPLICIT_LITTLE_ENDIAN;
         var fileStream = new WriteBufferStream(4096, true);
         fileStream.writeUint8Repeat(0, 128);

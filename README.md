@@ -65,6 +65,72 @@ and Massachusetts General Hospital. Updates include:
 - **Removed:** the deprecated `DicomMessage.read`/`readTag` statics and the legacy
   `DICOMWEB` class (use [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client)).
 
+# Where 2.0 is headed
+
+This branch (`v2.0-development`) is the working line for the next era.
+The full plan lives in [V2_ROADMAP.md](V2_ROADMAP.md); here is the
+short version, in plain terms.
+
+**The goal.** Stop measuring this library against the old C++ toolkits.
+The real target is that someone building a medical imaging application
+in JavaScript should *never have to leave JavaScript* — no Python
+scripts on the side, no Java servers, no native code — and still be
+fully standards-conformant. Some things we deliberately will not build
+(the 1990s hospital networking protocols, image rendering) because
+other projects do them well and they would eat years.
+
+**The one clever move.** Three of the biggest wishlist items sound
+unrelated:
+
+1. A real **validator** — point it at a file and get "this CT scan is
+   missing a required field," not just "it parsed."
+2. Smarter **autocomplete** — your editor knowing which fields a CT
+   scan must have, and complaining while you type if you forget one.
+3. Easy **builders** — "make me a valid segmentation object" without
+   hand-assembling dozens of tags.
+
+All three need the same ingredient: a machine-readable copy of the
+DICOM rulebook — which fields belong to which kind of object, and
+which are mandatory. Nobody is typing that in by hand; an existing
+open-source project has already turned the rulebook into data files.
+We pull those in once, run them through the same code-generation
+machinery that already produces our schema and dictionary, and all
+three features grow from that one root. Build the ingredient once
+instead of three times — that is the whole trick of the first batch of
+2.0 work.
+
+**The other big idea: learn from the competition — legally.** The
+mature toolkits' most valuable possession is not their code. It is
+thirty years of *"we hit a weird file from a scanner in 1998 and here
+is what we learned."* That knowledge sits in the open, in four places:
+
+1. **Their test files.** Decades of collected weird, broken, and
+   hostile DICOM files, freely downloadable. We feed them all through
+   this library — if we choke on something a twenty-year-old toolkit
+   handles, that is a bug found for free.
+2. **Their validators' checklists.** The gold-standard validation
+   tools publish what they check and how loudly. Reading those lists
+   tells us which rules *actually matter in the field*, so our
+   validator is useful on day one instead of crying wolf.
+3. **Their bug trackers.** The mining pipeline that converted this
+   project's own issue tracker into a regression suite (see
+   [ISSUE_TEST_PLAN.md](ISSUE_TEST_PLAN.md)) works on any project's
+   tracker. Their communities' decades of file-shaped bug reports are
+   portable lessons — and every edge case absorbed from their history
+   is a bug report our maintainers never receive.
+4. **Their designs.** When we build high-level object constructors, we
+   study how the best existing libraries shaped those features — a
+   decade of their users' feedback, for the price of reading.
+
+One rule keeps it all clean: **knowledge in, code never.** We learn
+from their files, their checklists, and their designs; we never copy
+their source. Some of those projects have licenses that would infect
+ours, and one bright-line rule is safer than lawyering each case.
+
+Nothing in 2.0 breaks the 1.0 API so far — the first batch of work is
+entirely additive. The `development` branch remains the stable 1.x
+line.
+
 # Goals
 
 _Overall the code should:_

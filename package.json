@@ -13,6 +13,9 @@
         "./schema": {
             "types": "./types/dcmjs-schema.d.ts",
             "import": "./src/schema/naturalizedRules.js"
+        },
+        "./schema/iods": {
+            "import": "./src/schema/iodIndex.js"
         }
     },
     "files": [
@@ -44,6 +47,7 @@
         "lint": "eslint --fix \"src/**/*.js\" \"test/**/*.js\"",
         "generate-dictionary": "node generate/generate-dictionary.js",
         "generate-schema": "node generate/generate-schema.mjs",
+        "generate-iods": "node generate/generate-iods.mjs",
         "check:types": "tsc --noEmit --strict types/checks/consumer.ts",
         "pack-dictionary": "node generate/pack_dicom.mjs",
         "bench:dictionary": "bun run generate/bench-dictionary-load.mjs",

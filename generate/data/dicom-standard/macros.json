@@ -1,0 +1,1194 @@
+[
+ {
+  "id": "3d-rt-cone-beam-imaging-geometry",
+  "name": "3D RT Cone-Beam Imaging Geometry"
+ },
+ {
+  "id": "3d-spatial-coordinates",
+  "name": "3D Spatial Coordinates"
+ },
+ {
+  "id": "access-end-points",
+  "name": "Access End Points"
+ },
+ {
+  "id": "algorithm-identification",
+  "name": "Algorithm Identification"
+ },
+ {
+  "id": "assertion",
+  "name": "Assertion"
+ },
+ {
+  "id": "attribute-value",
+  "name": "Attribute Value"
+ },
+ {
+  "id": "attribute-value-constraint",
+  "name": "Attribute Value Constraint"
+ },
+ {
+  "id": "basic-code-sequence",
+  "name": "Basic Code Sequence"
+ },
+ {
+  "id": "basic-pixel-spacing-calibration",
+  "name": "Basic Pixel Spacing Calibration"
+ },
+ {
+  "id": "beam-limiting-device-position",
+  "name": "Beam Limiting Device Position"
+ },
+ {
+  "id": "blocks-definition",
+  "name": "Blocks Definition"
+ },
+ {
+  "id": "boluses-definition",
+  "name": "Boluses Definition"
+ },
+ {
+  "id": "breast-biopsy-target",
+  "name": "Breast Biopsy Target"
+ },
+ {
+  "id": "breast-x-ray-acquisition-dose",
+  "name": "Breast X-Ray Acquisition Dose"
+ },
+ {
+  "id": "breast-x-ray-detector",
+  "name": "Breast X-Ray Detector"
+ },
+ {
+  "id": "breast-x-ray-geometry",
+  "name": "Breast X-Ray Geometry"
+ },
+ {
+  "id": "breast-x-ray-isocenter-reference-system",
+  "name": "Breast X-Ray Isocenter Reference System"
+ },
+ {
+  "id": "breast-x-ray-positioner",
+  "name": "Breast X-Ray Positioner"
+ },
+ {
+  "id": "calculated-iol",
+  "name": "Calculated IOL"
+ },
+ {
+  "id": "calculated-toric-power",
+  "name": "Calculated Toric Power"
+ },
+ {
+  "id": "camera-position",
+  "name": "Camera Position"
+ },
+ {
+  "id": "cardiac-synchronization",
+  "name": "Cardiac Synchronization"
+ },
+ {
+  "id": "code",
+  "name": "Code"
+ },
+ {
+  "id": "code-sequence",
+  "name": "Code Sequence"
+ },
+ {
+  "id": "common-ct-mr-and-photoacoustic-image-description",
+  "name": "Common CT/MR and Photoacoustic Image Description"
+ },
+ {
+  "id": "compensators-definition",
+  "name": "Compensators Definition"
+ },
+ {
+  "id": "composite-object-reference",
+  "name": "Composite Object Reference"
+ },
+ {
+  "id": "conceptual-volume",
+  "name": "Conceptual Volume"
+ },
+ {
+  "id": "conceptual-volume-segmentation-reference-and-combination",
+  "name": "Conceptual Volume Segmentation Reference And Combination"
+ },
+ {
+  "id": "confocal-microscopy-image-frame-type",
+  "name": "Confocal Microscopy Image Frame Type"
+ },
+ {
+  "id": "container",
+  "name": "Container"
+ },
+ {
+  "id": "content-creator",
+  "name": "Content Creator"
+ },
+ {
+  "id": "content-identification",
+  "name": "Content Identification"
+ },
+ {
+  "id": "content-item",
+  "name": "Content Item"
+ },
+ {
+  "id": "content-item-with-modifiers",
+  "name": "Content Item with Modifiers"
+ },
+ {
+  "id": "contrast-bolus-usage",
+  "name": "Contrast/Bolus Usage"
+ },
+ {
+  "id": "contributing-image-sources",
+  "name": "Contributing Image Sources"
+ },
+ {
+  "id": "cornea-measurement",
+  "name": "Cornea Measurement"
+ },
+ {
+  "id": "ct-acquisition-details",
+  "name": "CT Acquisition Details"
+ },
+ {
+  "id": "ct-acquisition-type",
+  "name": "CT Acquisition Type"
+ },
+ {
+  "id": "ct-additional-x-ray-source",
+  "name": "CT Additional X-Ray Source"
+ },
+ {
+  "id": "ct-exposure",
+  "name": "CT Exposure"
+ },
+ {
+  "id": "ct-geometry",
+  "name": "CT Geometry"
+ },
+ {
+  "id": "ct-image-frame-type",
+  "name": "CT Image Frame Type"
+ },
+ {
+  "id": "ct-pixel-value-transformation",
+  "name": "CT Pixel Value Transformation"
+ },
+ {
+  "id": "ct-position",
+  "name": "CT Position"
+ },
+ {
+  "id": "ct-reconstruction",
+  "name": "CT Reconstruction"
+ },
+ {
+  "id": "ct-table-dynamics",
+  "name": "CT Table Dynamics"
+ },
+ {
+  "id": "ct-x-ray-details",
+  "name": "CT X-Ray Details"
+ },
+ {
+  "id": "cylinder-sequence",
+  "name": "Cylinder Sequence"
+ },
+ {
+  "id": "derivation-image",
+  "name": "Derivation Image"
+ },
+ {
+  "id": "device-identification",
+  "name": "Device Identification"
+ },
+ {
+  "id": "device-model",
+  "name": "Device Model"
+ },
+ {
+  "id": "device-motion-control",
+  "name": "Device Motion Control"
+ },
+ {
+  "id": "digital-signatures",
+  "name": "Digital Signatures"
+ },
+ {
+  "id": "digital-x-ray-detector",
+  "name": "Digital X-Ray Detector"
+ },
+ {
+  "id": "display-qa-result-context",
+  "name": "Display QA Result Context"
+ },
+ {
+  "id": "display-shutter",
+  "name": "Display Shutter"
+ },
+ {
+  "id": "document-content",
+  "name": "Document Content"
+ },
+ {
+  "id": "document-relationship",
+  "name": "Document Relationship"
+ },
+ {
+  "id": "dosimetric-objective",
+  "name": "Dosimetric Objective"
+ },
+ {
+  "id": "enhanced-code-sequence",
+  "name": "Enhanced Code Sequence"
+ },
+ {
+  "id": "enhanced-content-identification",
+  "name": "Enhanced Content Identification"
+ },
+ {
+  "id": "entity-labeling",
+  "name": "Entity Labeling"
+ },
+ {
+  "id": "entity-long-labeling",
+  "name": "Entity Long Labeling"
+ },
+ {
+  "id": "exposure-index",
+  "name": "Exposure Index"
+ },
+ {
+  "id": "extended-content-identification",
+  "name": "Extended Content Identification"
+ },
+ {
+  "id": "extended-selector-attribute",
+  "name": "Extended Selector Attribute"
+ },
+ {
+  "id": "external-beam-control-point-general",
+  "name": "External Beam Control Point General"
+ },
+ {
+  "id": "externally-sourced-data-set-identification",
+  "name": "Externally-Sourced Data Set Identification"
+ },
+ {
+  "id": "fill-style-sequence",
+  "name": "Fill Style Sequence"
+ },
+ {
+  "id": "frame-anatomy",
+  "name": "Frame Anatomy"
+ },
+ {
+  "id": "frame-content",
+  "name": "Frame Content"
+ },
+ {
+  "id": "frame-display-shutter",
+  "name": "Frame Display Shutter"
+ },
+ {
+  "id": "frame-pixel-shift",
+  "name": "Frame Pixel Shift"
+ },
+ {
+  "id": "frame-usefulness",
+  "name": "Frame Usefulness"
+ },
+ {
+  "id": "frame-voi-lut",
+  "name": "Frame VOI LUT"
+ },
+ {
+  "id": "frame-voi-lut-with-lut",
+  "name": "Frame VOI LUT with LUT"
+ },
+ {
+  "id": "functional-mr",
+  "name": "Functional MR"
+ },
+ {
+  "id": "general-accessories-definition",
+  "name": "General Accessories Definition"
+ },
+ {
+  "id": "general-anatomy-mandatory",
+  "name": "General Anatomy Mandatory"
+ },
+ {
+  "id": "general-anatomy-optional",
+  "name": "General Anatomy Optional"
+ },
+ {
+  "id": "general-anatomy-required",
+  "name": "General Anatomy Required"
+ },
+ {
+  "id": "general-contributing-sources",
+  "name": "General Contributing Sources"
+ },
+ {
+  "id": "general-procedure-protocol-reference",
+  "name": "General Procedure Protocol Reference"
+ },
+ {
+  "id": "hanging-protocol-selector-attribute-context",
+  "name": "Hanging Protocol Selector Attribute Context"
+ },
+ {
+  "id": "hanging-protocol-selector-attribute-value",
+  "name": "Hanging Protocol Selector Attribute Value"
+ },
+ {
+  "id": "hierarchical-evidence-reference",
+  "name": "Hierarchical Evidence Reference"
+ },
+ {
+  "id": "hierarchical-series-reference",
+  "name": "Hierarchical Series Reference"
+ },
+ {
+  "id": "hierarchical-sop-instance-reference",
+  "name": "Hierarchical SOP Instance Reference"
+ },
+ {
+  "id": "hl7v2-hierarchic-designator",
+  "name": "HL7v2 Hierarchic Designator"
+ },
+ {
+  "id": "identified-person-or-device",
+  "name": "Identified Person or Device"
+ },
+ {
+  "id": "identity-pixel-value-transformation",
+  "name": "Identity Pixel Value Transformation"
+ },
+ {
+  "id": "image-data-type",
+  "name": "Image Data Type"
+ },
+ {
+  "id": "image-frame-conversion-source",
+  "name": "Image Frame Conversion Source"
+ },
+ {
+  "id": "image-pixel",
+  "name": "Image Pixel"
+ },
+ {
+  "id": "image-pixel-description",
+  "name": "Image Pixel Description"
+ },
+ {
+  "id": "image-reference",
+  "name": "Image Reference"
+ },
+ {
+  "id": "image-sop-instance-reference",
+  "name": "Image SOP Instance Reference"
+ },
+ {
+  "id": "interlock",
+  "name": "Interlock"
+ },
+ {
+  "id": "intraocular-lens-calculations",
+  "name": "Intraocular Lens Calculations"
+ },
+ {
+  "id": "intravascular-frame-content",
+  "name": "Intravascular Frame Content"
+ },
+ {
+  "id": "intravascular-oct-frame-content",
+  "name": "Intravascular OCT Frame Content"
+ },
+ {
+  "id": "intravascular-oct-frame-type",
+  "name": "Intravascular OCT Frame Type"
+ },
+ {
+  "id": "inventory-reference",
+  "name": "Inventory Reference"
+ },
+ {
+  "id": "iol-ophthalmic-axial-length",
+  "name": "IOL Ophthalmic Axial Length"
+ },
+ {
+  "id": "irradiation-event-identification",
+  "name": "Irradiation Event Identification"
+ },
+ {
+  "id": "issuer-of-patient-id",
+  "name": "Issuer of Patient ID"
+ },
+ {
+  "id": "keratometric-measurements",
+  "name": "Keratometric Measurements"
+ },
+ {
+  "id": "keratometry",
+  "name": "Keratometry"
+ },
+ {
+  "id": "kv-radiation-image-acquisition-parameters",
+  "name": "KV Radiation Image Acquisition Parameters"
+ },
+ {
+  "id": "lensometry-measurements",
+  "name": "Lensometry Measurements"
+ },
+ {
+  "id": "line-style-sequence",
+  "name": "Line Style Sequence"
+ },
+ {
+  "id": "luminance-result",
+  "name": "Luminance Result"
+ },
+ {
+  "id": "luminance-uniformity-result",
+  "name": "Luminance Uniformity Result"
+ },
+ {
+  "id": "mandatory-view-and-slice-progression-direction",
+  "name": "Mandatory View and Slice Progression Direction"
+ },
+ {
+  "id": "matrix-based-rt-imaging-geometry",
+  "name": "Matrix-based RT Imaging Geometry"
+ },
+ {
+  "id": "modality-lut",
+  "name": "Modality LUT"
+ },
+ {
+  "id": "mr-arterial-spin-labeling",
+  "name": "MR Arterial Spin Labeling"
+ },
+ {
+  "id": "mr-averages",
+  "name": "MR Averages"
+ },
+ {
+  "id": "mr-diffusion",
+  "name": "MR Diffusion"
+ },
+ {
+  "id": "mr-echo",
+  "name": "MR Echo"
+ },
+ {
+  "id": "mr-fov-geometry",
+  "name": "MR FOV/Geometry"
+ },
+ {
+  "id": "mr-image-and-spectroscopy-instance",
+  "name": "MR Image and Spectroscopy Instance"
+ },
+ {
+  "id": "mr-image-description",
+  "name": "MR Image Description"
+ },
+ {
+  "id": "mr-image-frame-type",
+  "name": "MR Image Frame Type"
+ },
+ {
+  "id": "mr-imaging-modifier",
+  "name": "MR Imaging Modifier"
+ },
+ {
+  "id": "mr-metabolite-map",
+  "name": "MR Metabolite Map"
+ },
+ {
+  "id": "mr-modifier",
+  "name": "MR Modifier"
+ },
+ {
+  "id": "mr-receive-coil",
+  "name": "MR Receive Coil"
+ },
+ {
+  "id": "mr-spatial-saturation",
+  "name": "MR Spatial Saturation"
+ },
+ {
+  "id": "mr-spectroscopy-description",
+  "name": "MR Spectroscopy Description"
+ },
+ {
+  "id": "mr-spectroscopy-fov-geometry",
+  "name": "MR Spectroscopy FOV/Geometry"
+ },
+ {
+  "id": "mr-spectroscopy-frame-type",
+  "name": "MR Spectroscopy Frame Type"
+ },
+ {
+  "id": "mr-timing-and-related-parameters",
+  "name": "MR Timing and Related Parameters"
+ },
+ {
+  "id": "mr-transmit-coil",
+  "name": "MR Transmit Coil"
+ },
+ {
+  "id": "mr-velocity-encoding",
+  "name": "MR Velocity Encoding"
+ },
+ {
+  "id": "multi-energy-ct-characteristics",
+  "name": "Multi-energy CT Characteristics"
+ },
+ {
+  "id": "multi-energy-ct-path",
+  "name": "Multi-energy CT Path"
+ },
+ {
+  "id": "multi-energy-ct-processing",
+  "name": "Multi-energy CT Processing"
+ },
+ {
+  "id": "multi-energy-ct-x-ray-detector",
+  "name": "Multi-energy CT X-Ray Detector"
+ },
+ {
+  "id": "multi-energy-ct-x-ray-source",
+  "name": "Multi-energy CT X-Ray Source"
+ },
+ {
+  "id": "multiple-site-general-anatomy-optional",
+  "name": "Multiple Site General Anatomy Optional"
+ },
+ {
+  "id": "mv-radiation-image-acquisition-parameters",
+  "name": "MV Radiation Image Acquisition Parameters"
+ },
+ {
+  "id": "numeric-measurement",
+  "name": "Numeric Measurement"
+ },
+ {
+  "id": "numeric-value",
+  "name": "Numeric Value"
+ },
+ {
+  "id": "ophthalmic-acquisition-parameters",
+  "name": "Ophthalmic Acquisition Parameters"
+ },
+ {
+  "id": "ophthalmic-axial-length-quality-metric",
+  "name": "Ophthalmic Axial Length Quality Metric"
+ },
+ {
+  "id": "ophthalmic-axial-length-segmental-measurements",
+  "name": "Ophthalmic Axial Length Segmental Measurements"
+ },
+ {
+  "id": "ophthalmic-axial-measurements",
+  "name": "Ophthalmic Axial Measurements"
+ },
+ {
+  "id": "ophthalmic-axial-measurements-quality-image-sop-instance-reference",
+  "name": "Ophthalmic Axial Measurements Quality Image SOP Instance Reference"
+ },
+ {
+  "id": "ophthalmic-axial-measurements-related-information",
+  "name": "Ophthalmic Axial Measurements Related Information"
+ },
+ {
+  "id": "ophthalmic-axial-measurements-selected",
+  "name": "Ophthalmic Axial Measurements Selected"
+ },
+ {
+  "id": "ophthalmic-frame-location",
+  "name": "Ophthalmic Frame Location"
+ },
+ {
+  "id": "ophthalmic-patient-clinical-information-and-test-lens-parameters",
+  "name": "Ophthalmic Patient Clinical Information and Test Lens Parameters"
+ },
+ {
+  "id": "ophthalmic-visual-field-global-index",
+  "name": "Ophthalmic Visual Field Global Index"
+ },
+ {
+  "id": "optical-path-identification",
+  "name": "Optical Path Identification"
+ },
+ {
+  "id": "optional-view-and-slice-progression-direction",
+  "name": "Optional View and Slice Progression Direction"
+ },
+ {
+  "id": "original-attributes",
+  "name": "Original Attributes"
+ },
+ {
+  "id": "outline-definition",
+  "name": "Outline Definition"
+ },
+ {
+  "id": "palette-color-lookup-table",
+  "name": "Palette Color Lookup Table"
+ },
+ {
+  "id": "parameterized-rt-imaging-geometry",
+  "name": "Parameterized RT Imaging Geometry"
+ },
+ {
+  "id": "parametric-map-frame-type",
+  "name": "Parametric Map Frame Type"
+ },
+ {
+  "id": "patient-group",
+  "name": "Patient Group"
+ },
+ {
+  "id": "patient-orientation",
+  "name": "Patient Orientation"
+ },
+ {
+  "id": "patient-orientation-and-equipment-relationship",
+  "name": "Patient Orientation And Equipment Relationship"
+ },
+ {
+  "id": "patient-orientation-in-frame",
+  "name": "Patient Orientation in Frame"
+ },
+ {
+  "id": "patient-physiological-state",
+  "name": "Patient Physiological State"
+ },
+ {
+  "id": "patient-position-acquisition-device",
+  "name": "Patient Position Acquisition Device"
+ },
+ {
+  "id": "patient-support-identification",
+  "name": "Patient Support Identification"
+ },
+ {
+  "id": "patient-support-position",
+  "name": "Patient Support Position"
+ },
+ {
+  "id": "patient-to-equipment-relationship",
+  "name": "Patient to Equipment Relationship"
+ },
+ {
+  "id": "performed-procedure-step-summary",
+  "name": "Performed Procedure Step Summary"
+ },
+ {
+  "id": "person-identification",
+  "name": "Person Identification"
+ },
+ {
+  "id": "pet-detector-motion-details",
+  "name": "PET Detector Motion Details"
+ },
+ {
+  "id": "pet-frame-acquisition",
+  "name": "PET Frame Acquisition"
+ },
+ {
+  "id": "pet-frame-correction-factors",
+  "name": "PET Frame Correction Factors"
+ },
+ {
+  "id": "pet-frame-type",
+  "name": "PET Frame Type"
+ },
+ {
+  "id": "pet-position",
+  "name": "PET Position"
+ },
+ {
+  "id": "pet-reconstruction",
+  "name": "PET Reconstruction"
+ },
+ {
+  "id": "pet-table-dynamics",
+  "name": "PET Table Dynamics"
+ },
+ {
+  "id": "photoacoustic-excitation-characteristics",
+  "name": "Photoacoustic Excitation Characteristics"
+ },
+ {
+  "id": "photoacoustic-image-data-type",
+  "name": "Photoacoustic Image Data Type"
+ },
+ {
+  "id": "photoacoustic-image-frame-type",
+  "name": "Photoacoustic Image Frame Type"
+ },
+ {
+  "id": "photoacoustic-reconstruction-algorithm",
+  "name": "Photoacoustic Reconstruction Algorithm"
+ },
+ {
+  "id": "pixel-intensity-relationship-lut",
+  "name": "Pixel Intensity Relationship LUT"
+ },
+ {
+  "id": "pixel-measures",
+  "name": "Pixel Measures"
+ },
+ {
+  "id": "pixel-value-transformation",
+  "name": "Pixel Value Transformation"
+ },
+ {
+  "id": "plane-orientation-patient",
+  "name": "Plane Orientation (Patient)"
+ },
+ {
+  "id": "plane-orientation-volume",
+  "name": "Plane Orientation (Volume)"
+ },
+ {
+  "id": "plane-position-patient",
+  "name": "Plane Position (Patient)"
+ },
+ {
+  "id": "plane-position-slide",
+  "name": "Plane Position (Slide)"
+ },
+ {
+  "id": "plane-position-volume",
+  "name": "Plane Position (Volume)"
+ },
+ {
+  "id": "planning-landmark-line",
+  "name": "Planning Landmark Line"
+ },
+ {
+  "id": "planning-landmark-plane",
+  "name": "Planning Landmark Plane"
+ },
+ {
+  "id": "planning-landmark-point",
+  "name": "Planning Landmark Point"
+ },
+ {
+  "id": "points",
+  "name": "Points"
+ },
+ {
+  "id": "presentation-state-relationship",
+  "name": "Presentation State Relationship"
+ },
+ {
+  "id": "primary-anatomic-structure",
+  "name": "Primary Anatomic Structure"
+ },
+ {
+  "id": "prism-sequence",
+  "name": "Prism Sequence"
+ },
+ {
+  "id": "protocol-element-identification",
+  "name": "Protocol Element Identification"
+ },
+ {
+  "id": "radiation-fraction-pattern",
+  "name": "Radiation Fraction Pattern"
+ },
+ {
+  "id": "radiation-generation-mode",
+  "name": "Radiation Generation Mode"
+ },
+ {
+  "id": "radiobiological-dose-effect-description",
+  "name": "Radiobiological Dose Effect Description"
+ },
+ {
+  "id": "radiopharmaceutical-usage",
+  "name": "Radiopharmaceutical Usage"
+ },
+ {
+  "id": "real-world-value-mapping",
+  "name": "Real World Value Mapping"
+ },
+ {
+  "id": "real-world-value-mapping-item",
+  "name": "Real World Value Mapping Item"
+ },
+ {
+  "id": "reference-location",
+  "name": "Reference Location"
+ },
+ {
+  "id": "referenced-image",
+  "name": "Referenced Image"
+ },
+ {
+  "id": "referenced-instances-and-access",
+  "name": "Referenced Instances and Access"
+ },
+ {
+  "id": "referenced-request",
+  "name": "Referenced Request"
+ },
+ {
+  "id": "related-information-entities",
+  "name": "Related Information Entities"
+ },
+ {
+  "id": "request-attributes",
+  "name": "Request Attributes"
+ },
+ {
+  "id": "respiratory-synchronization",
+  "name": "Respiratory Synchronization"
+ },
+ {
+  "id": "rt-accessory-device-identification",
+  "name": "RT Accessory Device Identification"
+ },
+ {
+  "id": "rt-accessory-holders-definition",
+  "name": "RT Accessory Holders Definition"
+ },
+ {
+  "id": "rt-beam-limiting-device-definition",
+  "name": "RT Beam Limiting Device Definition"
+ },
+ {
+  "id": "rt-beam-limiting-device-opening",
+  "name": "RT Beam Limiting Device Opening"
+ },
+ {
+  "id": "rt-beam-limiting-device-opening-definition",
+  "name": "RT Beam Limiting Device Opening Definition"
+ },
+ {
+  "id": "rt-beam-limiting-device-opening-sequence",
+  "name": "RT Beam Limiting Device Opening Sequence"
+ },
+ {
+  "id": "rt-beam-limiting-devices-definition",
+  "name": "RT Beam Limiting Devices Definition"
+ },
+ {
+  "id": "rt-control-point-general",
+  "name": "RT Control Point General"
+ },
+ {
+  "id": "rt-equipment-correlation",
+  "name": "RT Equipment Correlation"
+ },
+ {
+  "id": "rt-image-frame-context",
+  "name": "RT Image Frame Context"
+ },
+ {
+  "id": "rt-image-frame-general-content",
+  "name": "RT Image Frame General Content"
+ },
+ {
+  "id": "rt-image-frame-imaging-device-position",
+  "name": "RT Image Frame Imaging Device Position"
+ },
+ {
+  "id": "rt-image-frame-radiation-acquisition-parameters",
+  "name": "RT Image Frame Radiation Acquisition Parameters"
+ },
+ {
+  "id": "rt-imaging-aperture",
+  "name": "RT Imaging Aperture"
+ },
+ {
+  "id": "rt-patient-position",
+  "name": "RT Patient Position"
+ },
+ {
+  "id": "rt-patient-position-scope",
+  "name": "RT Patient Position Scope"
+ },
+ {
+  "id": "rt-patient-position-scope-with-legacy-support",
+  "name": "RT Patient Position Scope With Legacy Support"
+ },
+ {
+  "id": "rt-patient-support-devices",
+  "name": "RT Patient Support Devices"
+ },
+ {
+  "id": "rt-projection-imaging-request-geometry",
+  "name": "RT Projection Imaging Request Geometry"
+ },
+ {
+  "id": "rt-radiation-common-base",
+  "name": "RT Radiation Common Base"
+ },
+ {
+  "id": "rt-tolerance-set",
+  "name": "RT Tolerance Set"
+ },
+ {
+  "id": "rt-treatment-phase",
+  "name": "RT Treatment Phase"
+ },
+ {
+  "id": "rt-treatment-phase-interval",
+  "name": "RT Treatment Phase Interval"
+ },
+ {
+  "id": "rt-treatment-position",
+  "name": "RT Treatment Position"
+ },
+ {
+  "id": "scope-of-inventory",
+  "name": "Scope of Inventory"
+ },
+ {
+  "id": "screen-specifications",
+  "name": "Screen Specifications"
+ },
+ {
+  "id": "segment-description",
+  "name": "Segment Description"
+ },
+ {
+  "id": "segmentation",
+  "name": "Segmentation"
+ },
+ {
+  "id": "selector-attribute",
+  "name": "Selector Attribute"
+ },
+ {
+  "id": "series-and-instance-reference",
+  "name": "Series and Instance Reference"
+ },
+ {
+  "id": "sop-instance-reference",
+  "name": "SOP Instance Reference"
+ },
+ {
+  "id": "spatial-coordinates",
+  "name": "Spatial Coordinates"
+ },
+ {
+  "id": "specimen",
+  "name": "Specimen"
+ },
+ {
+  "id": "specimen-reference",
+  "name": "Specimen Reference"
+ },
+ {
+  "id": "storage",
+  "name": "Storage"
+ },
+ {
+  "id": "stored-file-access",
+  "name": "Stored File Access"
+ },
+ {
+  "id": "stored-value-color-range",
+  "name": "Stored Value Color Range"
+ },
+ {
+  "id": "subjective-refraction-measurements",
+  "name": "Subjective Refraction Measurements"
+ },
+ {
+  "id": "surface-mesh-primitives",
+  "name": "Surface Mesh Primitives"
+ },
+ {
+  "id": "table-content-item",
+  "name": "Table Content Item"
+ },
+ {
+  "id": "table-summary-statistics",
+  "name": "Table Summary Statistics"
+ },
+ {
+  "id": "temporal-coordinates",
+  "name": "Temporal Coordinates"
+ },
+ {
+  "id": "temporal-position",
+  "name": "Temporal Position"
+ },
+ {
+  "id": "text-style-sequence",
+  "name": "Text Style Sequence"
+ },
+ {
+  "id": "threshold-sequence",
+  "name": "Threshold Sequence"
+ },
+ {
+  "id": "time-of-frame",
+  "name": "Time of Frame"
+ },
+ {
+  "id": "treatment-device-identification",
+  "name": "Treatment Device Identification"
+ },
+ {
+  "id": "udi",
+  "name": "UDI"
+ },
+ {
+  "id": "unassigned-per-frame-converted-attributes",
+  "name": "Unassigned Per-Frame Converted Attributes"
+ },
+ {
+  "id": "unassigned-shared-converted-attributes",
+  "name": "Unassigned Shared Converted Attributes"
+ },
+ {
+  "id": "us-image-description",
+  "name": "US Image Description"
+ },
+ {
+  "id": "vectors",
+  "name": "Vectors"
+ },
+ {
+  "id": "visual-acuity-measurements",
+  "name": "Visual Acuity Measurements"
+ },
+ {
+  "id": "visual-evaluation-result",
+  "name": "Visual Evaluation Result"
+ },
+ {
+  "id": "voi-lut",
+  "name": "VOI LUT"
+ },
+ {
+  "id": "waveform-filter-characteristics",
+  "name": "Waveform Filter Characteristics"
+ },
+ {
+  "id": "waveform-filter-lookup-table",
+  "name": "Waveform Filter Lookup Table"
+ },
+ {
+  "id": "waveform-reference",
+  "name": "Waveform Reference"
+ },
+ {
+  "id": "wedge-positions",
+  "name": "Wedge Positions"
+ },
+ {
+  "id": "wedges-definition",
+  "name": "Wedges Definition"
+ },
+ {
+  "id": "whole-slide-microscopy-image-frame-type",
+  "name": "Whole Slide Microscopy Image Frame Type"
+ },
+ {
+  "id": "x-ray-3d-frame-type",
+  "name": "X-Ray 3D Frame Type"
+ },
+ {
+  "id": "x-ray-3d-general-per-projection-acquisition",
+  "name": "X-Ray 3D General Per Projection Acquisition"
+ },
+ {
+  "id": "x-ray-3d-general-positioner-movement",
+  "name": "X-Ray 3D General Positioner Movement"
+ },
+ {
+  "id": "x-ray-3d-general-shared-acquisition",
+  "name": "X-Ray 3D General Shared Acquisition"
+ },
+ {
+  "id": "x-ray-calibration-device-usage",
+  "name": "X-Ray Calibration Device Usage"
+ },
+ {
+  "id": "x-ray-collimator",
+  "name": "X-Ray Collimator"
+ },
+ {
+  "id": "x-ray-collimator-dimensions",
+  "name": "X-Ray Collimator Dimensions"
+ },
+ {
+  "id": "x-ray-exposure-control-sensing-regions",
+  "name": "X-Ray Exposure Control Sensing Regions"
+ },
+ {
+  "id": "x-ray-field-of-view",
+  "name": "X-Ray Field of View"
+ },
+ {
+  "id": "x-ray-filter",
+  "name": "X-Ray Filter"
+ },
+ {
+  "id": "x-ray-filtration",
+  "name": "X-Ray Filtration"
+ },
+ {
+  "id": "x-ray-frame-acquisition",
+  "name": "X-Ray Frame Acquisition"
+ },
+ {
+  "id": "x-ray-frame-characteristics",
+  "name": "X-Ray Frame Characteristics"
+ },
+ {
+  "id": "x-ray-frame-detector-parameters",
+  "name": "X-Ray Frame Detector Parameters"
+ },
+ {
+  "id": "x-ray-frame-pixel-data-properties",
+  "name": "X-Ray Frame Pixel Data Properties"
+ },
+ {
+  "id": "x-ray-geometry",
+  "name": "X-Ray Geometry"
+ },
+ {
+  "id": "x-ray-grid",
+  "name": "X-Ray Grid"
+ },
+ {
+  "id": "x-ray-grid-description",
+  "name": "X-Ray Grid Description"
+ },
+ {
+  "id": "x-ray-isocenter-reference-system",
+  "name": "X-Ray Isocenter Reference System"
+ },
+ {
+  "id": "x-ray-object-thickness",
+  "name": "X-Ray Object Thickness"
+ },
+ {
+  "id": "x-ray-positioner",
+  "name": "X-Ray Positioner"
+ },
+ {
+  "id": "x-ray-projection-pixel-calibration",
+  "name": "X-Ray Projection Pixel Calibration"
+ },
+ {
+  "id": "x-ray-table-position",
+  "name": "X-Ray Table Position"
+ }
+]

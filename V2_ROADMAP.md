@@ -213,7 +213,7 @@ Verified remaining gaps (small!):
 | 4 | v2/validation-iod | B layer 3 + calibration | 2,3 | M |
 | 5 | v2/iod-types | D types + `asIod` + gates | 2,4 | M |
 | 6 | v2/charset-write-policy | C write option + docs | 1 | M |
-| 7 | v2/corpus-hardening | Matrix assembly, promote gated tests, changelog | 1–5 | S |
+| 7 | v2/corpus-hardening | Matrix assembly, promote gated tests, **ecosystem corpus acquisition (pydicom-data, gdcmData, Clunie sets) + validator calibration over it**, changelog | 1–5 | **M** |
 
 Critical path 2→4→5; PRs 1, 2, 3 can start in parallel.
 
@@ -229,6 +229,58 @@ scripts, check:types), `scripts/corpus-runner.mjs`,
 `License.txt`/NOTICE, `changelog.md`.
 
 ---
+
+## Community knowledge mining
+
+The mature toolkits' real asset isn't their code — it's thirty years of
+community-discovered edge cases, encoded in four mineable forms. The
+issue-tracker mining that produced ISSUE_TEST_PLAN.md (172 issues → 82
+addressed) is the template; it generalizes to the whole ecosystem.
+
+**1. Test corpora (feeds tranche 1 directly — added to PR 7).** Their
+test *data* is downloadable files, no toolkit installation required:
+
+- **pydicom-data** — a decade of contributed edge-case files (our
+  dclunie charset fixtures share this lineage).
+- **gdcmData / gdcmConformanceTests** — the gnarliest broken-file
+  collection in the ecosystem; GDCM's read-anything reputation,
+  published as evidence.
+- **David Clunie's corpora** beyond the charset set (compression
+  samples, edge-case IODs).
+
+Run everything through `corpus-runner` and the new validator: layer-3
+calibration then happens against thousands of real-world-shaped files
+instead of our fixture shelf — resolving the calibration-corpus risk
+without installing a single external comparator. (Check each corpus's
+redistribution terms; cache like network fixtures, never commit.)
+
+**2. Validator check lists (a free spec for layer 3).** `dciodvfy`
+(Clunie's dicom3tools) is the reference IOD validator; its documented
+checks and message catalog encode three decades of which-rules-
+actually-matter triage. Mine the check lists and severity judgments —
+dcm4che's validator likewise — so our rule set is designed from Part 3
+*plus* field feedback, not Part 3 alone.
+
+**3. Issue trackers (the pipeline already exists).**
+`scripts/harvest-issues.mjs` is repo-agnostic modulo one constant.
+pydicom's tracker especially: thousands of issues, many about *files*
+(vendor quirks, broken encoders, charset horrors) rather than Python —
+portable edge cases. Same triage taxonomy, same synthetic-reproducer
+discipline. Every edge case mined from their tracker is an issue never
+filed on ours.
+
+**4. API designs (donors for tranches 3–4).** highdicom's constructor
+signatures, defaults, and conformance decisions are the explicit model
+for `dcmjs.sop.*` (Gap 6); dcm4che's PS3.15 implementation is the
+design donor for tranche-3 de-identification; their test suites encode
+the edge cases their communities found.
+
+**The guardrail (one rule, held everywhere):** we mine data, documented
+behavior, check lists, and API shapes — **never source translations**.
+pydicom/highdicom are MIT and GDCM is BSD, but dcm4che has
+GPL-adjacent parts, and one clean rule beats per-file license
+analysis: knowledge in, code never. Same spirit as the tiered
+attachment policy.
 
 ## Tranches 2–4 (sketched; each gets its own design pass)
 
@@ -284,6 +336,13 @@ round-trips DICOM SR → FHIR Observation → back, typed end to end.
 6. **Bundle-size tolerance** for the packed IOD table (~2.5 MB source /
    ~350 KB gzipped) in the rollup build — measure in PR 2; the
    registerPrivatesModule-style slim entry is the fallback.
+7. **Ecosystem corpus redistribution**: pydicom-data / gdcmData /
+   Clunie corpora are cached like network fixtures, never committed —
+   verify each set's redistribution terms when wiring PR 7.
+8. **Tranche 2 pull-forward?** The internal next-generation-PACS
+   project will lean on the DICOMweb client and codec registry early;
+   if it starts before tranche 1 completes, consider promoting the
+   DICOMweb client from tranche 2 into a parallel workstream.
 
 ## Working agreements (carried forward)
 

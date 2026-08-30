@@ -115,6 +115,7 @@ export const encodingMapping = {
     "iso-ir-144": "iso-ir-144",
     "iso-ir-148": "iso-ir-148",
     "iso-ir-166": "tis-620",
+    "iso-ir-203": "iso-8859-15",
     "iso-2022-ir-6": "iso-8859-1",
     "iso-2022-ir-13": "shift-jis",
     "iso-2022-ir-87": "iso-2022-jp",
@@ -130,11 +131,16 @@ export const encodingMapping = {
     "iso-2022-ir-149": "euc-kr",
     "iso-2022-ir-159": "iso-2022-jp",
     "iso-2022-ir-166": "tis-620",
+    "iso-2022-ir-203": "iso-8859-15",
     "iso-2022-ir-58": "iso-ir-58",
     "iso-ir-192": "utf-8",
     gb18030: "gb18030",
     "iso-2022-gbk": "gbk",
     "iso-2022-58": "gb2312",
+    // Bare "GB2312" is not a defined term (the standard says "ISO_IR 58" /
+    // "ISO 2022 IR 58"), but real files declare it — accept it leniently on
+    // read; a validator flags the nonstandard term.
+    gb2312: "gbk",
     gbk: "gbk"
 };
 

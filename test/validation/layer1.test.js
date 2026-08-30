@@ -365,17 +365,19 @@ describe("validation layer 1 — structural checks", () => {
             expect(result.issues).toHaveLength(2);
         });
 
-        test("options.layers = [1] skips layer 2, [1,2,3] runs the stub", async () => {
+        test("options.layers = [1] skips layer 2, [1,2,3] runs layer 3", async () => {
             const layer1Only = await validate(baseDict({}), { layers: [1] });
             expect(layer1Only.summary.layersRun).toEqual([1]);
 
-            const withStub = await validate(baseDict({}), {
+            // No SOP Class UID in the dataset: layer 3 runs and reports the
+            // single skip WARNING (real IOD coverage: layer3.test.js).
+            const withLayer3 = await validate(baseDict({}), {
                 layers: [1, 2, 3]
             });
-            expect(withStub.summary.layersRun).toEqual([1, 2, 3]);
-            const stub = ofRule(withStub, "iod.unavailable");
-            expect(stub).toHaveLength(1);
-            expect(stub[0].severity).toBe(Severity.INFO);
+            expect(withLayer3.summary.layersRun).toEqual([1, 2, 3]);
+            const skipped = ofRule(withLayer3, "iod.unknownSopClass");
+            expect(skipped).toHaveLength(1);
+            expect(skipped[0].severity).toBe(Severity.WARNING);
         });
 
         test("every emitted rule id is declared in RULES", async () => {

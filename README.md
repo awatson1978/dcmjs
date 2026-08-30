@@ -127,6 +127,24 @@ from their files, their checklists, and their designs; we never copy
 their source. Some of those projects have licenses that would infect
 ours, and one bright-line rule is safer than lawyering each case.
 
+**What has landed so far (the first batch, complete):** the
+machine-readable rulebook is in (175 kinds of DICOM object, 98,469
+field-level requirements, regenerated from the standard byte-for-byte
+in CI); the three wishes it powers are real — `dcmjs.validate()` now
+reports "this MR image is missing its required Rows field" instead of
+"it parsed" (see Validation below), TypeScript now knows which fields
+each kind of object requires, and the object builders come next. The
+last character-set gaps closed (Latin-9, the Japanese supplementary
+set, and a write-side policy that never writes files whose declared
+character set disagrees with their bytes). And the learn-from-the-
+competition loop ran its first laps: 329 battle-scarred files from two
+other projects' test collections swept through every reader, ten
+failures fixed — including one file that silently lost the patient's
+name — and 1,097 of the Python library's bug reports read and distilled
+into lessons. Full detail in [V2_ROADMAP.md](V2_ROADMAP.md);
+transfer-syntax support is tabulated honestly in
+[COMPATIBILITY.md](COMPATIBILITY.md).
+
 Nothing in 2.0 breaks the 1.0 API so far — the first batch of work is
 entirely additive. The `development` branch remains the stable 1.x
 line.
@@ -293,6 +311,96 @@ await fromPart10Stream(inputReadableStream, writer);
 The listener/writer classes behind the `to*` sinks (`NaturalizedListener`,
 `DicomWebJsonWriter`, `Part10Writer`, `CollectorListener`) are also
 exported for direct use with `process()`.
+
+## Validation (`dcmjs.validate`) — new in 2.0
+
+`dcmjs validate image.dcm` used to mean "the parser did not crash."
+Now the library can tell you whether a file is actually *conformant*:
+which required fields are missing, which numbers disagree with each
+other, and which conditional fields the standard says you should think
+about — with the standard's own wording quoted back at you.
+
+```javascript
+const dicomDict = dcmjs.data.DicomMessage.readFile(arrayBuffer);
+const report = await dcmjs.validate(dicomDict, { layers: [1, 2, 3] });
+
+report.ok; // true — no errors
+report.summary;
+// { errors: 0, warnings: 0, infos: 65, layersRun: [1, 2, 3],
+//   sopClassUid: "1.2.840.10008.5.1.4.1.1.4", iod: "mr-image" }
+```
+
+The checks run in three layers, each answering a different question:
+
+1. **Is each field well-formed?** Value types match the dictionary,
+   counts match the allowed multiplicity, dates look like dates, UIDs
+   look like UIDs, the character-set declaration is legal.
+2. **Do the fields agree with each other?** The pixel data's byte
+   count must equal rows × columns × samples × bytes × frames; bit
+   depths must nest; the transfer syntax and the pixel-data layout
+   must tell the same story; palette lookup tables must match their
+   own descriptors.
+3. **Does the file satisfy its own rulebook?** The SOP Class UID says
+   what *kind* of object this is (an MR image, a CT image, a report…);
+   layer 3 looks that kind up in the generated Part 3 catalog and
+   checks every mandatory field of every mandatory module. Delete
+   `Rows` from an MR image and you get precisely:
+
+```javascript
+// { severity: "error", rule: "iod.type1.missing",
+//   message: "Type 1 attribute Rows (00280010) of module image-pixel is missing",
+//   tag: "00280010", keyword: "Rows", module: "image-pixel" }
+```
+
+Conditional requirements are reported as information, quoting the
+standard's own condition so a human can decide (machine-evaluating
+conditions is deliberately out of scope):
+
+```javascript
+// { severity: "info", rule: "iod.conditional",
+//   message: "Conditional (Type 1C) attribute PixelPaddingValue (00280120)
+//     of module general-equipment is absent — Required if Pixel Padding
+//     Range Limit (0028,0121) is present and ...", ... }
+```
+
+Every finding carries a stable rule id (`pixel.dataLength`,
+`iod.type1.missing`, `vm.count`, …) so you can filter what you care
+about: `validate(dict, { ignore: ["iod.conditional"] })`. Layers
+default to `[1, 2]`; opt into layer 3 explicitly while its severities
+are being calibrated against real-world corpora.
+
+Huge files validate while streaming — `ValidationListener` plugs into
+the event stream and never buffers pixel data, so a 20 GB file
+validates in bounded memory:
+
+```javascript
+const { fromPart10Stream } = dcmjs.eventStream;
+const { ValidationListener } = dcmjs.validation;
+
+const listener = new ValidationListener({ layers: [1, 2, 3] });
+await fromPart10Stream(fs.createReadStream("huge.dcm"), listener);
+const report = listener.finish();
+```
+
+For TypeScript users the same catalog generates per-IOD dataset types
+(`types/dcmjs-iods.d.ts`): `DicomDataset<"1.2.840.10008.5.1.4.1.1.2">`
+knows that `Rows` is required on a CT image. The runtime bridge is
+`asIod`:
+
+```javascript
+const dataset = dcmjs.data.DicomMetaDictionary.naturalizeDataset(dicomDict.dict);
+const mr = await dcmjs.asIod(dataset); // SOP Class read from the dataset
+// throws IodValidationError on errors — carrying .issues:
+// "Dataset is not a valid mr-image instance: 1 error(s),
+//  first: Type 1 attribute Rows (00280010) of module image-pixel is missing"
+```
+
+The rulebook itself is importable (`dcmjs/schema/iods`): 175 SOP
+Classes mapped to 171 object definitions with 98,469 field-level
+requirements, generated from the DICOM standard (see
+`generate/data/dicom-standard/VERSION.md` for provenance) and
+regenerated byte-identically in CI. Transfer-syntax support is
+documented honestly in [COMPATIBILITY.md](COMPATIBILITY.md).
 
 ## Character sets on write
 

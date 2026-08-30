@@ -1,5 +1,8 @@
 # Issue-driven test plan
 
+> The v2.0 era's roadmap lives in [V2_ROADMAP.md](V2_ROADMAP.md); this
+> document's wave-2 adapter/SR/SEG work orders feed its tranche 4.
+
 The upstream [dcmjs-org/dcmjs issue tracker](https://github.com/dcmjs-org/dcmjs/issues)
 is a decade of field-reported edge cases — 172 issues (76 open, 96 closed
 at harvest time). This document tracks the pipeline that converts them

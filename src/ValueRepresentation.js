@@ -1480,15 +1480,22 @@ class UniqueIdentifier extends AsciiStringRepresentation {
     }
 
     applyFormatting(value) {
-        const removeInvalidUidChars = uidStr => {
-            return uidStr.replace(/[^0-9.]/g, "");
-        };
+        // Strip only NUL padding and surrounding whitespace. Formerly every
+        // character outside [0-9.] was removed, which silently rewrote a
+        // corrupt UID (e.g. "REM SAMPLES 1") into a DIFFERENT syntactically
+        // valid-looking UID ("1") — a dangerous identity mutation on read.
+        // Lenient read policy: the (invalid) stored value is preserved in
+        // Value; validation is responsible for flagging it.
+        const trimUidPadding = uidStr =>
+            typeof uidStr === "string"
+                ? uidStr.replace(/\0+$/, "").trim()
+                : uidStr;
 
         if (Array.isArray(value)) {
-            return value.map(removeInvalidUidChars);
+            return value.map(trimUidPadding);
         }
 
-        return removeInvalidUidChars(value);
+        return trimUidPadding(value);
     }
 }
 

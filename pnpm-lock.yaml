@@ -114,6 +114,9 @@ importers:
       rollup:
         specifier: 4.60.3
         version: 4.60.3
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
       xml2js:
         specifier: 0.6.2
         version: 0.6.2
@@ -155,6 +158,8 @@ importers:
       pako:
         specifier: 2.1.0
         version: 2.1.0
+
+  packages/schemas: {}
 
   packages/tests:
     dependencies:
@@ -2706,6 +2711,11 @@ packages:
 
   typedarray-to-buffer@3.1.5:
     resolution: {integrity: sha512-zdu8XMNEDepKKR+XYOXAVPtWui0ly0NtohUscw+UmaHiAWT8hrV1rr//H6V+0DvJ3OQ19S979M0laLfX8rm82Q==}
+
+  typescript@6.0.3:
+    resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
 
   unicode-canonical-property-names-ecmascript@2.0.0:
     resolution: {integrity: sha512-yY5PpDlfVIU5+y/BSCxAJRBIS1Zc2dDG3Ujq+sR0U+JjUevW2JhocOF+soROYDSaAezOzOKuyyixhD6mBknSmQ==}
@@ -5788,6 +5798,8 @@ snapshots:
   typedarray-to-buffer@3.1.5:
     dependencies:
       is-typedarray: 1.0.0
+
+  typescript@6.0.3: {}
 
   unicode-canonical-property-names-ecmascript@2.0.0: {}
 

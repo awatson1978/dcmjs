@@ -1,4 +1,5 @@
 ﻿import { getZippedTestDataset } from "./testUtils.js";
+import { createSampleDicom } from "./helper/sampleDicomPart10.js";
 import dcmjs from "../src/index.js";
 import fs from "fs";
 import fsPromises from "fs/promises";
@@ -56,4 +57,30 @@ it("test_encodings", async () => {
             expect(newDataset.SpecificCharacterSet).toEqual("ISO_IR 192");
         }
     });
+});
+
+it("test_nul_padded_character_set", () => {
+    // Some older modalities illegally pad SpecificCharacterSet to even length
+    // with a NUL byte instead of a space, e.g. "ISO 2022 IR 6\0".
+    const buffer = createSampleDicom({
+        dict: {
+            "00080005": { vr: "CS", Value: ["ISO 2022 IR 6"] },
+            "00100010": { vr: "PN", Value: ["Test^Padding"] }
+        }
+    });
+
+    // The writer pads the odd-length value with a space; replace that padding
+    // with a NUL byte to reproduce the non-conformant file.
+    const bytes = new Uint8Array(buffer);
+    const spacePadded = Array.from("ISO 2022 IR 6 ", c => c.charCodeAt(0));
+    const offset = bytes.findIndex((_, i) =>
+        spacePadded.every((b, j) => bytes[i + j] === b)
+    );
+    expect(offset).toBeGreaterThan(-1);
+    bytes[offset + spacePadded.length - 1] = 0x00;
+
+    const dicomDict = DicomMessage.readFile(buffer);
+    const dataset = DicomMetaDictionary.naturalizeDataset(dicomDict.dict);
+    expect(String(dataset.PatientName)).toEqual("Test^Padding");
+    expect(dataset.SpecificCharacterSet).toEqual("ISO_IR 192");
 });
